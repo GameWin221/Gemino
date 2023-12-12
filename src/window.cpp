@@ -1,11 +1,9 @@
 #include <window.hpp>
-
-#include <GLFW/glfw3.h>
 #include <debug.hpp>
 
-static GLFWwindow* window_handle = nullptr;
+#include <GLFW/glfw3.h>
 
-void Window::open(const Config& config) {
+Window::Window(const WindowConfig& config) {
     DEBUG_ASSERT(window_handle == nullptr)
     DEBUG_ASSERT(glfwInit())
 

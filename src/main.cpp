@@ -7,18 +7,17 @@
 #include <debug.hpp>
 
 int main() {
-    Instance::init();
-
-    Window::open(Window::Config {
+    Window window(WindowConfig {
         .title = "Gemino Engine Example"
     });
 
-    while(!Window::should_close()) {
+    Instance instance(window.get_native_handle());
 
-        Window::poll_events();
+    while(!window.should_close()) {
+
+        window.poll_events();
     }
 
-    Instance::deinit();
-
-    Window::close();
+    instance.destroy();
+    window.close();
 }
