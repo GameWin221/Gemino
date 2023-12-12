@@ -1,9 +1,9 @@
 #ifndef GEMINO_INSTANCE_HPP
 #define GEMINO_INSTANCE_HPP
 
-#include <optional>
 #include <vulkan/vulkan.h>
 #include <types.hpp>
+#include <optional>
 
 #ifdef _DEBUG
 #define ENABLE_VALIDATION_DEFINE
@@ -25,28 +25,36 @@ struct QueueFamilyIndices {
 
 class Instance {
 public:
-    Instance(const Proxy window_handle);
+    Instance(Proxy window_handle);
 
     void destroy();
 
+    VkDevice get_device() const { return vk_device; }
+    VkSurfaceKHR get_surface() const { return vk_surface; }
+    VkPhysicalDevice get_physical_device() const { return vk_physical_device; }
+
+    VkQueue get_graphics_queue() const { return vk_queue_graphics; }
+    VkQueue get_transfer_queue() const { return vk_queue_transfer; }
+    VkQueue get_compute_queue() const { return vk_queue_compute; }
 private:
     VkInstance vk_instance{};
     VkDevice vk_device{};
 
     VkPhysicalDevice vk_physical_device{};
-    QueueFamilyIndices vk_queue_indices{};
     VkSurfaceKHR vk_surface{};
 
     VkQueue vk_queue_graphics{};
     VkQueue vk_queue_transfer{};
     VkQueue vk_queue_compute{};
 
+    QueueFamilyIndices vk_queue_indices{};
+
     VkDebugUtilsMessengerEXT vk_debug_messenger{};
 
 private:
     void create_instance();
     void create_debug_messenger();
-    void create_window_surface(const Proxy window_handle);
+    void create_window_surface(Proxy window_handle);
     void create_physical_device();
     void create_logical_device();
 

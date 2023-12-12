@@ -1,4 +1,4 @@
-#include <window.hpp>
+#include "window.hpp"
 #include <debug.hpp>
 
 #include <GLFW/glfw3.h>
@@ -39,4 +39,18 @@ bool Window::should_close() {
 
 void Window::poll_events() {
     glfwPollEvents();
+}
+
+u32 Window::get_width() const {
+    int w, h;
+    glfwGetWindowSize(window_handle, &w, &h);
+
+    return static_cast<u32>(w);
+}
+
+u32 Window::get_height() const {
+    int w, h;
+    glfwGetWindowSize(window_handle, &w, &h);
+
+    return static_cast<u32>(h);
 }

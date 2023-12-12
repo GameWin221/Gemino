@@ -1,4 +1,4 @@
-#include <instance.hpp>
+#include "instance.hpp"
 #include <debug.hpp>
 #include <vector>
 #include <set>
@@ -58,7 +58,7 @@ static constexpr VkDebugUtilsMessengerCreateInfoEXT DEBUG_MESSENGER_CREATE_INFO 
     .pfnUserCallback = vk_debug_callback,
 };
 
-Instance::Instance(const Proxy window_handle) {
+Instance::Instance(Proxy window_handle) {
     create_instance();
     create_debug_messenger();
     create_window_surface(window_handle);
@@ -121,6 +121,8 @@ void Instance::create_instance() {
         DEBUG_WARNING("The instance doesn't support the following extensions: ")
         for (const auto& ext : required_extensions_set)
             DEBUG_WARNING(ext)
+
+        DEBUG_PANIC("Instance requirements were not met.")
     }
 
     VkApplicationInfo app_info {
@@ -158,7 +160,7 @@ void Instance::create_debug_messenger() {
 #endif
 }
 
-void Instance::create_window_surface(const Proxy window_handle) {
+void Instance::create_window_surface(Proxy window_handle) {
     DEBUG_ASSERT(glfwCreateWindowSurface(vk_instance, reinterpret_cast<GLFWwindow*>(window_handle), nullptr, &vk_surface) == VK_SUCCESS)
 }
 
@@ -439,12 +441,17 @@ bool Instance::validation_layers_supported() {
     std::vector<VkLayerProperties> available_layers(static_cast<usize>(layer_count));
     vkEnumerateInstanceLayerProperties(&layer_count, available_layers.data());
 
-    for (const char* layer_name : REQUESTED_VALIDATION_LAYER_NAMES) {
-        if(std::find_if(available_layers.begin(), available_layers.end(), [layer_name](const auto& props){
-            return strcmp(props.layerName, layer_name) == 0;
-        }) == available_layers.end()) {
-            return false;
-        }
+    std::set<std::string> requested_validation_layers(REQUESTED_VALIDATION_LAYER_NAMES.begin(), REQUESTED_VALIDATION_LAYER_NAMES.end());
+
+    for(const auto& layer : available_layers)
+        requested_validation_layers.erase(layer.layerName);
+
+    if (!requested_validation_layers.empty()) {
+        DEBUG_WARNING("The instance doesn't support the following validation layers: ")
+        for (const auto& layer : requested_validation_layers)
+            DEBUG_WARNING(layer)
+
+        return false;
     }
 
     return true;

@@ -23,7 +23,10 @@ public:
     bool should_close();
     void poll_events();
 
-    inline const Proxy get_native_handle() const { return reinterpret_cast<Proxy>(window_handle); }
+    u32 get_width() const;
+    u32 get_height() const;
+
+    Proxy get_native_handle() const { return reinterpret_cast<Proxy>(window_handle); }
 
 private:
     struct GLFWwindow* window_handle{};

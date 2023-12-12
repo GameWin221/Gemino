@@ -169,12 +169,16 @@
   <ItemGroup>
     <ClInclude Include="src\debug.hpp" />
     <ClInclude Include="src\instance.hpp" />
+    <ClInclude Include="src\swapchain.hpp" />
     <ClInclude Include="src\types.hpp" />
+    <ClInclude Include="src\utils.hpp" />
     <ClInclude Include="src\window.hpp" />
   </ItemGroup>
   <ItemGroup>
     <ClCompile Include="src\instance.cpp" />
     <ClCompile Include="src\main.cpp" />
+    <ClCompile Include="src\swapchain.cpp" />
+    <ClCompile Include="src\utils.cpp" />
     <ClCompile Include="src\window.cpp" />
   </ItemGroup>
   <Import Project="$(VCTargetsPath)\Microsoft.Cpp.targets" />
