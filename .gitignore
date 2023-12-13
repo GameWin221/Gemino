@@ -3,5 +3,5 @@
 .idea
 
 # Build directories
-cmake*
+cmake-build*
 build
