@@ -18,6 +18,37 @@
       <Platform>x64</Platform>
     </ProjectConfiguration>
   </ItemGroup>
+  <ItemGroup>
+    <ClCompile Include="src\common\file_utils.cpp" />
+    <ClCompile Include="src\common\utils.cpp" />
+    <ClCompile Include="src\main.cpp" />
+    <ClCompile Include="src\renderer\instance.cpp" />
+    <ClCompile Include="src\renderer\managers\buffer_manager.cpp" />
+    <ClCompile Include="src\renderer\managers\command_manager.cpp" />
+    <ClCompile Include="src\renderer\managers\image_manager.cpp" />
+    <ClCompile Include="src\renderer\managers\pipeline_manager.cpp" />
+    <ClCompile Include="src\renderer\renderer.cpp" />
+    <ClCompile Include="src\renderer\swapchain.cpp" />
+    <ClCompile Include="src\renderer\vk_mem_alloc.cpp" />
+    <ClCompile Include="src\window\window.cpp" />
+    <ClCompile Include="src\world\world.cpp" />
+  </ItemGroup>
+  <ItemGroup>
+    <ClInclude Include="src\common\debug.hpp" />
+    <ClInclude Include="src\common\file_utils.hpp" />
+    <ClInclude Include="src\common\types.hpp" />
+    <ClInclude Include="src\common\utils.hpp" />
+    <ClInclude Include="src\renderer\instance.hpp" />
+    <ClInclude Include="src\renderer\managers\buffer_manager.hpp" />
+    <ClInclude Include="src\renderer\managers\command_manager.hpp" />
+    <ClInclude Include="src\renderer\managers\image_manager.hpp" />
+    <ClInclude Include="src\renderer\managers\pipeline_manager.hpp" />
+    <ClInclude Include="src\renderer\renderer.hpp" />
+    <ClInclude Include="src\renderer\swapchain.hpp" />
+    <ClInclude Include="src\renderer\vertex.hpp" />
+    <ClInclude Include="src\window\window.hpp" />
+    <ClInclude Include="src\world\world.hpp" />
+  </ItemGroup>
   <PropertyGroup Label="Globals">
     <VCProjectVersion>17.0</VCProjectVersion>
     <Keyword>Win32Proj</Keyword>
@@ -94,7 +125,7 @@
       <ConformanceMode>true</ConformanceMode>
       <LanguageStandard>stdcpp20</LanguageStandard>
       <LanguageStandard_C>stdc17</LanguageStandard_C>
-      <AdditionalIncludeDirectories>C:\Projekty\Programowanie\C++\Vulkan\Gemino\external\glfw_win64\include;C:\Projekty\Programowanie\C++\Vulkan\Gemino\src;C:\Projekty\Programowanie\C++\Vulkan\Gemino\external\glm;$(VULKAN_SDK)\Include;%(AdditionalIncludeDirectories)</AdditionalIncludeDirectories>
+      <AdditionalIncludeDirectories>C:\Projekty\Programowanie\C++\Vulkan\Gemino\external\glfw_win64\include;C:\Projekty\Programowanie\C++\Vulkan\Gemino\src;C:\Projekty\Programowanie\C++\Vulkan\Gemino\external\glm;$(VULKAN_SDK)\Include;C:\Projekty\Programowanie\C++\Vulkan\Gemino\external\VulkanMemoryAllocator\include;%(AdditionalIncludeDirectories)</AdditionalIncludeDirectories>
       <MultiProcessorCompilation>true</MultiProcessorCompilation>
     </ClCompile>
     <Link>
@@ -114,7 +145,7 @@
       <ConformanceMode>true</ConformanceMode>
       <LanguageStandard>stdcpp20</LanguageStandard>
       <LanguageStandard_C>stdc17</LanguageStandard_C>
-      <AdditionalIncludeDirectories>C:\Projekty\Programowanie\C++\Vulkan\Gemino\external\glfw_win64\include;C:\Projekty\Programowanie\C++\Vulkan\Gemino\src;C:\Projekty\Programowanie\C++\Vulkan\Gemino\external\glm;$(VULKAN_SDK)\Include;%(AdditionalIncludeDirectories)</AdditionalIncludeDirectories>
+      <AdditionalIncludeDirectories>C:\Projekty\Programowanie\C++\Vulkan\Gemino\external\glfw_win64\include;C:\Projekty\Programowanie\C++\Vulkan\Gemino\src;C:\Projekty\Programowanie\C++\Vulkan\Gemino\external\glm;$(VULKAN_SDK)\Include;C:\Projekty\Programowanie\C++\Vulkan\Gemino\external\VulkanMemoryAllocator\include;%(AdditionalIncludeDirectories)</AdditionalIncludeDirectories>
       <MultiProcessorCompilation>true</MultiProcessorCompilation>
     </ClCompile>
     <Link>
@@ -134,7 +165,7 @@
       <ConformanceMode>true</ConformanceMode>
       <LanguageStandard>stdcpp20</LanguageStandard>
       <LanguageStandard_C>stdc17</LanguageStandard_C>
-      <AdditionalIncludeDirectories>C:\Projekty\Programowanie\C++\Vulkan\Gemino\external\glfw_win64\include;C:\Projekty\Programowanie\C++\Vulkan\Gemino\src;C:\Projekty\Programowanie\C++\Vulkan\Gemino\external\glm;$(VULKAN_SDK)\Include;%(AdditionalIncludeDirectories)</AdditionalIncludeDirectories>
+      <AdditionalIncludeDirectories>C:\Projekty\Programowanie\C++\Vulkan\Gemino\external\glfw_win64\include;C:\Projekty\Programowanie\C++\Vulkan\Gemino\src;C:\Projekty\Programowanie\C++\Vulkan\Gemino\external\glm;$(VULKAN_SDK)\Include;C:\Projekty\Programowanie\C++\Vulkan\Gemino\external\VulkanMemoryAllocator\include;%(AdditionalIncludeDirectories)</AdditionalIncludeDirectories>
       <MultiProcessorCompilation>true</MultiProcessorCompilation>
     </ClCompile>
     <Link>
@@ -154,7 +185,7 @@
       <ConformanceMode>true</ConformanceMode>
       <LanguageStandard>stdcpp20</LanguageStandard>
       <LanguageStandard_C>stdc17</LanguageStandard_C>
-      <AdditionalIncludeDirectories>C:\Projekty\Programowanie\C++\Vulkan\Gemino\external\glfw_win64\include;C:\Projekty\Programowanie\C++\Vulkan\Gemino\src;C:\Projekty\Programowanie\C++\Vulkan\Gemino\external\glm;$(VULKAN_SDK)\Include;%(AdditionalIncludeDirectories)</AdditionalIncludeDirectories>
+      <AdditionalIncludeDirectories>C:\Projekty\Programowanie\C++\Vulkan\Gemino\external\glfw_win64\include;C:\Projekty\Programowanie\C++\Vulkan\Gemino\src;C:\Projekty\Programowanie\C++\Vulkan\Gemino\external\glm;$(VULKAN_SDK)\Include;C:\Projekty\Programowanie\C++\Vulkan\Gemino\external\VulkanMemoryAllocator\include;%(AdditionalIncludeDirectories)</AdditionalIncludeDirectories>
       <MultiProcessorCompilation>true</MultiProcessorCompilation>
     </ClCompile>
     <Link>
@@ -166,21 +197,6 @@
       <AdditionalDependencies>vulkan-1.lib;glfw3.lib;%(AdditionalDependencies)</AdditionalDependencies>
     </Link>
   </ItemDefinitionGroup>
-  <ItemGroup>
-    <ClInclude Include="src\debug.hpp" />
-    <ClInclude Include="src\instance.hpp" />
-    <ClInclude Include="src\swapchain.hpp" />
-    <ClInclude Include="src\types.hpp" />
-    <ClInclude Include="src\utils.hpp" />
-    <ClInclude Include="src\window.hpp" />
-  </ItemGroup>
-  <ItemGroup>
-    <ClCompile Include="src\instance.cpp" />
-    <ClCompile Include="src\main.cpp" />
-    <ClCompile Include="src\swapchain.cpp" />
-    <ClCompile Include="src\utils.cpp" />
-    <ClCompile Include="src\window.cpp" />
-  </ItemGroup>
   <Import Project="$(VCTargetsPath)\Microsoft.Cpp.targets" />
   <ImportGroup Label="ExtensionTargets">
   </ImportGroup>
