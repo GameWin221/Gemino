@@ -45,11 +45,10 @@ struct GraphicsPipelineCreateInfo {
     bool enable_depth_write = true;
     VkCompareOp depth_compare_op = VK_COMPARE_OP_LESS_OR_EQUAL;
 
-    VkCullModeFlags cull_mode = VK_CULL_MODE_BACK_BIT;
-
     bool enable_vertex_input = true;
     bool enable_blending = false;
     VkPolygonMode polygon_mode = VK_POLYGON_MODE_FILL;
+    VkCullModeFlags cull_mode = VK_CULL_MODE_BACK_BIT;
 
     std::vector<VkVertexInputAttributeDescription> vertex_attribute_description = Vertex::get_attribute_descriptions();
     std::vector<VkVertexInputBindingDescription> vertex_binding_description = Vertex::get_binding_description();

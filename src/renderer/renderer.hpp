@@ -51,8 +51,9 @@ public:
 
     /// Rendering functions
     u32 get_next_swapchain_index(Handle<Semaphore> wait_semaphore) const;
-    void present_swapchain(Handle<Semaphore> wait_semaphore, u32 image_index);
+    void present_swapchain(Handle<Semaphore> wait_semaphore, u32 image_index) const;
 
+    void wait_for_device_idle() const;
     void wait_for_fence(Handle<Fence> handle) const;
     void reset_fence(Handle<Fence> handle) const;
 
@@ -61,8 +62,10 @@ public:
     void end_recording_commands(Handle<CommandList> handle) const;
     void submit_commands(Handle<CommandList> handle, const SubmitInfo& info) const;
 
-    void begin_graphics_pipeline(Handle<CommandList> command_list, Handle<GraphicsPipeline> pipeline, Handle<RenderTarget> render_target, const RenderTargetClear& clear);
-    void end_graphics_pipeline(Handle<CommandList> command_list);
+    void begin_graphics_pipeline(Handle<CommandList> command_list, Handle<GraphicsPipeline> pipeline, Handle<RenderTarget> render_target, const RenderTargetClear& clear) const;
+    void end_graphics_pipeline(Handle<CommandList> command_list) const;
+
+    void draw_count(Handle<CommandList> command_list, u32 vertex_count, u32 first_vertex = 0U, u32 instance_count = 1U) const;
 
 private:
     RendererConfig renderer_config{};

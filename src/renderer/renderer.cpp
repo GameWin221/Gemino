@@ -1,5 +1,6 @@
 #include "renderer.hpp"
 #include <cstring>
+#include <bit>
 
 Renderer::Renderer(const Window& window, const RendererConfig& config) : renderer_config(config) {
     instance = MakeUnique<Instance>(window.get_native_handle());
@@ -36,6 +37,20 @@ u32 Renderer::get_next_swapchain_index(Handle<Semaphore> wait_semaphore) const {
     ) == VK_SUCCESS)
 
     return index;
+}
+void Renderer::present_swapchain(Handle<Semaphore> wait_semaphore, u32 image_index) const {
+    VkSwapchainKHR swapchains[] = { swapchain->get_handle() };
+
+    VkPresentInfoKHR info{
+            .sType = VK_STRUCTURE_TYPE_PRESENT_INFO_KHR,
+            .waitSemaphoreCount = 1U,
+            .pWaitSemaphores = &command_manager->get_semaphore_data(wait_semaphore).semaphore,
+            .swapchainCount = 1U,
+            .pSwapchains = swapchains,
+            .pImageIndices = &image_index,
+    };
+
+    DEBUG_ASSERT(vkQueuePresentKHR(instance->get_graphics_queue(), &info) == VK_SUCCESS);
 }
 
 void Renderer::wait_for_fence(Handle<Fence> handle) const {
@@ -108,22 +123,7 @@ void Renderer::submit_commands(Handle<CommandList> handle, const SubmitInfo &inf
     DEBUG_ASSERT(vkQueueSubmit(queue, 1U, &submit_info, fence) == VK_SUCCESS)
 }
 
-void Renderer::present_swapchain(Handle<Semaphore> wait_semaphore, u32 image_index) {
-    VkSwapchainKHR swapchains[] = { swapchain->get_handle() };
-
-    VkPresentInfoKHR info{
-        .sType = VK_STRUCTURE_TYPE_PRESENT_INFO_KHR,
-        .waitSemaphoreCount = 1U,
-        .pWaitSemaphores = &command_manager->get_semaphore_data(wait_semaphore).semaphore,
-        .swapchainCount = 1U,
-        .pSwapchains = swapchains,
-        .pImageIndices = &image_index,
-    };
-
-    DEBUG_ASSERT(vkQueuePresentKHR(instance->get_graphics_queue(), &info) == VK_SUCCESS);
-}
-
-void Renderer::begin_graphics_pipeline(Handle<CommandList> command_list, Handle<GraphicsPipeline> pipeline, Handle<RenderTarget> render_target, const RenderTargetClear& clear) {
+void Renderer::begin_graphics_pipeline(Handle<CommandList> command_list, Handle<GraphicsPipeline> pipeline, Handle<RenderTarget> render_target, const RenderTargetClear& clear) const {
     const GraphicsPipeline& pipe = pipeline_manager->get_graphics_pipeline_data(pipeline);
     const RenderTarget& rt = pipeline_manager->get_render_target_data(render_target);
     const CommandList& cmd = command_manager->get_command_list_data(command_list);
@@ -133,10 +133,7 @@ void Renderer::begin_graphics_pipeline(Handle<CommandList> command_list, Handle<
     u32 uses_color_target = static_cast<u32>(pipe.initial_create_info.color_target.format != VK_FORMAT_UNDEFINED);
     u32 uses_depth_target = static_cast<u32>(pipe.initial_create_info.depth_target.format != VK_FORMAT_UNDEFINED);
     if(uses_color_target) {
-        DEBUG_ASSERT(sizeof(VkClearColorValue) == sizeof(ClearColor))
-
-        // Copy color values from my struct to API native struct
-        std::memcpy(&clear_values[0].color, &clear.color, sizeof(VkClearColorValue));
+        clear_values[0].color = std::bit_cast<VkClearColorValue>(clear.color);
     }
     if(uses_depth_target) {
         clear_values[uses_color_target].depthStencil = { clear.depth, 0U};
@@ -153,9 +150,29 @@ void Renderer::begin_graphics_pipeline(Handle<CommandList> command_list, Handle<
         .pClearValues = clear_values,
     };
 
+    VkViewport viewport{
+        .width = static_cast<f32>(rt.extent.width),
+        .height = static_cast<f32>(rt.extent.height),
+        .maxDepth = 1.0f,
+    };
+
+    VkRect2D scissor{
+        .extent = rt.extent
+    };
+
     vkCmdBeginRenderPass(cmd.command_buffer, &info, VK_SUBPASS_CONTENTS_INLINE);
     vkCmdBindPipeline(cmd.command_buffer, VK_PIPELINE_BIND_POINT_GRAPHICS, pipe.pipeline);
+    vkCmdSetViewport(cmd.command_buffer, 0U, 1U, &viewport);
+    vkCmdSetScissor(cmd.command_buffer, 0U, 1U, &scissor);
 }
-void Renderer::end_graphics_pipeline(Handle<CommandList> command_list) {
+void Renderer::end_graphics_pipeline(Handle<CommandList> command_list) const {
     vkCmdEndRenderPass(command_manager->get_command_list_data(command_list).command_buffer);
+}
+
+void Renderer::draw_count(Handle<CommandList> command_list, u32 vertex_count, u32 first_vertex, u32 instance_count) const {
+    vkCmdDraw(command_manager->get_command_list_data(command_list).command_buffer, vertex_count, instance_count, first_vertex, 0U);
+}
+
+void Renderer::wait_for_device_idle() const {
+    vkDeviceWaitIdle(instance->get_device());
 }
