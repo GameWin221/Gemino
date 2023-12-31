@@ -1,4 +1,4 @@
-cmake_minimum_required(VERSION 3.1)
+cmake_minimum_required(VERSION 3.20)
 project(Gemino)
 
 set(CMAKE_CXX_STANDARD 20)
@@ -29,7 +29,27 @@ add_executable(Gemino ${ENGINE_SRC_FILES})
 
 target_link_libraries(Gemino ${OPENGL_LIBRARIES} glfw Vulkan::Vulkan glm::glm VulkanMemoryAllocator)
 
+file(GLOB_RECURSE SHADER_SRC_FILES
+    "${CMAKE_CURRENT_LIST_DIR}/res/shaders/*.vert"
+    "${CMAKE_CURRENT_LIST_DIR}/res/shaders/*.frag"
+    "${CMAKE_CURRENT_LIST_DIR}/res/shaders/*.comp"
+    "${CMAKE_CURRENT_LIST_DIR}/res/shaders/*.tesc"
+    "${CMAKE_CURRENT_LIST_DIR}/res/shaders/*.tese"
+    "${CMAKE_CURRENT_LIST_DIR}/res/shaders/*.geom"
+    "${CMAKE_CURRENT_LIST_DIR}/res/shaders/*.rgen"
+    "${CMAKE_CURRENT_LIST_DIR}/res/shaders/*.rint"
+    "${CMAKE_CURRENT_LIST_DIR}/res/shaders/*.rahit"
+    "${CMAKE_CURRENT_LIST_DIR}/res/shaders/*.rchit"
+    "${CMAKE_CURRENT_LIST_DIR}/res/shaders/*.rmiss"
+    "${CMAKE_CURRENT_LIST_DIR}/res/shaders/*.rcall"
+)
+
+foreach(file ${SHADER_SRC_FILES})
+    add_custom_command(TARGET Gemino PRE_BUILD
+        COMMAND $ENV{VULKAN_SDK}/bin/glslc ${file} -o ${file}.spv
+    )
+endforeach()
+
 add_custom_command(TARGET Gemino POST_BUILD
     COMMAND ${CMAKE_COMMAND} -E copy_directory ${CMAKE_CURRENT_LIST_DIR}/res/ ${PROJECT_BINARY_DIR}/res/
-    COMMENT "Copied resources from ${CMAKE_CURRENT_LIST_DIR} to ${CMAKE_BINARY_DIR}"
 )
