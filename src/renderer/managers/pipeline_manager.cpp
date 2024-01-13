@@ -7,73 +7,20 @@ PipelineManager::PipelineManager(VkDevice device) : vk_device(device) {
 
 }
 PipelineManager::~PipelineManager() {
-    for(const auto& [handle, pipeline] : graphics_pipeline_map) {
-        destroy_graphics_pipeline_impl(pipeline);
+    for(const auto& handle: graphics_pipeline_allocator.get_valid_handles()) {
+        destroy_graphics_pipeline(handle);
     }
-    for(const auto& [handle, pipeline] : compute_pipeline_map) {
-        destroy_compute_pipeline_impl(pipeline);
+    for(const auto& handle: compute_pipeline_allocator.get_valid_handles()) {
+        destroy_compute_pipeline(handle);
     }
-    for(const auto& [handle, rt] : render_target_map) {
-        vkDestroyFramebuffer(vk_device, rt.framebuffer, nullptr);
+    for(const auto& handle: render_target_allocator.get_valid_handles()) {
+        destroy_render_target(handle);
     }
 }
 
 Handle<GraphicsPipeline> PipelineManager::create_graphics_pipeline(const GraphicsPipelineCreateInfo& info) {
-    auto handle = static_cast<Handle<GraphicsPipeline>>((allocated_pipelines_count++));
-
-    graphics_pipeline_map[handle] = create_graphics_pipeline_impl(info);
-
-    return handle;
-}
-Handle<ComputePipeline> PipelineManager::create_compute_pipeline(const ComputePipelineCreateInfo &info) {
-    auto handle = static_cast<Handle<ComputePipeline>>((allocated_pipelines_count++));
-
-    compute_pipeline_map[handle] = create_compute_pipeline_impl(info);
-
-    return handle;
-}
-Handle<RenderTarget> PipelineManager::create_render_target(Handle<GraphicsPipeline> src_pipeline, const RenderTargetCreateInfo& info) {
-    RenderTarget rt{
-        .extent = info.extent,
-        .color_view = info.color_view,
-        .depth_view = info.depth_view
-    };
-
-    const GraphicsPipeline& pipeline = graphics_pipeline_map.at(src_pipeline);
-
-    u32 uses_color_attachment = static_cast<u32>(info.color_view != nullptr);
-    u32 uses_depth_attachment = static_cast<u32>(info.depth_view != nullptr);
-
-    VkImageView image_views[2];
-    if(uses_color_attachment) {
-        image_views[0] = info.color_view;
-    }
-    if(uses_depth_attachment) {
-        image_views[uses_color_attachment] = info.depth_view;
-    }
-
-    VkFramebufferCreateInfo framebuffer_create_info{
-        .sType = VK_STRUCTURE_TYPE_FRAMEBUFFER_CREATE_INFO,
-        .renderPass = pipeline.render_pass,
-        .attachmentCount = uses_color_attachment + uses_depth_attachment,
-        .pAttachments = image_views,
-        .width = info.extent.width,
-        .height = info.extent.height,
-        .layers = 1U,
-    };
-
-    DEBUG_ASSERT(vkCreateFramebuffer(vk_device, &framebuffer_create_info, nullptr, &rt.framebuffer) == VK_SUCCESS)
-
-    auto handle = static_cast<Handle<RenderTarget>>((allocated_rt_count++));
-
-    render_target_map[handle] = rt;
-
-    return handle;
-}
-
-GraphicsPipeline PipelineManager::create_graphics_pipeline_impl(const GraphicsPipelineCreateInfo& info) {
     GraphicsPipeline pipeline{
-        .initial_create_info = info
+        .create_info = info
     };
 
     u32 uses_color_attachment = static_cast<u32>(info.color_target.format != VK_FORMAT_UNDEFINED);
@@ -309,11 +256,11 @@ GraphicsPipeline PipelineManager::create_graphics_pipeline_impl(const GraphicsPi
         vkDestroyShaderModule(vk_device, module, nullptr);
     }
 
-    return pipeline;
+    return graphics_pipeline_allocator.alloc(pipeline);
 }
-ComputePipeline PipelineManager::create_compute_pipeline_impl(const ComputePipelineCreateInfo& info) {
+Handle<ComputePipeline> PipelineManager::create_compute_pipeline(const ComputePipelineCreateInfo &info) {
     ComputePipeline pipeline{
-        .initial_create_info = info
+        .create_info = info
     };
 
     VkPipelineLayoutCreateInfo layout_create_info{
@@ -344,71 +291,103 @@ ComputePipeline PipelineManager::create_compute_pipeline_impl(const ComputePipel
 
     vkDestroyShaderModule(vk_device, shader.module, nullptr);
 
-    return pipeline;
+    return compute_pipeline_allocator.alloc(pipeline);
+}
+Handle<RenderTarget> PipelineManager::create_render_target(Handle<GraphicsPipeline> src_pipeline, const RenderTargetCreateInfo& info) {
+    RenderTarget rt{
+        .extent = info.extent,
+        .color_view = info.color_view,
+        .depth_view = info.depth_view
+    };
+
+    const GraphicsPipeline& pipeline = graphics_pipeline_allocator.get_element(src_pipeline);
+
+    u32 uses_color_attachment = static_cast<u32>(info.color_view != nullptr);
+    u32 uses_depth_attachment = static_cast<u32>(info.depth_view != nullptr);
+
+    VkImageView image_views[2];
+    if(uses_color_attachment) {
+        image_views[0] = info.color_view;
+    }
+    if(uses_depth_attachment) {
+        image_views[uses_color_attachment] = info.depth_view;
+    }
+
+    VkFramebufferCreateInfo framebuffer_create_info{
+        .sType = VK_STRUCTURE_TYPE_FRAMEBUFFER_CREATE_INFO,
+        .renderPass = pipeline.render_pass,
+        .attachmentCount = uses_color_attachment + uses_depth_attachment,
+        .pAttachments = image_views,
+        .width = info.extent.width,
+        .height = info.extent.height,
+        .layers = 1U,
+    };
+
+    DEBUG_ASSERT(vkCreateFramebuffer(vk_device, &framebuffer_create_info, nullptr, &rt.framebuffer) == VK_SUCCESS)
+
+    return render_target_allocator.alloc(rt);
 }
 
 void PipelineManager::destroy_graphics_pipeline(Handle<GraphicsPipeline> pipeline_handle) {
-    if (!graphics_pipeline_map.contains(pipeline_handle)) {
+    if (!graphics_pipeline_allocator.is_handle_valid(pipeline_handle)) {
         DEBUG_PANIC("Cannot delete graphics pipeline - Pipeline with a handle id: = " << pipeline_handle << ", does not exist!")
     }
 
-    destroy_graphics_pipeline_impl(graphics_pipeline_map.at(pipeline_handle));
-
-    graphics_pipeline_map.erase(pipeline_handle);
-}
-void PipelineManager::destroy_compute_pipeline(Handle<GraphicsPipeline> pipeline_handle) {
-    if (!compute_pipeline_map.contains(pipeline_handle)) {
-        DEBUG_PANIC("Cannot delete compute pipeline - Pipeline with a handle id: = " << pipeline_handle << ", does not exist!")
-    }
-
-    destroy_compute_pipeline_impl(compute_pipeline_map.at(pipeline_handle));
-
-    compute_pipeline_map.erase(pipeline_handle);
-}
-void PipelineManager::destroy_render_target(Handle<RenderTarget> rt_handle) {
-    if (!render_target_map.contains(rt_handle)) {
-        DEBUG_PANIC("Cannot delete render target - Render target with a handle id: = " << rt_handle << ", does not exist!")
-    }
-
-    render_target_map.erase(rt_handle);
-}
-
-void PipelineManager::destroy_graphics_pipeline_impl(const GraphicsPipeline& pipeline) {
+    const GraphicsPipeline& pipeline = graphics_pipeline_allocator.get_element(pipeline_handle);
     vkDestroyPipelineLayout(vk_device, pipeline.layout, nullptr);
     vkDestroyRenderPass(vk_device, pipeline.render_pass, nullptr);
     vkDestroyPipeline(vk_device, pipeline.pipeline, nullptr);
+
+    graphics_pipeline_allocator.free(pipeline_handle);
 }
-void PipelineManager::destroy_compute_pipeline_impl(const ComputePipeline& pipeline) {
+void PipelineManager::destroy_compute_pipeline(Handle<GraphicsPipeline> pipeline_handle) {
+    if (!compute_pipeline_allocator.is_handle_valid(pipeline_handle)) {
+        DEBUG_PANIC("Cannot delete compute pipeline - Pipeline with a handle id: = " << pipeline_handle << ", does not exist!")
+    }
+
+    const ComputePipeline& pipeline = compute_pipeline_allocator.get_element(pipeline_handle);
     vkDestroyPipelineLayout(vk_device, pipeline.layout, nullptr);
     vkDestroyPipeline(vk_device, pipeline.pipeline, nullptr);
+
+    compute_pipeline_allocator.free(pipeline_handle);
+}
+void PipelineManager::destroy_render_target(Handle<RenderTarget> rt_handle) {
+    if (!render_target_allocator.is_handle_valid(rt_handle)) {
+        DEBUG_PANIC("Cannot delete render target - Render target with a handle id: = " << rt_handle << ", does not exist!")
+    }
+
+    const RenderTarget& render_target = render_target_allocator.get_element(rt_handle);
+    vkDestroyFramebuffer(vk_device, render_target.framebuffer, nullptr);
+
+    render_target_allocator.free(rt_handle);
 }
 
 const GraphicsPipeline& PipelineManager::get_graphics_pipeline_data(Handle<GraphicsPipeline> pipeline_handle) const {
 #if DEBUG_MODE // Remove hot-path checks in release mode
-    if (!graphics_pipeline_map.contains(pipeline_handle)) {
+    if (!render_target_allocator.is_handle_valid(pipeline_handle)) {
         DEBUG_PANIC("Cannot get graphics pipeline - Pipeline with a handle id: = " << pipeline_handle << ", does not exist!")
     }
 #endif
 
-    return graphics_pipeline_map.at(pipeline_handle);
+    return graphics_pipeline_allocator.get_element(pipeline_handle);
 }
 const ComputePipeline& PipelineManager::get_compute_pipeline_data(Handle<ComputePipeline> pipeline_handle) const {
 #if DEBUG_MODE // Remove hot-path checks in release mode
-    if (!compute_pipeline_map.contains(pipeline_handle)) {
+    if (!compute_pipeline_allocator.is_handle_valid(pipeline_handle)) {
         DEBUG_PANIC("Cannot get compute pipeline - Pipeline with a handle id: = " << pipeline_handle << ", does not exist!")
     }
 #endif
 
-    return compute_pipeline_map.at(pipeline_handle);
+    return compute_pipeline_allocator.get_element(pipeline_handle);
 }
 const RenderTarget& PipelineManager::get_render_target_data(Handle<RenderTarget> rt_handle) const {
 #if DEBUG_MODE // Remove hot-path checks in release mode
-    if (!render_target_map.contains(rt_handle)) {
+    if (!render_target_allocator.is_handle_valid(rt_handle)) {
         DEBUG_PANIC("Cannot get render target - Render target with a handle id: = " << rt_handle << ", does not exist!")
     }
 #endif
 
-    return render_target_map.at(rt_handle);
+    return render_target_allocator.get_element(rt_handle);
 }
 
 ShaderData PipelineManager::create_shader_data(const std::string &path, VkShaderStageFlagBits stage) {

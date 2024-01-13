@@ -54,6 +54,9 @@
     <ClCompile Include="src\main.cpp">
       <Filter>Source Files</Filter>
     </ClCompile>
+    <ClCompile Include="src\renderer\managers\handle_allocator.cpp">
+      <Filter>Source Files</Filter>
+    </ClCompile>
   </ItemGroup>
   <ItemGroup>
     <ClInclude Include="src\renderer\managers\buffer_manager.hpp">
@@ -98,5 +101,13 @@
     <ClInclude Include="src\world\world.hpp">
       <Filter>Header Files</Filter>
     </ClInclude>
+    <ClInclude Include="src\renderer\managers\handle_allocator.hpp">
+      <Filter>Header Files</Filter>
+    </ClInclude>
+  </ItemGroup>
+  <ItemGroup>
+    <None Include="res\shaders\default.comp" />
+    <None Include="res\shaders\default.frag" />
+    <None Include="res\shaders\default.vert" />
   </ItemGroup>
 </Project>

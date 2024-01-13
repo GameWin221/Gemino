@@ -4,6 +4,7 @@
 #include <unordered_map>
 #include <vk_mem_alloc.h>
 #include <common/types.hpp>
+#include <renderer/managers/handle_allocator.hpp>
 
 struct Buffer {
     VkBuffer buffer{};
@@ -38,9 +39,7 @@ private:
     const VkDevice vk_device;
     const VmaAllocator vk_allocator;
 
-    std::unordered_map<Handle<Buffer>, Buffer> buffer_map{};
-
-    u32 allocated_buffers_count{};
+    HandleAllocator<Buffer> handle_allocator{};
 };
 
 #endif

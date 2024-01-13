@@ -25,6 +25,7 @@
     <ClCompile Include="src\renderer\instance.cpp" />
     <ClCompile Include="src\renderer\managers\buffer_manager.cpp" />
     <ClCompile Include="src\renderer\managers\command_manager.cpp" />
+    <ClCompile Include="src\renderer\managers\handle_allocator.cpp" />
     <ClCompile Include="src\renderer\managers\image_manager.cpp" />
     <ClCompile Include="src\renderer\managers\pipeline_manager.cpp" />
     <ClCompile Include="src\renderer\renderer.cpp" />
@@ -41,6 +42,7 @@
     <ClInclude Include="src\renderer\instance.hpp" />
     <ClInclude Include="src\renderer\managers\buffer_manager.hpp" />
     <ClInclude Include="src\renderer\managers\command_manager.hpp" />
+    <ClInclude Include="src\renderer\managers\handle_allocator.hpp" />
     <ClInclude Include="src\renderer\managers\image_manager.hpp" />
     <ClInclude Include="src\renderer\managers\pipeline_manager.hpp" />
     <ClInclude Include="src\renderer\renderer.hpp" />
@@ -48,6 +50,11 @@
     <ClInclude Include="src\renderer\vertex.hpp" />
     <ClInclude Include="src\window\window.hpp" />
     <ClInclude Include="src\world\world.hpp" />
+  </ItemGroup>
+  <ItemGroup>
+    <None Include="res\shaders\default.comp" />
+    <None Include="res\shaders\default.frag" />
+    <None Include="res\shaders\default.vert" />
   </ItemGroup>
   <PropertyGroup Label="Globals">
     <VCProjectVersion>17.0</VCProjectVersion>

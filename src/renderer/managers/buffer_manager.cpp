@@ -6,8 +6,8 @@ BufferManager::BufferManager(VkDevice device, VmaAllocator allocator)
 
 }
 BufferManager::~BufferManager() {
-    for(const auto& [handle, buffer] : buffer_map) {
-        vmaDestroyBuffer(vk_allocator, buffer.buffer, buffer.allocation);
+    for(const auto& handle : handle_allocator.get_valid_handles()) {
+        destroy_buffer(handle);
     }
 }
 
@@ -30,31 +30,27 @@ Handle<Buffer> BufferManager::create_buffer(const BufferCreateInfo &info) {
 
     DEBUG_ASSERT(vmaCreateBuffer(vk_allocator, &buffer_create_info, &allocation_create_info, &buffer.buffer, &buffer.allocation, nullptr) == VK_SUCCESS)
 
-    auto handle = static_cast<Handle<Buffer>>((allocated_buffers_count++));
-
-    buffer_map[handle] = buffer;
-
-    return handle;
+    return handle_allocator.alloc(buffer);
 }
 
 void BufferManager::destroy_buffer(Handle<Buffer> buffer_handle) {
-    if (!buffer_map.contains(buffer_handle)) {
+    if (!handle_allocator.is_handle_valid(buffer_handle)) {
         DEBUG_PANIC("Cannot delete buffer - Buffer with a handle id: = " << buffer_handle << ", does not exist!")
     }
 
-    const Buffer& buffer = buffer_map.at(buffer_handle);
+    const Buffer& buffer = handle_allocator.get_element(buffer_handle);
 
     vmaDestroyBuffer(vk_allocator, buffer.buffer, buffer.allocation);
 
-    buffer_map.erase(buffer_handle);
+    handle_allocator.free(buffer_handle);
 }
 
 const Buffer &BufferManager::get_buffer_data(Handle<Buffer> buffer_handle) const {
 #if DEBUG_MODE // Remove hot-path checks in release mode
-    if (!buffer_map.contains(buffer_handle)) {
-        DEBUG_PANIC("Cannot get buffer - Buffer with a handle id: = " << buffer_handle << ", does not exist!")
+    if (!handle_allocator.is_handle_valid(buffer_handle)) {
+        DEBUG_PANIC("Cannot get buffer data - Buffer with a handle id: = " << buffer_handle << ", does not exist!")
     }
 #endif
 
-    return buffer_map.at(buffer_handle);
+    return handle_allocator.get_element(buffer_handle);
 }

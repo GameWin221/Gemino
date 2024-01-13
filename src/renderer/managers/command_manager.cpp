@@ -35,11 +35,11 @@ CommandManager::~CommandManager() {
     for(const auto& [family, pool] : command_pools) {
         vkDestroyCommandPool(vk_device, pool, nullptr);
     }
-    for(const auto& [handle, fence] : fence_map) {
-        vkDestroyFence(vk_device, fence.fence, nullptr);
+    for(const auto& handle : fence_allocator.get_valid_handles()) {
+        destroy_fence(handle);
     }
-    for(const auto& [handle, semaphore] : semaphore_map) {
-        vkDestroySemaphore(vk_device, semaphore.semaphore, nullptr);
+    for(const auto& handle : semaphore_allocator.get_valid_handles()) {
+        destroy_semaphore(handle);
     }
 }
 
@@ -57,11 +57,7 @@ Handle<CommandList> CommandManager::create_command_list(QueueFamily family) {
 
     DEBUG_ASSERT(vkAllocateCommandBuffers(vk_device, &allocate_info, &cmd.command_buffer) == VK_SUCCESS)
 
-    auto handle = static_cast<Handle<CommandList>>((allocated_command_list_count++));
-
-    command_list_map[handle] = cmd;
-
-    return handle;
+    return command_list_allocator.alloc(cmd);
 }
 Handle<Fence> CommandManager::create_fence(bool signaled) {
     Fence fence{};
@@ -73,11 +69,7 @@ Handle<Fence> CommandManager::create_fence(bool signaled) {
 
     DEBUG_ASSERT(vkCreateFence(vk_device, &info, nullptr, &fence.fence) == VK_SUCCESS)
 
-    auto handle = static_cast<Handle<Fence>>((allocated_sync_objects_count++));
-
-    fence_map[handle] = fence;
-
-    return handle;
+    return fence_allocator.alloc(fence);
 }
 Handle<Semaphore> CommandManager::create_semaphore() {
     Semaphore semaphore{};
@@ -88,71 +80,67 @@ Handle<Semaphore> CommandManager::create_semaphore() {
 
     DEBUG_ASSERT(vkCreateSemaphore(vk_device, &info, nullptr, &semaphore.semaphore) == VK_SUCCESS)
 
-    auto handle = static_cast<Handle<Semaphore>>((allocated_sync_objects_count++));
-
-    semaphore_map[handle] = semaphore;
-
-    return handle;
+    return semaphore_allocator.alloc(semaphore);
 }
 
 void CommandManager::destroy_command_list(Handle<CommandList> command_list_handle) {
-    if (!command_list_map.contains(command_list_handle)) {
+    if (!command_list_allocator.is_handle_valid(command_list_handle)) {
         DEBUG_PANIC("Cannot delete command list - Command list with a handle id: = " << command_list_handle << ", does not exist!")
     }
 
-    const CommandList& cmd = command_list_map.at(command_list_handle);
+    const CommandList& cmd = command_list_allocator.get_element(command_list_handle);
 
     vkFreeCommandBuffers(vk_device, command_pools.at(cmd.family), 1U, &cmd.command_buffer);
 
-    command_list_map.erase(command_list_handle);
+    command_list_allocator.free(command_list_handle);
 }
 void CommandManager::destroy_fence(Handle<Fence> fence_handle) {
-    if (!fence_map.contains(fence_handle)) {
+    if (!fence_allocator.is_handle_valid(fence_handle)) {
         DEBUG_PANIC("Cannot delete fence - Fence with a handle id: = " << fence_handle << ", does not exist!")
     }
 
-    const Fence& fence = fence_map.at(fence_handle);
+    const Fence& fence = fence_allocator.get_element(fence_handle);
 
     vkDestroyFence(vk_device, fence.fence, nullptr);
 
-    fence_map.erase(fence_handle);
+    fence_allocator.free(fence_handle);
 }
 void CommandManager::destroy_semaphore(Handle<Semaphore> semaphore_handle) {
-    if (!semaphore_map.contains(semaphore_handle)) {
+    if (!semaphore_allocator.is_handle_valid(semaphore_handle)) {
         DEBUG_PANIC("Cannot delete semaphore - Semaphore with a handle id: = " << semaphore_handle << ", does not exist!")
     }
 
-    const Semaphore& semaphore = semaphore_map.at(semaphore_handle);
+    const Semaphore& semaphore = semaphore_allocator.get_element(semaphore_handle);
 
     vkDestroySemaphore(vk_device, semaphore.semaphore, nullptr);
 
-    semaphore_map.erase(semaphore_handle);
+    semaphore_allocator.free(semaphore_handle);
 }
 
 const CommandList& CommandManager::get_command_list_data(Handle<CommandList> command_list_handle) const {
 #if DEBUG_MODE // Remove hot-path checks in release mode
-    if (!command_list_map.contains(command_list_handle)) {
+    if (!command_list_allocator.is_handle_valid(command_list_handle)) {
         DEBUG_PANIC("Cannot get command list - Command list with a handle id: = " << command_list_handle << ", does not exist!")
     }
 #endif
 
-    return command_list_map.at(command_list_handle);
+    return command_list_allocator.get_element(command_list_handle);
 }
 const Fence& CommandManager::get_fence_data(Handle<Fence> fence_handle) const {
 #if DEBUG_MODE // Remove hot-path checks in release mode
-    if (!fence_map.contains(fence_handle)) {
+    if (!fence_allocator.is_handle_valid(fence_handle)) {
         DEBUG_PANIC("Cannot get fence - Fence with a handle id: = " << fence_handle << ", does not exist!")
     }
 #endif
 
-    return fence_map.at(fence_handle);
+    return fence_allocator.get_element(fence_handle);
 }
 const Semaphore& CommandManager::get_semaphore_data(Handle<Semaphore> semaphore_handle) const {
 #if DEBUG_MODE // Remove hot-path checks in release mode
-    if (!semaphore_map.contains(semaphore_handle)) {
+    if (!semaphore_allocator.is_handle_valid(semaphore_handle)) {
         DEBUG_PANIC("Cannot get semaphore - Semaphore with a handle id: = " << semaphore_handle << ", does not exist!")
     }
 #endif
 
-    return semaphore_map.at(semaphore_handle);
+    return semaphore_allocator.get_element(semaphore_handle);
 }

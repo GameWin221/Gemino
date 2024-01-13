@@ -3,9 +3,10 @@
 
 #include <unordered_map>
 #include <string>
-#include <common/types.hpp>
 #include <vulkan/vulkan.h>
 #include <renderer/vertex.hpp>
+#include <renderer/managers/handle_allocator.hpp>
+#include <common/types.hpp>
 
 struct ShaderData {
     VkShaderModule module{};
@@ -58,7 +59,7 @@ struct GraphicsPipeline {
     VkPipelineLayout layout{};
     VkRenderPass render_pass{};
 
-    GraphicsPipelineCreateInfo initial_create_info{};
+    GraphicsPipelineCreateInfo create_info{};
 };
 
 struct ComputePipelineCreateInfo {
@@ -68,7 +69,7 @@ struct ComputePipeline {
     VkPipeline pipeline{};
     VkPipelineLayout layout{};
 
-    ComputePipelineCreateInfo initial_create_info{};
+    ComputePipelineCreateInfo create_info{};
 };
 
 class PipelineManager {
@@ -92,22 +93,13 @@ public:
     const RenderTarget& get_render_target_data(Handle<RenderTarget> rt_handle) const;
 
 private:
-    GraphicsPipeline create_graphics_pipeline_impl(const GraphicsPipelineCreateInfo& info);
-    ComputePipeline create_compute_pipeline_impl(const ComputePipelineCreateInfo& info);
-
-    void destroy_graphics_pipeline_impl(const GraphicsPipeline& pipeline);
-    void destroy_compute_pipeline_impl(const ComputePipeline& pipeline);
-
     ShaderData create_shader_data(const std::string& path, VkShaderStageFlagBits stage);
 
     const VkDevice vk_device;
 
-    std::unordered_map<Handle<GraphicsPipeline>, GraphicsPipeline> graphics_pipeline_map{};
-    std::unordered_map<Handle<ComputePipeline>, ComputePipeline> compute_pipeline_map{};
-    std::unordered_map<Handle<RenderTarget>, RenderTarget> render_target_map{};
-
-    u32 allocated_pipelines_count{};
-    u32 allocated_rt_count{};
+    HandleAllocator<GraphicsPipeline> graphics_pipeline_allocator{};
+    HandleAllocator<ComputePipeline> compute_pipeline_allocator{};
+    HandleAllocator<RenderTarget> render_target_allocator{};
 };
 
 

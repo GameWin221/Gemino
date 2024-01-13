@@ -130,8 +130,8 @@ void Renderer::begin_graphics_pipeline(Handle<CommandList> command_list, Handle<
 
     VkClearValue clear_values[2]{};
 
-    u32 uses_color_target = static_cast<u32>(pipe.initial_create_info.color_target.format != VK_FORMAT_UNDEFINED);
-    u32 uses_depth_target = static_cast<u32>(pipe.initial_create_info.depth_target.format != VK_FORMAT_UNDEFINED);
+    u32 uses_color_target = static_cast<u32>(pipe.create_info.color_target.format != VK_FORMAT_UNDEFINED);
+    u32 uses_depth_target = static_cast<u32>(pipe.create_info.depth_target.format != VK_FORMAT_UNDEFINED);
     if(uses_color_target) {
         clear_values[0].color = std::bit_cast<VkClearColorValue>(clear.color);
     }

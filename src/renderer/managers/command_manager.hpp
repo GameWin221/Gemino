@@ -2,8 +2,10 @@
 #define GEMINO_COMMAND_MANAGER_HPP
 
 #include <unordered_map>
-#include <common/types.hpp>
 #include <vulkan/vulkan.h>
+
+#include <common/types.hpp>
+#include <renderer/managers/handle_allocator.hpp>
 
 enum struct QueueFamily : u32 {
     Graphics = 0U,
@@ -47,13 +49,10 @@ private:
     const VkDevice vk_device;
 
     std::unordered_map<QueueFamily, VkCommandPool> command_pools{};
-    std::unordered_map<Handle<CommandList>, CommandList> command_list_map{};
 
-    std::unordered_map<Handle<Fence>, Fence> fence_map{};
-    std::unordered_map<Handle<Semaphore>, Semaphore> semaphore_map{};
-
-    u32 allocated_command_list_count{};
-    u32 allocated_sync_objects_count{};
+    HandleAllocator<CommandList> command_list_allocator{};
+    HandleAllocator<Fence> fence_allocator{};
+    HandleAllocator<Semaphore> semaphore_allocator{};
 };
 
 #endif

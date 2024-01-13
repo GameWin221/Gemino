@@ -8,9 +8,8 @@ ImageManager::ImageManager(VkDevice device, VmaAllocator allocator)
 }
 
 ImageManager::~ImageManager() {
-    for(const auto& [handle, image] : image_map) {
-        vkDestroyImageView(vk_device, image.view, nullptr);
-        vmaDestroyImage(vk_allocator, image.image, image.allocation);
+    for(const auto& handle : handle_allocator.get_valid_handles()) {
+        destroy_image(handle);
     }
 }
 
@@ -93,32 +92,28 @@ Handle<Image> ImageManager::create_image(const ImageCreateInfo& info) {
 
     DEBUG_ASSERT(vkCreateImageView(vk_device, &view_create_info, nullptr, &image.view) == VK_SUCCESS)
 
-    auto handle = static_cast<Handle<Image>>((allocated_images_count++));
-
-    image_map[handle] = image;
-
-    return handle;
+    return handle_allocator.alloc(image);
 }
 
 void ImageManager::destroy_image(Handle<Image> image_handle) {
-    if (!image_map.contains(image_handle)) {
+    if (!handle_allocator.is_handle_valid(image_handle)) {
         DEBUG_PANIC("Cannot delete image - Image with a handle id: = " << image_handle << ", does not exist!")
     }
 
-    const Image& image = image_map.at(image_handle);
+    const Image& image = handle_allocator.get_element(image_handle);
 
     vkDestroyImageView(vk_device, image.view, nullptr);
     vmaDestroyImage(vk_allocator, image.image, image.allocation);
 
-    image_map.erase(image_handle);
+    handle_allocator.free(image_handle);
 }
 
 const Image &ImageManager::get_image_data(Handle<Image> image_handle) const {
 #if DEBUG_MODE // Remove hot-path checks in release mode
-    if (!image_map.contains(image_handle)) {
+    if (!handle_allocator.is_handle_valid(image_handle)) {
         DEBUG_PANIC("Cannot get image data - Image with a handle id: = " << image_handle << ", does not exist!")
     }
 #endif
 
-    return image_map.at(image_handle);
+    return handle_allocator.get_element(image_handle);
 }

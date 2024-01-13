@@ -1,5 +1,8 @@
 #version 450
 
+// Idk if I should use 64 or 32, I'll investigate later
+layout (local_size_x = 8, local_size_y = 8) in;
+
 void main() {
 
 }

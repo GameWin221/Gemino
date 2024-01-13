@@ -5,6 +5,7 @@
 
 #include <vk_mem_alloc.h>
 #include <common/types.hpp>
+#include <renderer/managers/handle_allocator.hpp>
 
 struct Image {
     VkImage image{};
@@ -58,9 +59,7 @@ private:
     const VkDevice vk_device;
     const VmaAllocator vk_allocator;
 
-    std::unordered_map<Handle<Image>, Image> image_map{};
-
-    u32 allocated_images_count{};
+    HandleAllocator<Image> handle_allocator{};
 };
 
 
