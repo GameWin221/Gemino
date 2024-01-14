@@ -8,7 +8,7 @@ ImageManager::ImageManager(VkDevice device, VmaAllocator allocator)
 }
 
 ImageManager::~ImageManager() {
-    for(const auto& handle : handle_allocator.get_valid_handles()) {
+    for(const auto& handle : handle_allocator.get_valid_handles_copy()) {
         destroy_image(handle);
     }
 }

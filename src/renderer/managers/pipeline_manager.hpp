@@ -35,9 +35,18 @@ struct RenderTargetCommonInfo {
     VkAttachmentStoreOp store_op = VK_ATTACHMENT_STORE_OP_STORE;
 };
 
+// Remember about the std430 alignment rules
+struct PushConstantCreateInfo {
+    uint8_t offset = 0U;
+    uint8_t size = 0U;
+};
+
 struct GraphicsPipelineCreateInfo {
     std::string vertex_shader_path{};
     std::string fragment_shader_path{};
+
+    PushConstantCreateInfo vertex_push_constant{};
+    PushConstantCreateInfo fragment_push_constant{};
 
     RenderTargetCommonInfo color_target{};
     RenderTargetCommonInfo depth_target{};
@@ -64,6 +73,8 @@ struct GraphicsPipeline {
 
 struct ComputePipelineCreateInfo {
     std::string shader_path{};
+
+    PushConstantCreateInfo push_constant{};
 };
 struct ComputePipeline {
     VkPipeline pipeline{};

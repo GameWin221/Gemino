@@ -32,13 +32,18 @@ CommandManager::CommandManager(VkDevice device, u32 graphics_family_index, u32 t
     }
 }
 CommandManager::~CommandManager() {
+    std::unordered_set<VkCommandPool> unique_command_pools{};
     for(const auto& [family, pool] : command_pools) {
+        unique_command_pools.insert(pool);
+    }
+    for(const auto& pool : unique_command_pools) {
         vkDestroyCommandPool(vk_device, pool, nullptr);
     }
-    for(const auto& handle : fence_allocator.get_valid_handles()) {
+
+    for(const auto& handle : fence_allocator.get_valid_handles_copy()) {
         destroy_fence(handle);
     }
-    for(const auto& handle : semaphore_allocator.get_valid_handles()) {
+    for(const auto& handle : semaphore_allocator.get_valid_handles_copy()) {
         destroy_semaphore(handle);
     }
 }

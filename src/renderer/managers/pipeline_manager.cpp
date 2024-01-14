@@ -7,13 +7,13 @@ PipelineManager::PipelineManager(VkDevice device) : vk_device(device) {
 
 }
 PipelineManager::~PipelineManager() {
-    for(const auto& handle: graphics_pipeline_allocator.get_valid_handles()) {
+    for(const auto& handle: graphics_pipeline_allocator.get_valid_handles_copy()) {
         destroy_graphics_pipeline(handle);
     }
-    for(const auto& handle: compute_pipeline_allocator.get_valid_handles()) {
+    for(const auto& handle: compute_pipeline_allocator.get_valid_handles_copy()) {
         destroy_compute_pipeline(handle);
     }
-    for(const auto& handle: render_target_allocator.get_valid_handles()) {
+    for(const auto& handle: render_target_allocator.get_valid_handles_copy()) {
         destroy_render_target(handle);
     }
 }
@@ -204,12 +204,42 @@ Handle<GraphicsPipeline> PipelineManager::create_graphics_pipeline(const Graphic
         .pDynamicStates = dynamic_states.data()
     };
 
+    std::vector<VkPushConstantRange> push_constant_ranges{};
+    if(info.vertex_push_constant.size != 0U) {
+        if(info.vertex_shader_path.empty()) {
+            DEBUG_PANIC("Vertex push constant provided but the graphics pipeline doesn't use a vertex shader!")
+        }
+        if(info.vertex_push_constant.size > 128U) {
+            DEBUG_PANIC("Vertex push constant size exceeded 128 bytes!")
+        }
+
+        push_constant_ranges.push_back(VkPushConstantRange{
+            .stageFlags = VK_SHADER_STAGE_VERTEX_BIT,
+            .offset = static_cast<u32>(info.vertex_push_constant.offset),
+            .size = static_cast<u32>(info.vertex_push_constant.size)
+        });
+    }
+    if(info.fragment_push_constant.size != 0U) {
+        if(info.fragment_shader_path.empty()) {
+            DEBUG_PANIC("Fragment push constant provided but the graphics pipeline doesn't use a fragment shader!")
+        }
+        if(info.fragment_push_constant.size > 128U) {
+            DEBUG_PANIC("Fragment push constant size exceeded 128 bytes!")
+        }
+
+        push_constant_ranges.push_back(VkPushConstantRange{
+            .stageFlags = VK_SHADER_STAGE_FRAGMENT_BIT,
+            .offset = static_cast<u32>(info.fragment_push_constant.offset),
+            .size = static_cast<u32>(info.fragment_push_constant.size)
+        });
+    }
+
     VkPipelineLayoutCreateInfo pipeline_layout_info{
         .sType = VK_STRUCTURE_TYPE_PIPELINE_LAYOUT_CREATE_INFO,
-        //.setLayoutCount = static_cast<uint32_t>(info.descriptorLayouts.size()),
-        //.pSetLayouts = info.descriptorLayouts.data(),
-        //.pushConstantRangeCount = static_cast<uint32_t>(info.pushConstantRanges.size()),
-        //.pPushConstantRanges = info.pushConstantRanges.data()
+        //.setLayoutCount = static_cast<u32>(info.descriptor_layouts.size()),
+        //.pSetLayouts = info.descriptor_layouts.data(),
+        .pushConstantRangeCount = static_cast<u32>(push_constant_ranges.size()),
+        .pPushConstantRanges = push_constant_ranges.data()
     };
 
     DEBUG_ASSERT(vkCreatePipelineLayout(vk_device, &pipeline_layout_info, nullptr, &pipeline.layout) == VK_SUCCESS)
@@ -263,12 +293,21 @@ Handle<ComputePipeline> PipelineManager::create_compute_pipeline(const ComputePi
         .create_info = info
     };
 
+    std::vector<VkPushConstantRange> push_constant_ranges{};
+    if(info.push_constant.size != 0U) {
+        push_constant_ranges.push_back(VkPushConstantRange{
+            .stageFlags = VK_SHADER_STAGE_COMPUTE_BIT,
+            .offset = static_cast<u32>(info.push_constant.offset),
+            .size = static_cast<u32>(info.push_constant.size)
+        });
+    }
+
     VkPipelineLayoutCreateInfo layout_create_info{
         .sType = VK_STRUCTURE_TYPE_PIPELINE_LAYOUT_CREATE_INFO,
-        ///.setLayoutCount,
-        ///.pSetLayouts,
-        ///.pushConstantRangeCount,
-        ///.pPushConstantRanges,
+        //.setLayoutCount,
+        //.pSetLayouts,
+        .pushConstantRangeCount = static_cast<u32>(push_constant_ranges.size()),
+        .pPushConstantRanges = push_constant_ranges.data()
     };
 
     DEBUG_ASSERT(vkCreatePipelineLayout(vk_device, &layout_create_info, nullptr, &pipeline.layout) == VK_SUCCESS)

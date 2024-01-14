@@ -15,6 +15,7 @@ enum struct QueueFamily : u32 {
 
 struct CommandList {
     VkCommandBuffer command_buffer{};
+
     QueueFamily family{};
 };
 

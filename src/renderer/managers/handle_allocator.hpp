@@ -21,6 +21,7 @@ public:
             handle = static_cast<Handle<T>>(elements.size());
         }
 
+        valid_handles.insert(handle);
         elements.emplace_back(std::forward<Args>(args)...);
 
         return handle;
@@ -61,8 +62,16 @@ public:
         return valid_handles.contains(handle);
     }
 
-    const std::unordered_set<Handle<T>>& get_valid_handles() const {
-        return valid_handles;
+    // This method may copy a lot of data (every valid handle index) so never use when real-time performance is expected.
+    std::vector<Handle<T>> get_valid_handles_copy() const {
+        std::vector<Handle<T>> handles{};
+        handles.reserve(valid_handles.size());
+
+        for(const auto& handle : valid_handles) {
+            handles.push_back(handle);
+        }
+
+        return handles;
     }
 
 private:

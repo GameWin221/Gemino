@@ -5,6 +5,8 @@
 #include <common/types.hpp>
 #include <common/debug.hpp>
 
+// Example file that tests most of Gemino's features
+
 struct Frame {
     Handle<CommandList> command_list{};
 
@@ -27,7 +29,6 @@ int main() {
     u32 frames_in_flight = 3U;
     u32 frame_idx{};
 
-    // Image functionality test
     Handle<Image> image = renderer.image_manager->create_image(ImageCreateInfo{
         .format = VK_FORMAT_R8G8B8A8_SRGB,
         .extent = VkExtent3D {1024U, 512U},
@@ -37,7 +38,6 @@ int main() {
         .create_flags = 0,
     });
 
-    // Buffer functionality test
     Handle<Buffer> buffer = renderer.buffer_manager->create_buffer(BufferCreateInfo{
         .size = 1024,
         .buffer_usage_flags = VK_BUFFER_USAGE_STORAGE_BUFFER_BIT,
@@ -47,6 +47,14 @@ int main() {
     Handle<GraphicsPipeline> pipeline = renderer.pipeline_manager->create_graphics_pipeline(GraphicsPipelineCreateInfo{
         .vertex_shader_path = "./res/shaders/default.vert.spv",
         .fragment_shader_path = "./res/shaders/default.frag.spv",
+
+        .vertex_push_constant {
+            .size = sizeof(glm::vec2)
+        },
+        .fragment_push_constant {
+            .offset = 16U,
+            .size = sizeof(glm::vec3)
+        },
 
         .color_target {
             .format = renderer.swapchain->get_format(),
@@ -69,7 +77,10 @@ int main() {
 
     // Compute pipeline functionality test
     Handle<ComputePipeline> kernel = renderer.pipeline_manager->create_compute_pipeline(ComputePipelineCreateInfo{
-        .shader_path = "res/shaders/default.comp.spv"
+        .shader_path = "res/shaders/default.comp.spv",
+        .push_constant {
+            .size = sizeof(glm::uvec4)
+        }
     });
 
     std::vector<Handle<RenderTarget>> swapchain_render_targets{};
@@ -93,7 +104,6 @@ int main() {
     std::vector<SubmitInfo> submit_infos{};
     for(const auto& frame : frames) {
         submit_infos.push_back(SubmitInfo{
-            .queue_family = QueueFamily::Graphics,
             .fence = frame.fence,
             .wait_semaphores{ frame.present_semaphore },
             .signal_semaphores{ frame.render_semaphore },
@@ -104,6 +114,10 @@ int main() {
     RenderTargetClear clear{
         .color{{0.0f, 0.0f, 1.0f, 1.0f}}
     };
+
+    float time{};
+
+    glm::vec4 test_data{};
 
     while(!window.should_close()) {
         const Frame& frame = frames[frame_idx];
@@ -116,7 +130,16 @@ int main() {
         renderer.reset_commands(frame.command_list);
 
         renderer.begin_recording_commands(frame.command_list);
+            renderer.begin_compute_pipeline(frame.command_list, kernel);
+            renderer.push_compute_constants(frame.command_list, kernel, &test_data);
+            renderer.dispatch_compute_pipeline(frame.command_list, glm::uvec3(1U, 1U, 1U));
+
+            glm::vec2 triangle_offset(sinf(time) / 4.0f, cosf(time) / 4.0f);
+            glm::vec3 color_multiplier((sinf(time) * 0.5f + 0.5f), (cosf(time) * 0.5f + 0.5f), (cosf(time + 1.4f) * 0.5f + 0.5f) / 4.0f);
+
             renderer.begin_graphics_pipeline(frame.command_list, pipeline, swapchain_render_targets[swapchain_idx], clear);
+            renderer.push_graphics_constants(frame.command_list, pipeline, GraphicsStage::Vertex, &triangle_offset);
+            renderer.push_graphics_constants(frame.command_list, pipeline, GraphicsStage::Fragment, &color_multiplier);
             renderer.draw_count(frame.command_list, 3U);
             renderer.end_graphics_pipeline(frame.command_list);
         renderer.end_recording_commands(frame.command_list);
@@ -127,6 +150,8 @@ int main() {
 
         // I'm not sure if this should be at the end or at the beginning of this function
         window.poll_events();
+
+        time += 0.01f;
 
         frame_idx = (frame_idx + 1) % frames_in_flight;
     }

@@ -46,3 +46,7 @@ glm::uvec2 Window::get_size() const {
 
     return glm::uvec2{ static_cast<u32>(w), static_cast<u32>(h) };
 }
+
+void Window::force_close() {
+    glfwSetWindowShouldClose(window_handle, true);
+}

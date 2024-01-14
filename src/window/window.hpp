@@ -22,6 +22,8 @@ public:
     Window& operator=(const Window& other) = delete;
     Window& operator=(Window&& other) noexcept = delete;
 
+    void force_close();
+
     bool should_close();
     void poll_events();
 

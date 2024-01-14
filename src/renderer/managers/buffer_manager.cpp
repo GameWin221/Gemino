@@ -6,7 +6,7 @@ BufferManager::BufferManager(VkDevice device, VmaAllocator allocator)
 
 }
 BufferManager::~BufferManager() {
-    for(const auto& handle : handle_allocator.get_valid_handles()) {
+    for(const auto& handle : handle_allocator.get_valid_handles_copy()) {
         destroy_buffer(handle);
     }
 }

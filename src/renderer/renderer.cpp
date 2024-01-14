@@ -39,15 +39,15 @@ u32 Renderer::get_next_swapchain_index(Handle<Semaphore> wait_semaphore) const {
     return index;
 }
 void Renderer::present_swapchain(Handle<Semaphore> wait_semaphore, u32 image_index) const {
-    VkSwapchainKHR swapchains[] = { swapchain->get_handle() };
+    VkSwapchainKHR present_swapchain = swapchain->get_handle();
 
     VkPresentInfoKHR info{
-            .sType = VK_STRUCTURE_TYPE_PRESENT_INFO_KHR,
-            .waitSemaphoreCount = 1U,
-            .pWaitSemaphores = &command_manager->get_semaphore_data(wait_semaphore).semaphore,
-            .swapchainCount = 1U,
-            .pSwapchains = swapchains,
-            .pImageIndices = &image_index,
+        .sType = VK_STRUCTURE_TYPE_PRESENT_INFO_KHR,
+        .waitSemaphoreCount = 1U,
+        .pWaitSemaphores = &command_manager->get_semaphore_data(wait_semaphore).semaphore,
+        .swapchainCount = 1U,
+        .pSwapchains = &present_swapchain,
+        .pImageIndices = &image_index,
     };
 
     DEBUG_ASSERT(vkQueuePresentKHR(instance->get_graphics_queue(), &info) == VK_SUCCESS);
@@ -55,11 +55,11 @@ void Renderer::present_swapchain(Handle<Semaphore> wait_semaphore, u32 image_ind
 
 void Renderer::wait_for_fence(Handle<Fence> handle) const {
     DEBUG_ASSERT(vkWaitForFences(
-            instance->get_device(),
-            1U,
-            &command_manager->get_fence_data(handle).fence,
-            VK_TRUE,
-            renderer_config.frame_timeout
+        instance->get_device(),
+        1U,
+        &command_manager->get_fence_data(handle).fence,
+        VK_TRUE,
+        renderer_config.frame_timeout
     ) == VK_SUCCESS)
 }
 void Renderer::reset_fence(Handle<Fence> handle) const {
@@ -69,10 +69,10 @@ void Renderer::reset_fence(Handle<Fence> handle) const {
 void Renderer::reset_commands(Handle<CommandList> handle) const {
     DEBUG_ASSERT(vkResetCommandBuffer(command_manager->get_command_list_data(handle).command_buffer, 0U) == VK_SUCCESS)
 }
-void Renderer::begin_recording_commands(Handle<CommandList> handle) const {
+void Renderer::begin_recording_commands(Handle<CommandList> handle, VkCommandBufferUsageFlags usage) const {
     VkCommandBufferBeginInfo info{
         .sType = VK_STRUCTURE_TYPE_COMMAND_BUFFER_BEGIN_INFO,
-        .flags = VK_COMMAND_BUFFER_USAGE_ONE_TIME_SUBMIT_BIT
+        .flags = usage
     };
 
     DEBUG_ASSERT(vkBeginCommandBuffer(command_manager->get_command_list_data(handle).command_buffer, &info) == VK_SUCCESS)
@@ -103,7 +103,7 @@ void Renderer::submit_commands(Handle<CommandList> handle, const SubmitInfo &inf
     };
 
     VkQueue queue;
-    switch (info.queue_family) {
+    switch (command_manager->get_command_list_data(handle).family) {
         case QueueFamily::Graphics:
             queue = instance->get_graphics_queue();
             break;
@@ -121,6 +121,14 @@ void Renderer::submit_commands(Handle<CommandList> handle, const SubmitInfo &inf
     VkFence fence = command_manager->get_fence_data(info.fence).fence;
 
     DEBUG_ASSERT(vkQueueSubmit(queue, 1U, &submit_info, fence) == VK_SUCCESS)
+}
+
+void Renderer::copy_buffer_to_buffer(Handle<CommandList> command_list, Handle<Buffer> src, Handle<Buffer> dst, const std::vector<VkBufferCopy>& regions) const {
+    const Buffer& src_buffer = buffer_manager->get_buffer_data(src);
+    const Buffer& dst_buffer = buffer_manager->get_buffer_data(dst);
+    const CommandList& cmd = command_manager->get_command_list_data(command_list);
+
+    vkCmdCopyBuffer(cmd.command_buffer, src_buffer.buffer, dst_buffer.buffer, static_cast<u32>(regions.size()), regions.data());
 }
 
 void Renderer::begin_graphics_pipeline(Handle<CommandList> command_list, Handle<GraphicsPipeline> pipeline, Handle<RenderTarget> render_target, const RenderTargetClear& clear) const {
@@ -169,6 +177,63 @@ void Renderer::end_graphics_pipeline(Handle<CommandList> command_list) const {
     vkCmdEndRenderPass(command_manager->get_command_list_data(command_list).command_buffer);
 }
 
+void Renderer::begin_compute_pipeline(Handle<CommandList> command_list, Handle<ComputePipeline> pipeline) {
+    vkCmdBindPipeline(
+        command_manager->get_command_list_data(command_list).command_buffer,
+        VK_PIPELINE_BIND_POINT_COMPUTE,
+        pipeline_manager->get_compute_pipeline_data(pipeline).pipeline
+    );
+}
+
+void Renderer::push_graphics_constants(Handle<CommandList> command_list, Handle<GraphicsPipeline> pipeline, GraphicsStage stage, const void* data) const {
+    const GraphicsPipeline& pipe = pipeline_manager->get_graphics_pipeline_data(pipeline);
+#if DEBUG_MODE
+    if(pipe.create_info.vertex_push_constant.size == 0 && stage == GraphicsStage::Vertex) {
+        DEBUG_ERROR("Failed to push vertex stage graphics constants, there is no push constant range defined for vertex stage!")
+        return;
+    }
+    if(pipe.create_info.fragment_push_constant.size == 0 && stage == GraphicsStage::Fragment) {
+        DEBUG_ERROR("Failed to push fragment stage graphics constants, there is no push constant range defined for fragment stage!")
+        return;
+    }
+#endif
+
+    PushConstantCreateInfo pc;
+    VkShaderStageFlags stage_flags;
+    switch(stage) {
+        case GraphicsStage::Vertex:
+            pc = pipe.create_info.vertex_push_constant;
+            stage_flags = VK_SHADER_STAGE_VERTEX_BIT;
+            break;
+        case GraphicsStage::Fragment:
+            pc = pipe.create_info.fragment_push_constant;
+            stage_flags = VK_SHADER_STAGE_FRAGMENT_BIT;
+            break;
+        default: DEBUG_PANIC("Unknown Graphics Stage provided for pushing graphics constants!")
+    }
+
+    vkCmdPushConstants(command_manager->get_command_list_data(command_list).command_buffer, pipe.layout,stage_flags, pc.offset, pc.size,data);
+}
+
+void Renderer::push_compute_constants(Handle<CommandList> command_list, Handle<ComputePipeline> pipeline, const void *data) const {
+    const ComputePipeline& pipe = pipeline_manager->get_compute_pipeline_data(pipeline);
+#if DEBUG_MODE
+    if(pipe.create_info.push_constant.size == 0) {
+        DEBUG_ERROR("Failed to push compute constants, there is no push constant range defined for this compute pipeline!")
+        return;
+    }
+#endif
+
+    vkCmdPushConstants(
+        command_manager->get_command_list_data(command_list).command_buffer,
+        pipe.layout,
+        VK_SHADER_STAGE_COMPUTE_BIT,
+        pipe.create_info.push_constant.offset,
+        pipe.create_info.push_constant.size,
+        data
+    );
+}
+
 void Renderer::draw_count(Handle<CommandList> command_list, u32 vertex_count, u32 first_vertex, u32 instance_count) const {
     vkCmdDraw(command_manager->get_command_list_data(command_list).command_buffer, vertex_count, instance_count, first_vertex, 0U);
 }
@@ -176,3 +241,12 @@ void Renderer::draw_count(Handle<CommandList> command_list, u32 vertex_count, u3
 void Renderer::wait_for_device_idle() const {
     vkDeviceWaitIdle(instance->get_device());
 }
+
+void Renderer::dispatch_compute_pipeline(Handle<CommandList> command_list, glm::uvec3 groups) const {
+    if(groups.x == 0) groups.x = 1;
+    if(groups.y == 0) groups.y = 1;
+    if(groups.z == 0) groups.z = 1;
+
+    vkCmdDispatch(command_manager->get_command_list_data(command_list).command_buffer, groups.x, groups.y, groups.z);
+}
+
