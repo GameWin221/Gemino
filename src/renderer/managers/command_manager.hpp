@@ -2,8 +2,8 @@
 #define GEMINO_COMMAND_MANAGER_HPP
 
 #include <unordered_map>
-#include <vulkan/vulkan.h>
 
+#include <vulkan/vulkan.h>
 #include <common/types.hpp>
 #include <renderer/managers/handle_allocator.hpp>
 

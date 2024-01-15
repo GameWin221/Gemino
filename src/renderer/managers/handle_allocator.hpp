@@ -17,12 +17,13 @@ public:
         if(!free_handles.empty()) {
             handle = free_handles.back();
             free_handles.pop_back();
+            elements[handle] = T(std::forward<Args>(args)...);
         } else {
             handle = static_cast<Handle<T>>(elements.size());
+            elements.emplace_back(std::forward<Args>(args)...);
         }
 
         valid_handles.insert(handle);
-        elements.emplace_back(std::forward<Args>(args)...);
 
         return handle;
     }
@@ -34,12 +35,13 @@ public:
         if(!free_handles.empty()) {
             handle = free_handles.back();
             free_handles.pop_back();
+            elements[handle] = object;
         } else {
             handle = static_cast<Handle<T>>(elements.size());
+            elements.push_back(object);
         }
 
         valid_handles.insert(handle);
-        elements.push_back(object);
 
         return handle;
     }
@@ -51,6 +53,14 @@ public:
     }
 
     const T& get_element(Handle<T> handle) const {
+#if DEBUG_MODE
+        return elements.at(handle);
+#else
+        return elements[handle];
+#endif
+    }
+
+    T& get_element_mutable(Handle<T> handle) {
 #if DEBUG_MODE
         return elements.at(handle);
 #else

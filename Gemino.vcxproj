@@ -23,11 +23,9 @@
     <ClCompile Include="src\common\utils.cpp" />
     <ClCompile Include="src\main.cpp" />
     <ClCompile Include="src\renderer\instance.cpp" />
-    <ClCompile Include="src\renderer\managers\buffer_manager.cpp" />
     <ClCompile Include="src\renderer\managers\command_manager.cpp" />
-    <ClCompile Include="src\renderer\managers\handle_allocator.cpp" />
-    <ClCompile Include="src\renderer\managers\image_manager.cpp" />
     <ClCompile Include="src\renderer\managers\pipeline_manager.cpp" />
+    <ClCompile Include="src\renderer\managers\resource_manager.cpp" />
     <ClCompile Include="src\renderer\renderer.cpp" />
     <ClCompile Include="src\renderer\swapchain.cpp" />
     <ClCompile Include="src\renderer\vk_mem_alloc.cpp" />
@@ -40,11 +38,10 @@
     <ClInclude Include="src\common\types.hpp" />
     <ClInclude Include="src\common\utils.hpp" />
     <ClInclude Include="src\renderer\instance.hpp" />
-    <ClInclude Include="src\renderer\managers\buffer_manager.hpp" />
     <ClInclude Include="src\renderer\managers\command_manager.hpp" />
     <ClInclude Include="src\renderer\managers\handle_allocator.hpp" />
-    <ClInclude Include="src\renderer\managers\image_manager.hpp" />
     <ClInclude Include="src\renderer\managers\pipeline_manager.hpp" />
+    <ClInclude Include="src\renderer\managers\resource_manager.hpp" />
     <ClInclude Include="src\renderer\renderer.hpp" />
     <ClInclude Include="src\renderer\swapchain.hpp" />
     <ClInclude Include="src\renderer\vertex.hpp" />

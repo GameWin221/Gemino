@@ -2,6 +2,7 @@
 #define GEMINO_TYPES_HPP
 
 #include <cinttypes>
+#include <cmath>
 #include <memory>
 
 using usize = size_t;
@@ -17,6 +18,8 @@ using i8 = int8_t;
 
 using f32 = float;
 using f64 = double;
+
+#define INVALID_HANDLE UINT32_MAX
 
 template<typename T>
 using Handle = u32;

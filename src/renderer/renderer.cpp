@@ -1,5 +1,4 @@
 #include "renderer.hpp"
-#include <cstring>
 #include <bit>
 
 Renderer::Renderer(const Window& window, const RendererConfig& config) : renderer_config(config) {
@@ -14,9 +13,8 @@ Renderer::Renderer(const Window& window, const RendererConfig& config) : rendere
     );
 
     const auto& family_indices = instance->get_queue_family_indices();
-    image_manager = MakeUnique<ImageManager>(instance->get_device(), instance->get_allocator());
-    buffer_manager = MakeUnique<BufferManager>(instance->get_device(), instance->get_allocator());
-    pipeline_manager = MakeUnique<PipelineManager>(instance->get_device());
+    resource_manager = MakeUnique<ResourceManager>(instance->get_device(), instance->get_allocator());
+    pipeline_manager = MakeUnique<PipelineManager>(instance->get_device(), resource_manager.get());
     command_manager = MakeUnique<CommandManager>(
         instance->get_device(),
         family_indices.graphics.value(),
@@ -122,13 +120,77 @@ void Renderer::submit_commands(Handle<CommandList> handle, const SubmitInfo &inf
 
     DEBUG_ASSERT(vkQueueSubmit(queue, 1U, &submit_info, fence) == VK_SUCCESS)
 }
+void Renderer::submit_commands_blocking(Handle<CommandList> handle) const {
+    VkSubmitInfo submit_info{
+        .sType = VK_STRUCTURE_TYPE_SUBMIT_INFO,
+        .commandBufferCount = 1U,
+        .pCommandBuffers = &command_manager->get_command_list_data(handle).command_buffer,
+    };
+
+    VkQueue queue;
+    switch (command_manager->get_command_list_data(handle).family) {
+        case QueueFamily::Graphics:
+            queue = instance->get_graphics_queue();
+            break;
+        case QueueFamily::Transfer:
+            queue = instance->get_transfer_queue();
+            break;
+        case QueueFamily::Compute:
+            queue = instance->get_compute_queue();
+            break;
+        default:
+        DEBUG_PANIC("Unknown QueueFamily!")
+            break;
+    }
+
+    Handle<Fence> fence = command_manager->create_fence(false);
+
+    DEBUG_ASSERT(vkQueueSubmit(queue, 1U, &submit_info, command_manager->get_fence_data(fence).fence) == VK_SUCCESS)
+
+    wait_for_fence(fence);
+
+    command_manager->destroy_fence(fence);
+}
+
+void Renderer::image_barrier(Handle<CommandList> command_list, VkPipelineStageFlags src_stage, VkPipelineStageFlags dst_stage, const std::vector<ImageBarrier>& barriers) const {
+    std::vector<VkImageMemoryBarrier> image_barriers(barriers.size());
+    for(usize i{}; i < barriers.size(); ++i) {
+        const auto& barrier = barriers[i];
+        image_barriers[i] = VkImageMemoryBarrier{
+            .sType = VK_STRUCTURE_TYPE_IMAGE_MEMORY_BARRIER,
+            .srcAccessMask = barrier.src_access_mask,
+            .dstAccessMask = barrier.dst_access_mask,
+            .oldLayout = barrier.old_layout,
+            .newLayout = barrier.new_layout,
+            .srcQueueFamilyIndex = VK_QUEUE_FAMILY_IGNORED,
+            .dstQueueFamilyIndex = VK_QUEUE_FAMILY_IGNORED,
+            .image = resource_manager->get_image_data(barrier.image_handle).image,
+            .subresourceRange {
+                .aspectMask = barrier.aspect,
+                .baseMipLevel = barrier.dst_level_count,
+                .levelCount = barrier.level_count,
+                .baseArrayLayer = barrier.dst_array_layer,
+                .layerCount = barrier.layer_count,
+            }
+        };
+    }
+
+    vkCmdPipelineBarrier(command_manager->get_command_list_data(command_list).command_buffer, src_stage, dst_stage, 0U, 0U, nullptr, 0U, nullptr, static_cast<u32>(image_barriers.size()), image_barriers.data());
+}
 
 void Renderer::copy_buffer_to_buffer(Handle<CommandList> command_list, Handle<Buffer> src, Handle<Buffer> dst, const std::vector<VkBufferCopy>& regions) const {
-    const Buffer& src_buffer = buffer_manager->get_buffer_data(src);
-    const Buffer& dst_buffer = buffer_manager->get_buffer_data(dst);
+    const Buffer& src_buffer = resource_manager->get_buffer_data(src);
+    const Buffer& dst_buffer = resource_manager->get_buffer_data(dst);
     const CommandList& cmd = command_manager->get_command_list_data(command_list);
 
     vkCmdCopyBuffer(cmd.command_buffer, src_buffer.buffer, dst_buffer.buffer, static_cast<u32>(regions.size()), regions.data());
+}
+void Renderer::copy_buffer_to_image(Handle<CommandList> command_list, Handle<Buffer> src, Handle<Image> dst, VkImageLayout dst_layout, const std::vector<VkBufferImageCopy> &regions) const {
+    const Buffer& src_buffer = resource_manager->get_buffer_data(src);
+    const Image& dst_image = resource_manager->get_image_data(dst);
+    const CommandList& cmd = command_manager->get_command_list_data(command_list);
+
+    vkCmdCopyBufferToImage(cmd.command_buffer, src_buffer.buffer, dst_image.image, dst_layout, static_cast<u32>(regions.size()), regions.data());
 }
 
 void Renderer::begin_graphics_pipeline(Handle<CommandList> command_list, Handle<GraphicsPipeline> pipeline, Handle<RenderTarget> render_target, const RenderTargetClear& clear) const {
@@ -173,11 +235,25 @@ void Renderer::begin_graphics_pipeline(Handle<CommandList> command_list, Handle<
     vkCmdSetViewport(cmd.command_buffer, 0U, 1U, &viewport);
     vkCmdSetScissor(cmd.command_buffer, 0U, 1U, &scissor);
 }
-void Renderer::end_graphics_pipeline(Handle<CommandList> command_list) const {
+void Renderer::end_graphics_pipeline(Handle<CommandList> command_list, Handle<GraphicsPipeline> pipeline, Handle<RenderTarget> render_target) const {
     vkCmdEndRenderPass(command_manager->get_command_list_data(command_list).command_buffer);
+
+    /*
+    const GraphicsPipeline& pipe = pipeline_manager->get_graphics_pipeline_data(pipeline);
+    const RenderTarget& rt = pipeline_manager->get_render_target_data(render_target);
+
+    u32 uses_color_target = static_cast<u32>(pipe.create_info.color_target.format != VK_FORMAT_UNDEFINED);
+    u32 uses_depth_target = static_cast<u32>(pipe.create_info.depth_target.format != VK_FORMAT_UNDEFINED);
+    if(uses_color_target) {
+        resource_manager->update_image_layout(rt.)
+    }
+    if(uses_depth_target) {
+
+    }
+     */
 }
 
-void Renderer::begin_compute_pipeline(Handle<CommandList> command_list, Handle<ComputePipeline> pipeline) {
+void Renderer::begin_compute_pipeline(Handle<CommandList> command_list, Handle<ComputePipeline> pipeline) const {
     vkCmdBindPipeline(
         command_manager->get_command_list_data(command_list).command_buffer,
         VK_PIPELINE_BIND_POINT_COMPUTE,
@@ -234,10 +310,6 @@ void Renderer::push_compute_constants(Handle<CommandList> command_list, Handle<C
     );
 }
 
-void Renderer::draw_count(Handle<CommandList> command_list, u32 vertex_count, u32 first_vertex, u32 instance_count) const {
-    vkCmdDraw(command_manager->get_command_list_data(command_list).command_buffer, vertex_count, instance_count, first_vertex, 0U);
-}
-
 void Renderer::wait_for_device_idle() const {
     vkDeviceWaitIdle(instance->get_device());
 }
@@ -250,3 +322,19 @@ void Renderer::dispatch_compute_pipeline(Handle<CommandList> command_list, glm::
     vkCmdDispatch(command_manager->get_command_list_data(command_list).command_buffer, groups.x, groups.y, groups.z);
 }
 
+void Renderer::bind_graphics_descriptor(Handle<CommandList> command_list, Handle<GraphicsPipeline> pipeline, Handle<Descriptor> descriptor, u32 dst_index) const {
+    const GraphicsPipeline& pipe = pipeline_manager->get_graphics_pipeline_data(pipeline);
+    const Descriptor& desc = resource_manager->get_descriptor_data(descriptor);
+
+    vkCmdBindDescriptorSets(command_manager->get_command_list_data(command_list).command_buffer, VK_PIPELINE_BIND_POINT_GRAPHICS, pipe.layout, 0U, 1U, &desc.set, 0U, nullptr);
+}
+void Renderer::bind_compute_descriptor(Handle<CommandList> command_list, Handle<ComputePipeline> pipeline, Handle<Descriptor> descriptor, u32 dst_index) const {
+    const ComputePipeline& pipe = pipeline_manager->get_compute_pipeline_data(pipeline);
+    const Descriptor& desc = resource_manager->get_descriptor_data(descriptor);
+
+    vkCmdBindDescriptorSets(command_manager->get_command_list_data(command_list).command_buffer, VK_PIPELINE_BIND_POINT_COMPUTE, pipe.layout, 0U, 1U, &desc.set, 0U, nullptr);
+}
+
+void Renderer::draw_count(Handle<CommandList> command_list, u32 vertex_count, u32 first_vertex, u32 instance_count) const {
+    vkCmdDraw(command_manager->get_command_list_data(command_list).command_buffer, vertex_count, instance_count, first_vertex, 0U);
+}

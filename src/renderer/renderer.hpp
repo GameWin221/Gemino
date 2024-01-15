@@ -3,8 +3,7 @@
 
 #include <window/window.hpp>
 
-#include <renderer/managers/image_manager.hpp>
-#include <renderer/managers/buffer_manager.hpp>
+#include <renderer/managers/resource_manager.hpp>
 #include <renderer/managers/pipeline_manager.hpp>
 #include <renderer/managers/command_manager.hpp>
 #include <renderer/instance.hpp>
@@ -39,6 +38,23 @@ enum GraphicsStage {
     Fragment = 1U
 };
 
+struct ImageBarrier {
+    Handle<Image> image_handle{};
+
+    VkAccessFlags src_access_mask{};
+    VkAccessFlags dst_access_mask{};
+
+    VkImageLayout old_layout{};
+    VkImageLayout new_layout{};
+
+    VkImageAspectFlags aspect{};
+
+    u32 dst_level_count{};
+    u32 level_count = 1U;
+    u32 dst_array_layer{};
+    u32 layer_count = 1U;
+};
+
 class Renderer {
 public:
     Renderer(const Window& window, const RendererConfig& config);
@@ -47,8 +63,7 @@ public:
     Unique<Instance> instance;
     Unique<Swapchain> swapchain;
 
-    Unique<ImageManager> image_manager;
-    Unique<BufferManager> buffer_manager;
+    Unique<ResourceManager> resource_manager;
     Unique<PipelineManager> pipeline_manager;
     Unique<CommandManager> command_manager;
 
@@ -64,17 +79,24 @@ public:
     void begin_recording_commands(Handle<CommandList> handle, VkCommandBufferUsageFlags usage = VK_COMMAND_BUFFER_USAGE_ONE_TIME_SUBMIT_BIT) const;
     void end_recording_commands(Handle<CommandList> handle) const;
     void submit_commands(Handle<CommandList> handle, const SubmitInfo& info) const;
+    void submit_commands_blocking(Handle<CommandList> handle) const;
+
+    void image_barrier(Handle<CommandList> command_list, VkPipelineStageFlags src_stage, VkPipelineStageFlags dst_stage, const std::vector<ImageBarrier>& barriers) const;
 
     void copy_buffer_to_buffer(Handle<CommandList> command_list, Handle<Buffer> src, Handle<Buffer> dst, const std::vector<VkBufferCopy>& regions) const;
+    void copy_buffer_to_image(Handle<CommandList> command_list, Handle<Buffer> src, Handle<Image> dst, VkImageLayout dst_layout, const std::vector<VkBufferImageCopy>& regions) const;
 
     void begin_graphics_pipeline(Handle<CommandList> command_list, Handle<GraphicsPipeline> pipeline, Handle<RenderTarget> render_target, const RenderTargetClear& clear) const;
-    void end_graphics_pipeline(Handle<CommandList> command_list) const;
+    void end_graphics_pipeline(Handle<CommandList> command_list, Handle<GraphicsPipeline> pipeline, Handle<RenderTarget> render_target) const;
 
-    void begin_compute_pipeline(Handle<CommandList> command_list, Handle<ComputePipeline> pipeline);
+    void begin_compute_pipeline(Handle<CommandList> command_list, Handle<ComputePipeline> pipeline) const;
     void dispatch_compute_pipeline(Handle<CommandList> command_list, glm::uvec3 groups) const;
 
     void push_graphics_constants(Handle<CommandList> command_list, Handle<GraphicsPipeline> pipeline, GraphicsStage stage, const void* data) const;
     void push_compute_constants(Handle<CommandList> command_list, Handle<ComputePipeline> pipeline, const void* data) const;
+
+    void bind_graphics_descriptor(Handle<CommandList> command_list, Handle<GraphicsPipeline> pipeline, Handle<Descriptor> descriptor, u32 dst_index) const;
+    void bind_compute_descriptor(Handle<CommandList> command_list, Handle<ComputePipeline> pipeline, Handle<Descriptor> descriptor, u32 dst_index) const;
 
     void draw_count(Handle<CommandList> command_list, u32 vertex_count, u32 first_vertex = 0U, u32 instance_count = 1U) const;
 

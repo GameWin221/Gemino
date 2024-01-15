@@ -1,11 +1,11 @@
 #ifndef GEMINO_PIPELINE_MANAGER_HPP
 #define GEMINO_PIPELINE_MANAGER_HPP
 
-#include <unordered_map>
 #include <string>
 #include <vulkan/vulkan.h>
 #include <renderer/vertex.hpp>
 #include <renderer/managers/handle_allocator.hpp>
+#include <renderer/managers/resource_manager.hpp>
 #include <common/types.hpp>
 
 struct ShaderData {
@@ -48,6 +48,8 @@ struct GraphicsPipelineCreateInfo {
     PushConstantCreateInfo vertex_push_constant{};
     PushConstantCreateInfo fragment_push_constant{};
 
+    std::vector<Handle<Descriptor>> descriptors{};
+
     RenderTargetCommonInfo color_target{};
     RenderTargetCommonInfo depth_target{};
 
@@ -85,7 +87,7 @@ struct ComputePipeline {
 
 class PipelineManager {
 public:
-    PipelineManager(VkDevice device);
+    PipelineManager(VkDevice device, const ResourceManager* resource_manager_ptr);
     ~PipelineManager();
 
     PipelineManager& operator=(const PipelineManager& other) = delete;
@@ -107,6 +109,7 @@ private:
     ShaderData create_shader_data(const std::string& path, VkShaderStageFlagBits stage);
 
     const VkDevice vk_device;
+    const ResourceManager* resource_manager; // ResourceManager is guaranteed to live as long as PipelineManager
 
     HandleAllocator<GraphicsPipeline> graphics_pipeline_allocator{};
     HandleAllocator<ComputePipeline> compute_pipeline_allocator{};

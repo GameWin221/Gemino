@@ -6,8 +6,9 @@ layout(push_constant, std430) uniform PushConstant {
     vec2 offset;
 } push_constants;
 
-vec2 vert_positions[3] = vec2[](
-    vec2(-0.5, 0.5), vec2(0.5, 0.5), vec2(0.0, -0.5)
+vec2 vert_positions[6] = vec2[](
+    vec2(-0.5, 0.5), vec2(0.5, 0.5), vec2(0.5, -0.5),
+    vec2(-0.5, 0.5), vec2(0.5, -0.5), vec2(-0.5, -0.5)
 );
 
 void main() {

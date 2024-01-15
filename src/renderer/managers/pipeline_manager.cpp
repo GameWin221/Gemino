@@ -3,7 +3,7 @@
 #include <common/file_utils.hpp>
 #include <common/debug.hpp>
 
-PipelineManager::PipelineManager(VkDevice device) : vk_device(device) {
+PipelineManager::PipelineManager(VkDevice device, const ResourceManager* resource_manager_ptr) : vk_device(device), resource_manager(resource_manager_ptr) {
 
 }
 PipelineManager::~PipelineManager() {
@@ -234,10 +234,15 @@ Handle<GraphicsPipeline> PipelineManager::create_graphics_pipeline(const Graphic
         });
     }
 
+    std::vector<VkDescriptorSetLayout> layouts{};
+    for(const auto& descriptor : info.descriptors) {
+        layouts.push_back(resource_manager->get_descriptor_data(descriptor).layout);
+    }
+
     VkPipelineLayoutCreateInfo pipeline_layout_info{
         .sType = VK_STRUCTURE_TYPE_PIPELINE_LAYOUT_CREATE_INFO,
-        //.setLayoutCount = static_cast<u32>(info.descriptor_layouts.size()),
-        //.pSetLayouts = info.descriptor_layouts.data(),
+        .setLayoutCount = static_cast<u32>(layouts.size()),
+        .pSetLayouts = layouts.data(),
         .pushConstantRangeCount = static_cast<u32>(push_constant_ranges.size()),
         .pPushConstantRanges = push_constant_ranges.data()
     };
