@@ -15,8 +15,12 @@ struct ShaderData {
 
 struct RenderTargetCreateInfo {
     VkExtent2D extent{};
-    VkImageView color_view{};
-    VkImageView depth_view{};
+
+    VkImageView color_target_view{};
+    VkImageView depth_target_view{};
+
+    Handle<Image> color_target_handle = INVALID_HANDLE;
+    Handle<Image> depth_target_handle = INVALID_HANDLE;
 };
 struct RenderTarget {
     VkFramebuffer framebuffer{};
@@ -24,6 +28,9 @@ struct RenderTarget {
 
     VkImageView color_view{};
     VkImageView depth_view{};
+
+    Handle<Image> color_handle = INVALID_HANDLE;
+    Handle<Image> depth_handle = INVALID_HANDLE;
 };
 struct RenderTargetCommonInfo {
     VkFormat format = VK_FORMAT_UNDEFINED;
@@ -35,18 +42,11 @@ struct RenderTargetCommonInfo {
     VkAttachmentStoreOp store_op = VK_ATTACHMENT_STORE_OP_STORE;
 };
 
-// Remember about the std430 alignment rules
-struct PushConstantCreateInfo {
-    uint8_t offset = 0U;
-    uint8_t size = 0U;
-};
-
 struct GraphicsPipelineCreateInfo {
     std::string vertex_shader_path{};
     std::string fragment_shader_path{};
 
-    PushConstantCreateInfo vertex_push_constant{};
-    PushConstantCreateInfo fragment_push_constant{};
+    u8 push_constants_size{};
 
     std::vector<Handle<Descriptor>> descriptors{};
 
@@ -54,10 +54,10 @@ struct GraphicsPipelineCreateInfo {
     RenderTargetCommonInfo depth_target{};
 
     bool enable_depth_test = false;
-    bool enable_depth_write = true;
+    bool enable_depth_write = false;
     VkCompareOp depth_compare_op = VK_COMPARE_OP_LESS_OR_EQUAL;
 
-    bool enable_vertex_input = true;
+    bool enable_vertex_input = false;
     bool enable_blending = false;
     VkPolygonMode polygon_mode = VK_POLYGON_MODE_FILL;
     VkCullModeFlags cull_mode = VK_CULL_MODE_BACK_BIT;
@@ -76,7 +76,9 @@ struct GraphicsPipeline {
 struct ComputePipelineCreateInfo {
     std::string shader_path{};
 
-    PushConstantCreateInfo push_constant{};
+    u8 push_constants_size{};
+
+    std::vector<Handle<Descriptor>> descriptors{};
 };
 struct ComputePipeline {
     VkPipeline pipeline{};

@@ -107,6 +107,9 @@ public:
     void* map_buffer(Handle<Buffer> buffer_handle);
     void unmap_buffer(Handle<Buffer> buffer_handle);
 
+    void memcpy_to_buffer_once(Handle<Buffer> buffer_handle, const void* src_data, usize size, usize dst_offset = 0, usize src_offset = 0);
+    void memcpy_to_buffer(void* dst_mapped_buffer, const void* src_data, usize size, usize dst_offset = 0, usize src_offset = 0);
+
     // Only sets the struct value
     //void update_image_layout(Handle<Image> image_handle, VkImageLayout new_layout);
     void update_descriptor(Handle<Descriptor> descriptor_handle, const DescriptorUpdateInfo& info);

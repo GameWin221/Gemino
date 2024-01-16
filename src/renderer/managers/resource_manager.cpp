@@ -1,4 +1,5 @@
 #include "resource_manager.hpp"
+#include <cstring>
 
 ResourceManager::ResourceManager(VkDevice device, VmaAllocator allocator) : vk_device(device), vk_allocator(allocator) {
     std::vector<VkDescriptorPoolSize> pool_sizes {
@@ -228,6 +229,20 @@ void ResourceManager::unmap_buffer(Handle<Buffer> buffer_handle) {
 
     vmaUnmapMemory(vk_allocator, buffer_allocator.get_element(buffer_handle).allocation);
 }
+void ResourceManager::memcpy_to_buffer_once(Handle<Buffer> buffer_handle, const void* src_data, usize size, usize dst_offset, usize src_offset) {
+    void* mapped = reinterpret_cast<void*>(reinterpret_cast<usize>(map_buffer(buffer_handle)) + dst_offset);
+    void* src = reinterpret_cast<void*>(reinterpret_cast<usize>(src_data) + src_offset);
+
+    std::memcpy(mapped, src, size);
+
+    unmap_buffer(buffer_handle);
+}
+void ResourceManager::memcpy_to_buffer(void *dst_mapped_buffer, const void *src_data, usize size, usize dst_offset, usize src_offset) {
+    void* mapped = reinterpret_cast<void*>(reinterpret_cast<usize>(dst_mapped_buffer) + dst_offset);
+    void* src = reinterpret_cast<void*>(reinterpret_cast<usize>(src_data) + src_offset);
+    std::memcpy(mapped, src, size);
+}
+
 
 /*
 void ResourceManager::update_image_layout(Handle<Image> image_handle, VkImageLayout new_layout) {

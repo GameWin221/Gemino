@@ -120,7 +120,7 @@ void Renderer::submit_commands(Handle<CommandList> handle, const SubmitInfo &inf
 
     DEBUG_ASSERT(vkQueueSubmit(queue, 1U, &submit_info, fence) == VK_SUCCESS)
 }
-void Renderer::submit_commands_blocking(Handle<CommandList> handle) const {
+void Renderer::submit_commands_once(Handle<CommandList> handle) const {
     VkSubmitInfo submit_info{
         .sType = VK_STRUCTURE_TYPE_SUBMIT_INFO,
         .commandBufferCount = 1U,
@@ -156,6 +156,8 @@ void Renderer::image_barrier(Handle<CommandList> command_list, VkPipelineStageFl
     std::vector<VkImageMemoryBarrier> image_barriers(barriers.size());
     for(usize i{}; i < barriers.size(); ++i) {
         const auto& barrier = barriers[i];
+        const Image& image = resource_manager->get_image_data(barrier.image_handle);
+
         image_barriers[i] = VkImageMemoryBarrier{
             .sType = VK_STRUCTURE_TYPE_IMAGE_MEMORY_BARRIER,
             .srcAccessMask = barrier.src_access_mask,
@@ -164,9 +166,9 @@ void Renderer::image_barrier(Handle<CommandList> command_list, VkPipelineStageFl
             .newLayout = barrier.new_layout,
             .srcQueueFamilyIndex = VK_QUEUE_FAMILY_IGNORED,
             .dstQueueFamilyIndex = VK_QUEUE_FAMILY_IGNORED,
-            .image = resource_manager->get_image_data(barrier.image_handle).image,
+            .image = image.image,
             .subresourceRange {
-                .aspectMask = barrier.aspect,
+                .aspectMask = image.aspect_flags,
                 .baseMipLevel = barrier.dst_level_count,
                 .levelCount = barrier.level_count,
                 .baseArrayLayer = barrier.dst_array_layer,
@@ -261,51 +263,28 @@ void Renderer::begin_compute_pipeline(Handle<CommandList> command_list, Handle<C
     );
 }
 
-void Renderer::push_graphics_constants(Handle<CommandList> command_list, Handle<GraphicsPipeline> pipeline, GraphicsStage stage, const void* data) const {
+void Renderer::push_graphics_constants(Handle<CommandList> command_list, Handle<GraphicsPipeline> pipeline, const void* data) const {
     const GraphicsPipeline& pipe = pipeline_manager->get_graphics_pipeline_data(pipeline);
-#if DEBUG_MODE
-    if(pipe.create_info.vertex_push_constant.size == 0 && stage == GraphicsStage::Vertex) {
-        DEBUG_ERROR("Failed to push vertex stage graphics constants, there is no push constant range defined for vertex stage!")
-        return;
-    }
-    if(pipe.create_info.fragment_push_constant.size == 0 && stage == GraphicsStage::Fragment) {
-        DEBUG_ERROR("Failed to push fragment stage graphics constants, there is no push constant range defined for fragment stage!")
-        return;
-    }
-#endif
 
-    PushConstantCreateInfo pc;
-    VkShaderStageFlags stage_flags;
-    switch(stage) {
-        case GraphicsStage::Vertex:
-            pc = pipe.create_info.vertex_push_constant;
-            stage_flags = VK_SHADER_STAGE_VERTEX_BIT;
-            break;
-        case GraphicsStage::Fragment:
-            pc = pipe.create_info.fragment_push_constant;
-            stage_flags = VK_SHADER_STAGE_FRAGMENT_BIT;
-            break;
-        default: DEBUG_PANIC("Unknown Graphics Stage provided for pushing graphics constants!")
-    }
-
-    vkCmdPushConstants(command_manager->get_command_list_data(command_list).command_buffer, pipe.layout,stage_flags, pc.offset, pc.size,data);
+    vkCmdPushConstants(
+        command_manager->get_command_list_data(command_list).command_buffer,
+        pipe.layout,
+        VK_SHADER_STAGE_VERTEX_BIT | VK_SHADER_STAGE_FRAGMENT_BIT,
+        0U,
+        pipe.create_info.push_constants_size,
+        data
+    );
 }
 
 void Renderer::push_compute_constants(Handle<CommandList> command_list, Handle<ComputePipeline> pipeline, const void *data) const {
     const ComputePipeline& pipe = pipeline_manager->get_compute_pipeline_data(pipeline);
-#if DEBUG_MODE
-    if(pipe.create_info.push_constant.size == 0) {
-        DEBUG_ERROR("Failed to push compute constants, there is no push constant range defined for this compute pipeline!")
-        return;
-    }
-#endif
 
     vkCmdPushConstants(
         command_manager->get_command_list_data(command_list).command_buffer,
         pipe.layout,
         VK_SHADER_STAGE_COMPUTE_BIT,
-        pipe.create_info.push_constant.offset,
-        pipe.create_info.push_constant.size,
+        0U,
+        pipe.create_info.push_constants_size,
         data
     );
 }

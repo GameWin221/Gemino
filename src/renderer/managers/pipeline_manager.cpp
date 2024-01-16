@@ -204,35 +204,14 @@ Handle<GraphicsPipeline> PipelineManager::create_graphics_pipeline(const Graphic
         .pDynamicStates = dynamic_states.data()
     };
 
-    std::vector<VkPushConstantRange> push_constant_ranges{};
-    if(info.vertex_push_constant.size != 0U) {
-        if(info.vertex_shader_path.empty()) {
-            DEBUG_PANIC("Vertex push constant provided but the graphics pipeline doesn't use a vertex shader!")
-        }
-        if(info.vertex_push_constant.size > 128U) {
-            DEBUG_PANIC("Vertex push constant size exceeded 128 bytes!")
-        }
-
-        push_constant_ranges.push_back(VkPushConstantRange{
-            .stageFlags = VK_SHADER_STAGE_VERTEX_BIT,
-            .offset = static_cast<u32>(info.vertex_push_constant.offset),
-            .size = static_cast<u32>(info.vertex_push_constant.size)
-        });
+    if(info.push_constants_size > 128U) {
+        DEBUG_PANIC("Push constants size exceeded 128 bytes!")
     }
-    if(info.fragment_push_constant.size != 0U) {
-        if(info.fragment_shader_path.empty()) {
-            DEBUG_PANIC("Fragment push constant provided but the graphics pipeline doesn't use a fragment shader!")
-        }
-        if(info.fragment_push_constant.size > 128U) {
-            DEBUG_PANIC("Fragment push constant size exceeded 128 bytes!")
-        }
 
-        push_constant_ranges.push_back(VkPushConstantRange{
-            .stageFlags = VK_SHADER_STAGE_FRAGMENT_BIT,
-            .offset = static_cast<u32>(info.fragment_push_constant.offset),
-            .size = static_cast<u32>(info.fragment_push_constant.size)
-        });
-    }
+    VkPushConstantRange push_constant_range{
+        .stageFlags = VK_SHADER_STAGE_VERTEX_BIT | VK_SHADER_STAGE_FRAGMENT_BIT,
+        .size = static_cast<u32>(info.push_constants_size)
+    };
 
     std::vector<VkDescriptorSetLayout> layouts{};
     for(const auto& descriptor : info.descriptors) {
@@ -243,8 +222,8 @@ Handle<GraphicsPipeline> PipelineManager::create_graphics_pipeline(const Graphic
         .sType = VK_STRUCTURE_TYPE_PIPELINE_LAYOUT_CREATE_INFO,
         .setLayoutCount = static_cast<u32>(layouts.size()),
         .pSetLayouts = layouts.data(),
-        .pushConstantRangeCount = static_cast<u32>(push_constant_ranges.size()),
-        .pPushConstantRanges = push_constant_ranges.data()
+        .pushConstantRangeCount = static_cast<u32>(info.push_constants_size != 0U),
+        .pPushConstantRanges = &push_constant_range
     };
 
     DEBUG_ASSERT(vkCreatePipelineLayout(vk_device, &pipeline_layout_info, nullptr, &pipeline.layout) == VK_SUCCESS)
@@ -298,21 +277,26 @@ Handle<ComputePipeline> PipelineManager::create_compute_pipeline(const ComputePi
         .create_info = info
     };
 
-    std::vector<VkPushConstantRange> push_constant_ranges{};
-    if(info.push_constant.size != 0U) {
-        push_constant_ranges.push_back(VkPushConstantRange{
-            .stageFlags = VK_SHADER_STAGE_COMPUTE_BIT,
-            .offset = static_cast<u32>(info.push_constant.offset),
-            .size = static_cast<u32>(info.push_constant.size)
-        });
+    if(info.push_constants_size > 128U) {
+        DEBUG_PANIC("Push constants size exceeded 128 bytes!")
+    }
+
+    VkPushConstantRange push_constant_range{
+        .stageFlags = VK_SHADER_STAGE_COMPUTE_BIT,
+        .size = static_cast<u32>(info.push_constants_size)
+    };
+
+    std::vector<VkDescriptorSetLayout> layouts{};
+    for(const auto& descriptor : info.descriptors) {
+        layouts.push_back(resource_manager->get_descriptor_data(descriptor).layout);
     }
 
     VkPipelineLayoutCreateInfo layout_create_info{
         .sType = VK_STRUCTURE_TYPE_PIPELINE_LAYOUT_CREATE_INFO,
-        //.setLayoutCount,
-        //.pSetLayouts,
-        .pushConstantRangeCount = static_cast<u32>(push_constant_ranges.size()),
-        .pPushConstantRanges = push_constant_ranges.data()
+        .setLayoutCount = static_cast<u32>(layouts.size()),
+        .pSetLayouts = layouts.data(),
+        .pushConstantRangeCount = static_cast<u32>(info.push_constants_size != 0U),
+        .pPushConstantRanges = &push_constant_range
     };
 
     DEBUG_ASSERT(vkCreatePipelineLayout(vk_device, &layout_create_info, nullptr, &pipeline.layout) == VK_SUCCESS)
@@ -340,21 +324,44 @@ Handle<ComputePipeline> PipelineManager::create_compute_pipeline(const ComputePi
 Handle<RenderTarget> PipelineManager::create_render_target(Handle<GraphicsPipeline> src_pipeline, const RenderTargetCreateInfo& info) {
     RenderTarget rt{
         .extent = info.extent,
-        .color_view = info.color_view,
-        .depth_view = info.depth_view
+        .color_handle = info.color_target_handle,
+        .depth_handle = info.depth_target_handle,
     };
+
+    if(info.color_target_view != nullptr && info.color_target_handle != INVALID_HANDLE) {
+        DEBUG_PANIC("Cannot create a color render target! - Either info.color_target_view or info.color_target_handle or none must be valid")
+    }
+    if(info.depth_target_view != nullptr && info.depth_target_handle != INVALID_HANDLE) {
+        DEBUG_PANIC("Cannot create a depth render target! - Either info.depth_target_view or info.depth_target_handle or none must be valid")
+    }
+
+    if(info.color_target_view != nullptr && info.color_target_handle == INVALID_HANDLE) {
+        rt.color_view = info.color_target_view;
+    } else if(info.color_target_view == nullptr && info.color_target_handle != INVALID_HANDLE) {
+        rt.color_view = resource_manager->get_image_data(info.color_target_handle).view;
+    }
+
+    if(info.depth_target_view != nullptr && info.depth_target_handle == INVALID_HANDLE) {
+        rt.depth_view = info.depth_target_view;
+    } else if(info.depth_target_view == nullptr && info.depth_target_handle != INVALID_HANDLE) {
+        rt.depth_view = resource_manager->get_image_data(info.depth_target_handle).view;
+    }
+
+    if(rt.color_view == nullptr && rt.depth_view == nullptr) {
+        DEBUG_PANIC("Cannot create an empty render target!")
+    }
 
     const GraphicsPipeline& pipeline = graphics_pipeline_allocator.get_element(src_pipeline);
 
-    u32 uses_color_attachment = static_cast<u32>(info.color_view != nullptr);
-    u32 uses_depth_attachment = static_cast<u32>(info.depth_view != nullptr);
+    u32 uses_color_attachment = static_cast<u32>(rt.color_view != nullptr);
+    u32 uses_depth_attachment = static_cast<u32>(rt.depth_view != nullptr);
 
     VkImageView image_views[2];
     if(uses_color_attachment) {
-        image_views[0] = info.color_view;
+        image_views[0] = rt.color_view;
     }
     if(uses_depth_attachment) {
-        image_views[uses_color_attachment] = info.depth_view;
+        image_views[uses_color_attachment] = rt.depth_view;
     }
 
     VkFramebufferCreateInfo framebuffer_create_info{

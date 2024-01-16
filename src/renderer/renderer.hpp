@@ -33,11 +33,6 @@ struct RendererConfig {
     u64 frame_timeout = 1000000000; // 1 second
 };
 
-enum GraphicsStage {
-    Vertex = 0U,
-    Fragment = 1U
-};
-
 struct ImageBarrier {
     Handle<Image> image_handle{};
 
@@ -46,8 +41,6 @@ struct ImageBarrier {
 
     VkImageLayout old_layout{};
     VkImageLayout new_layout{};
-
-    VkImageAspectFlags aspect{};
 
     u32 dst_level_count{};
     u32 level_count = 1U;
@@ -79,7 +72,7 @@ public:
     void begin_recording_commands(Handle<CommandList> handle, VkCommandBufferUsageFlags usage = VK_COMMAND_BUFFER_USAGE_ONE_TIME_SUBMIT_BIT) const;
     void end_recording_commands(Handle<CommandList> handle) const;
     void submit_commands(Handle<CommandList> handle, const SubmitInfo& info) const;
-    void submit_commands_blocking(Handle<CommandList> handle) const;
+    void submit_commands_once(Handle<CommandList> handle) const;
 
     void image_barrier(Handle<CommandList> command_list, VkPipelineStageFlags src_stage, VkPipelineStageFlags dst_stage, const std::vector<ImageBarrier>& barriers) const;
 
@@ -92,7 +85,7 @@ public:
     void begin_compute_pipeline(Handle<CommandList> command_list, Handle<ComputePipeline> pipeline) const;
     void dispatch_compute_pipeline(Handle<CommandList> command_list, glm::uvec3 groups) const;
 
-    void push_graphics_constants(Handle<CommandList> command_list, Handle<GraphicsPipeline> pipeline, GraphicsStage stage, const void* data) const;
+    void push_graphics_constants(Handle<CommandList> command_list, Handle<GraphicsPipeline> pipeline, const void* data) const;
     void push_compute_constants(Handle<CommandList> command_list, Handle<ComputePipeline> pipeline, const void* data) const;
 
     void bind_graphics_descriptor(Handle<CommandList> command_list, Handle<GraphicsPipeline> pipeline, Handle<Descriptor> descriptor, u32 dst_index) const;

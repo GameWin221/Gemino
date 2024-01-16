@@ -4,6 +4,7 @@ layout(location = 0) out vec2 f_texcoord;
 
 layout(push_constant, std430) uniform PushConstant {
     vec2 offset;
+    vec3 color_multiplier;
 } push_constants;
 
 vec2 vert_positions[6] = vec2[](
