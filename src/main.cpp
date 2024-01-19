@@ -7,11 +7,27 @@
 
 // Example file that tests most of Gemino's features
 
-constexpr static u8 EXAMPLE_IMAGE_DATA[2U * 2U * 4U] = {
+constexpr static u8 EXAMPLE_IMAGE_A_DATA[3U * 3U * 4U] = {
     0xff, 0xff, 0xff, 0xff,
     0x00, 0x00, 0x00, 0xff,
+    0xff, 0xff, 0xff, 0xff,
     0x00, 0x00, 0x00, 0xff,
     0xff, 0xff, 0xff, 0xff,
+    0x00, 0x00, 0x00, 0xff,
+    0xff, 0xff, 0xff, 0xff,
+    0x00, 0x00, 0x00, 0xff,
+    0xff, 0xff, 0xff, 0xff
+};
+constexpr static u8 EXAMPLE_IMAGE_B_DATA[3U * 3U * 4U] = {
+    0xff, 0x00, 0x00, 0xff,
+    0x00, 0xff, 0x00, 0xff,
+    0x00, 0x00, 0xff, 0xff,
+    0xff, 0x00, 0xff, 0xff,
+    0xff, 0x00, 0xff, 0xff,
+    0xff, 0x00, 0xff, 0xff,
+    0x00, 0x00, 0xff, 0xff,
+    0x00, 0xff, 0x00, 0xff,
+    0xff, 0x00, 0x00, 0xff
 };
 
 struct PushConstants {
@@ -46,9 +62,16 @@ int main() {
         .buffer_usage_flags = VK_BUFFER_USAGE_TRANSFER_SRC_BIT,
         .memory_usage_flags = VMA_MEMORY_USAGE_CPU_TO_GPU,
     });
-    Handle<Image> image = renderer.resource_manager->create_image(ImageCreateInfo{
+    Handle<Image> image_a = renderer.resource_manager->create_image(ImageCreateInfo{
         .format = VK_FORMAT_R8G8B8A8_SRGB,
-        .extent = VkExtent3D{2U, 2U},
+        .extent = VkExtent3D{3U, 3U},
+        .usage_flags = VK_IMAGE_USAGE_SAMPLED_BIT | VK_IMAGE_USAGE_TRANSFER_DST_BIT,
+        .aspect_flags = VK_IMAGE_ASPECT_COLOR_BIT,
+        .create_flags = 0,
+    });
+    Handle<Image> image_b = renderer.resource_manager->create_image(ImageCreateInfo{
+        .format = VK_FORMAT_R8G8B8A8_SRGB,
+        .extent = VkExtent3D{3U, 3U},
         .usage_flags = VK_IMAGE_USAGE_SAMPLED_BIT | VK_IMAGE_USAGE_TRANSFER_DST_BIT,
         .aspect_flags = VK_IMAGE_ASPECT_COLOR_BIT,
         .create_flags = 0,
@@ -57,29 +80,56 @@ int main() {
         .filter = VK_FILTER_NEAREST
     });
 
-    renderer.resource_manager->memcpy_to_buffer_once(upload_buffer, EXAMPLE_IMAGE_DATA, sizeof(EXAMPLE_IMAGE_DATA));
+    renderer.resource_manager->memcpy_to_buffer_once(upload_buffer, EXAMPLE_IMAGE_A_DATA, sizeof(EXAMPLE_IMAGE_A_DATA));
+    renderer.resource_manager->memcpy_to_buffer_once(upload_buffer, EXAMPLE_IMAGE_B_DATA, sizeof(EXAMPLE_IMAGE_B_DATA), sizeof(EXAMPLE_IMAGE_A_DATA));
 
     Handle<CommandList> upload_cmd = renderer.command_manager->create_command_list(QueueFamily::Graphics);
     renderer.begin_recording_commands(upload_cmd);
     renderer.image_barrier(upload_cmd, VK_PIPELINE_STAGE_TOP_OF_PIPE_BIT, VK_PIPELINE_STAGE_TRANSFER_BIT, {ImageBarrier{
-        .image_handle = image,
+        .image_handle = image_a,
         .dst_access_mask = VK_ACCESS_TRANSFER_WRITE_BIT,
         .old_layout = VK_IMAGE_LAYOUT_UNDEFINED,
         .new_layout = VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL
     }});
-    renderer.copy_buffer_to_image(upload_cmd, upload_buffer, image, VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL, {VkBufferImageCopy{
+    renderer.image_barrier(upload_cmd, VK_PIPELINE_STAGE_TOP_OF_PIPE_BIT, VK_PIPELINE_STAGE_TRANSFER_BIT, {ImageBarrier{
+        .image_handle = image_b,
+        .dst_access_mask = VK_ACCESS_TRANSFER_WRITE_BIT,
+        .old_layout = VK_IMAGE_LAYOUT_UNDEFINED,
+        .new_layout = VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL
+    }});
+    renderer.copy_buffer_to_image(upload_cmd, upload_buffer, image_a, VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL, {VkBufferImageCopy{
+        .bufferOffset = 0,
         .imageSubresource {
             .aspectMask = VK_IMAGE_ASPECT_COLOR_BIT,
             .layerCount = 1U
         },
         .imageExtent = VkExtent3D{
-            .width = 2U,
-            .height = 2U,
+            .width = 3U,
+            .height = 3U,
+            .depth = 1U
+        },
+    }});
+    renderer.copy_buffer_to_image(upload_cmd, upload_buffer, image_b, VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL, {VkBufferImageCopy{
+        .bufferOffset = sizeof(EXAMPLE_IMAGE_A_DATA),
+        .imageSubresource {
+            .aspectMask = VK_IMAGE_ASPECT_COLOR_BIT,
+            .layerCount = 1U
+        },
+        .imageExtent = VkExtent3D{
+            .width = 3U,
+            .height = 3U,
             .depth = 1U
         },
     }});
     renderer.image_barrier(upload_cmd, VK_PIPELINE_STAGE_TRANSFER_BIT, VK_PIPELINE_STAGE_FRAGMENT_SHADER_BIT, {ImageBarrier{
-        .image_handle = image,
+        .image_handle = image_a,
+        .src_access_mask = VK_ACCESS_TRANSFER_WRITE_BIT,
+        .dst_access_mask = VK_ACCESS_SHADER_READ_BIT,
+        .old_layout = VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL,
+        .new_layout = VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL
+    }});
+    renderer.image_barrier(upload_cmd, VK_PIPELINE_STAGE_TRANSFER_BIT, VK_PIPELINE_STAGE_FRAGMENT_SHADER_BIT, {ImageBarrier{
+        .image_handle = image_b,
         .src_access_mask = VK_ACCESS_TRANSFER_WRITE_BIT,
         .dst_access_mask = VK_ACCESS_SHADER_READ_BIT,
         .old_layout = VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL,
@@ -98,15 +148,24 @@ int main() {
 
     Handle<Descriptor> main_descriptor = renderer.resource_manager->create_descriptor(DescriptorCreateInfo{
         .bindings{
-            DescriptorBindingCreateInfo {VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER }
+            DescriptorBindingCreateInfo {VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER, 128U }
         }
     });
     renderer.resource_manager->update_descriptor(main_descriptor, DescriptorUpdateInfo{
        .bindings {
            DescriptorBindingUpdateInfo{
                .binding_index = 0U,
+               .array_index = 0U,
                .image_info {
-                   .image_handle = image,
+                   .image_handle = image_a,
+                   .image_sampler = sampler
+               }
+           },
+           DescriptorBindingUpdateInfo{
+               .binding_index = 0U,
+               .array_index = 1U,
+               .image_info {
+                   .image_handle = image_b,
                    .image_sampler = sampler
                }
            }
@@ -168,13 +227,13 @@ int main() {
     }
 
     RenderTargetClear clear{
-        .color{{0.0f, 0.0f, 1.0f, 1.0f}}
+        .color{{0.5f, 0.2f, 0.2f, 1.0f}}
     };
-
-    float time{};
 
     PushConstants pc{};
     glm::vec4 test_data{};
+
+    float time{};
 
     while(!window.should_close()) {
         const Frame& frame = frames[frame_idx];
@@ -195,9 +254,11 @@ int main() {
             renderer.dispatch_compute_pipeline(frame.command_list, glm::uvec3(1U, 1U, 1U));
 
             renderer.begin_graphics_pipeline(frame.command_list, pipeline, swapchain_render_targets[swapchain_idx], clear);
-            renderer.push_graphics_constants(frame.command_list, pipeline, &pc);
-            renderer.bind_graphics_descriptor(frame.command_list, pipeline, main_descriptor, 0U);
-            renderer.draw_count(frame.command_list, 6U);
+                //renderer.push_graphics_constants(frame.command_list, pipeline, &pc.offset, sizeof(glm::vec4), 0U);  // Test push constant offsets
+                //renderer.push_graphics_constants(frame.command_list, pipeline, &pc.color, sizeof(glm::vec4), sizeof(glm::vec4));
+                renderer.push_graphics_constants(frame.command_list, pipeline, &pc, sizeof(pc));
+                renderer.bind_graphics_descriptor(frame.command_list, pipeline, main_descriptor, 0U);
+                renderer.draw_count(frame.command_list, 6U);
             renderer.end_graphics_pipeline(frame.command_list, pipeline, swapchain_render_targets[swapchain_idx]);
         renderer.end_recording_commands(frame.command_list);
 
@@ -208,7 +269,7 @@ int main() {
         // I'm not sure if this should be at the end or at the beginning of this function
         window.poll_events();
 
-        time += 0.01f;
+        time += 0.04f;
 
         frame_idx = (frame_idx + 1) % frames_in_flight;
     }

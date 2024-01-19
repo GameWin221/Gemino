@@ -55,6 +55,8 @@ struct ImageCreateInfo {
 struct SamplerCreateInfo {
     VkFilter filter = VK_FILTER_LINEAR;
     VkSamplerMipmapMode mipmap_mode = VK_SAMPLER_MIPMAP_MODE_LINEAR;
+
+    float max_mipmap = VK_LOD_CLAMP_NONE;
     float mipmap_bias{};
     float anisotropy{};
 };
@@ -64,6 +66,7 @@ struct Sampler {
 
 struct DescriptorBindingUpdateInfo{
     u32 binding_index{};
+    u32 array_index{};
 
     struct {
         Handle<Image> image_handle = INVALID_HANDLE;

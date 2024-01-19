@@ -263,28 +263,85 @@ void Renderer::begin_compute_pipeline(Handle<CommandList> command_list, Handle<C
     );
 }
 
-void Renderer::push_graphics_constants(Handle<CommandList> command_list, Handle<GraphicsPipeline> pipeline, const void* data) const {
+void Renderer::push_graphics_constants(Handle<CommandList> command_list, Handle<GraphicsPipeline> pipeline, const void* data, u8 size_override, u8 offset_override) const {
     const GraphicsPipeline& pipe = pipeline_manager->get_graphics_pipeline_data(pipeline);
+
+    u8 size = pipe.create_info.push_constants_size;
+    if(size_override != 0U) {
+        size = size_override;
+
+#if DEBUG_MODE
+        if(size % 4 != 0) {
+            DEBUG_PANIC("Push constant override_size must be a multiple of 4!")
+        }
+        if(size > pipe.create_info.push_constants_size) {
+            DEBUG_PANIC("Push constants override_size is greater than the specified push constant size in the graphics pipeline create info!")
+        }
+#endif
+    }
+
+    u8 offset = 0U;
+    if(offset_override != 0U) {
+        offset = offset_override;
+
+#if DEBUG_MODE
+        if(offset % 4 != 0) {
+            DEBUG_PANIC("Push constant override_offset must be a multiple of 4!")
+        }
+        if(offset + size > pipe.create_info.push_constants_size) {
+            DEBUG_PANIC("Push constants override_size + offset_override is greater than the specified push constant size in the graphics pipeline create info!")
+        }
+#endif
+    }
 
     vkCmdPushConstants(
         command_manager->get_command_list_data(command_list).command_buffer,
         pipe.layout,
         VK_SHADER_STAGE_VERTEX_BIT | VK_SHADER_STAGE_FRAGMENT_BIT,
-        0U,
-        pipe.create_info.push_constants_size,
+        offset,
+        size,
         data
     );
 }
 
-void Renderer::push_compute_constants(Handle<CommandList> command_list, Handle<ComputePipeline> pipeline, const void *data) const {
+void Renderer::push_compute_constants(Handle<CommandList> command_list, Handle<ComputePipeline> pipeline, const void *data, u8 size_override, u8 offset_override) const {
     const ComputePipeline& pipe = pipeline_manager->get_compute_pipeline_data(pipeline);
+
+    u8 size = pipe.create_info.push_constants_size;
+    if(size_override != 0U) {
+        size = size_override;
+
+#if DEBUG_MODE
+        if(size % 4 != 0) {
+            DEBUG_PANIC("Push constant override_size must be a multiple of 4!")
+        }
+        if(size > pipe.create_info.push_constants_size) {
+            DEBUG_PANIC("Push constants override_size is greater than the specified push constant size in the compute pipeline create info!")
+        }
+#endif
+    }
+
+    u8 offset = 0U;
+    if(offset_override != 0U) {
+        offset = offset_override;
+
+
+#if DEBUG_MODE
+        if(offset % 4 != 0) {
+            DEBUG_PANIC("Push constant override_offset must be a multiple of 4!")
+        }
+        if(offset + size > pipe.create_info.push_constants_size) {
+            DEBUG_PANIC("Push constants override_size + offset_override is greater than the specified push constant size in the compute pipeline create info!")
+        }
+#endif
+    }
 
     vkCmdPushConstants(
         command_manager->get_command_list_data(command_list).command_buffer,
         pipe.layout,
         VK_SHADER_STAGE_COMPUTE_BIT,
-        0U,
-        pipe.create_info.push_constants_size,
+        offset,
+        size,
         data
     );
 }

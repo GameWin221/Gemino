@@ -207,6 +207,9 @@ Handle<GraphicsPipeline> PipelineManager::create_graphics_pipeline(const Graphic
     if(info.push_constants_size > 128U) {
         DEBUG_PANIC("Push constants size exceeded 128 bytes!")
     }
+    if(info.push_constants_size % 4 != 0) {
+        DEBUG_PANIC("Push constants size must be a multiple of 4!")
+    }
 
     VkPushConstantRange push_constant_range{
         .stageFlags = VK_SHADER_STAGE_VERTEX_BIT | VK_SHADER_STAGE_FRAGMENT_BIT,
@@ -279,6 +282,9 @@ Handle<ComputePipeline> PipelineManager::create_compute_pipeline(const ComputePi
 
     if(info.push_constants_size > 128U) {
         DEBUG_PANIC("Push constants size exceeded 128 bytes!")
+    }
+    if(info.push_constants_size % 4 != 0) {
+        DEBUG_PANIC("Push constants size must be a multiple of 4!")
     }
 
     VkPushConstantRange push_constant_range{

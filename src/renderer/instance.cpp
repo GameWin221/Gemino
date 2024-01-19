@@ -12,21 +12,36 @@ static constexpr std::array<const char*, 1> REQUESTED_VALIDATION_LAYER_NAMES {
     "VK_LAYER_KHRONOS_validation"
 };
 
-static constexpr std::array<const char*, 1> REQUESTED_DEVICE_EXTENSION_NAMES {
-    VK_KHR_SWAPCHAIN_EXTENSION_NAME
+static constexpr std::array<const char*, 2> REQUESTED_DEVICE_EXTENSION_NAMES {
+    VK_KHR_SWAPCHAIN_EXTENSION_NAME,
+    VK_EXT_DESCRIPTOR_INDEXING_EXTENSION_NAME
 };
 
 static constexpr VkPhysicalDeviceVulkan12Features REQUESTED_DEVICE_FEATURES_VK_1_2 {
     .sType = VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_VULKAN_1_2_FEATURES,
+    .descriptorIndexing = true,
+    .shaderSampledImageArrayNonUniformIndexing = true,
+    .descriptorBindingUniformBufferUpdateAfterBind = true,
+    .descriptorBindingSampledImageUpdateAfterBind = true,
+    .descriptorBindingStorageImageUpdateAfterBind = true,
+    .descriptorBindingStorageBufferUpdateAfterBind = true,
+    //.descriptorBindingUniformTexelBufferUpdateAfterBind = true,
+    //.descriptorBindingStorageTexelBufferUpdateAfterBind = true,
+    .descriptorBindingUpdateUnusedWhilePending = true,
+    .descriptorBindingPartiallyBound = true,
+    //.descriptorBindingVariableDescriptorCount = true,
+    .runtimeDescriptorArray = true,
 };
 
 static constexpr VkPhysicalDeviceVulkan11Features REQUESTED_DEVICE_FEATURES_VK_1_1 {
     .sType = VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_VULKAN_1_1_FEATURES,
-    .pNext = (void*)&REQUESTED_DEVICE_FEATURES_VK_1_2
+    .pNext = (void*)&REQUESTED_DEVICE_FEATURES_VK_1_2,
+    .shaderDrawParameters = true
 };
 
 static constexpr VkPhysicalDeviceFeatures REQUESTED_DEVICE_FEATURES_VK_1_0 {
-
+    .multiDrawIndirect = true,
+    .samplerAnisotropy = true,
 };
 
 static VKAPI_ATTR VkBool32 VKAPI_CALL vk_debug_callback(VkDebugUtilsMessageSeverityFlagBitsEXT message_severity, VkDebugUtilsMessageTypeFlagsEXT message_type, const VkDebugUtilsMessengerCallbackDataEXT* p_callback_data, void* p_user_data) {
@@ -415,10 +430,61 @@ bool Instance::check_device_feature_support(VkPhysicalDevice device) {
     supported_features_vk_1_0.pNext = (void*)&supported_features_vk_1_1;
     vkGetPhysicalDeviceFeatures2(device, &supported_features_vk_1_0);
 
-    supported_features_vk_1_0.pNext = (void*)&supported_features_vk_1_1;
+    supported_features_vk_1_0.pNext = (void*)&supported_features_vk_1_2;
     vkGetPhysicalDeviceFeatures2(device, &supported_features_vk_1_0);
 
-    // Add conditions here
+    if(!supported_features_vk_1_0.features.samplerAnisotropy) {
+        DEBUG_WARNING("The physical device doesn't support Vulkan 1.0 feature: samplerAnisotropy")
+        return false;
+    }
+    if(!supported_features_vk_1_0.features.multiDrawIndirect) {
+        DEBUG_WARNING("The physical device doesn't support Vulkan 1.0 feature: multiDrawIndirect")
+        return false;
+    }
+    if(!supported_features_vk_1_1.shaderDrawParameters) {
+        DEBUG_WARNING("The physical device doesn't support Vulkan 1.1 feature: shaderDrawParameters")
+        return false;
+    }
+    if(!supported_features_vk_1_2.descriptorIndexing) {
+        DEBUG_WARNING("The physical device doesn't support Vulkan 1.2 feature: descriptorIndexing")
+        return false;
+    }
+    if(!supported_features_vk_1_2.descriptorBindingUniformBufferUpdateAfterBind) {
+        DEBUG_WARNING("The physical device doesn't support Vulkan 1.2 feature: descriptorBindingUniformBufferUpdateAfterBind")
+        return false;
+    }
+    if(!supported_features_vk_1_2.descriptorBindingSampledImageUpdateAfterBind) {
+        DEBUG_WARNING("The physical device doesn't support Vulkan 1.2 feature: descriptorBindingSampledImageUpdateAfterBind")
+        return false;
+    }
+    if(!supported_features_vk_1_2.descriptorBindingStorageImageUpdateAfterBind) {
+        DEBUG_WARNING("The physical device doesn't support Vulkan 1.2 feature: descriptorBindingStorageImageUpdateAfterBind")
+        return false;
+    }
+    if(!supported_features_vk_1_2.descriptorBindingStorageBufferUpdateAfterBind) {
+        DEBUG_WARNING("The physical device doesn't support Vulkan 1.2 feature: descriptorBindingStorageBufferUpdateAfterBind")
+        return false;
+    }
+    if(!supported_features_vk_1_2.descriptorIndexing) {
+        DEBUG_WARNING("The physical device doesn't support Vulkan 1.2 feature: descriptorIndexing")
+        return false;
+    }
+    if(!supported_features_vk_1_2.shaderSampledImageArrayNonUniformIndexing) {
+        DEBUG_WARNING("The physical device doesn't support Vulkan 1.2 feature: shaderSampledImageArrayNonUniformIndexing")
+        return false;
+    }
+    if(!supported_features_vk_1_2.descriptorBindingPartiallyBound) {
+        DEBUG_WARNING("The physical device doesn't support Vulkan 1.2 feature: descriptorBindingPartiallyBound")
+        return false;
+    }
+    if(!supported_features_vk_1_2.runtimeDescriptorArray) {
+        DEBUG_WARNING("The physical device doesn't support Vulkan 1.2 feature: runtimeDescriptorArray")
+        return false;
+    }
+    if(!supported_features_vk_1_2.descriptorBindingUpdateUnusedWhilePending) {
+        DEBUG_WARNING("The physical device doesn't support Vulkan 1.2 feature: descriptorBindingUpdateUnusedWhilePending")
+        return false;
+    }
 
     return true;
 }

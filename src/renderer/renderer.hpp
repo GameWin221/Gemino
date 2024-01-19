@@ -85,8 +85,8 @@ public:
     void begin_compute_pipeline(Handle<CommandList> command_list, Handle<ComputePipeline> pipeline) const;
     void dispatch_compute_pipeline(Handle<CommandList> command_list, glm::uvec3 groups) const;
 
-    void push_graphics_constants(Handle<CommandList> command_list, Handle<GraphicsPipeline> pipeline, const void* data) const;
-    void push_compute_constants(Handle<CommandList> command_list, Handle<ComputePipeline> pipeline, const void* data) const;
+    void push_graphics_constants(Handle<CommandList> command_list, Handle<GraphicsPipeline> pipeline, const void* data, u8 size_override = 0U, u8 offset_override = 0U) const;
+    void push_compute_constants(Handle<CommandList> command_list, Handle<ComputePipeline> pipeline, const void* data, u8 size_override = 0U, u8 offset_override = 0U) const;
 
     void bind_graphics_descriptor(Handle<CommandList> command_list, Handle<GraphicsPipeline> pipeline, Handle<Descriptor> descriptor, u32 dst_index) const;
     void bind_compute_descriptor(Handle<CommandList> command_list, Handle<ComputePipeline> pipeline, Handle<Descriptor> descriptor, u32 dst_index) const;
