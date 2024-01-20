@@ -42,10 +42,47 @@ struct ImageBarrier {
     VkImageLayout old_layout{};
     VkImageLayout new_layout{};
 
-    u32 dst_level_count{};
-    u32 level_count = 1U;
-    u32 dst_array_layer{};
-    u32 layer_count = 1U;
+    u32 base_level_override{};
+    u32 level_count_override{};
+    u32 base_array_layer_override{};
+    u32 layer_count_override{};
+};
+struct BufferBarrier {
+    Handle<Buffer> buffer_handle{};
+
+    VkAccessFlags src_access_mask{};
+    VkAccessFlags dst_access_mask{};
+
+    VkDeviceSize offset_override{};
+    VkDeviceSize size_override{};
+};
+struct ImageBlit {
+    VkExtent3D src_lower_bounds_override{};
+    VkExtent3D src_upper_bounds_override{};
+
+    VkExtent3D dst_lower_bounds_override{};
+    VkExtent3D dst_upper_bounds_override{};
+
+    VkAccessFlags src_access_mask{};
+    VkAccessFlags dst_access_mask{};
+
+    u32 src_mipmap_level_override{};
+    u32 src_base_array_layer_override{};
+    u32 src_layer_count_override{};
+
+    u32 dst_mipmap_level_override{};
+    u32 dst_base_array_layer_override{};
+    u32 dst_layer_count_override{};
+};
+struct BufferToImageCopy {
+    VkDeviceSize src_buffer_offset{};
+
+    VkExtent3D dst_image_offset_override{};
+    VkExtent3D dst_image_extent_override{};
+
+    u32 mipmap_level_override{};
+    u32 base_array_layer_override{};
+    u32 layer_count_override{};
 };
 
 class Renderer {
@@ -75,9 +112,13 @@ public:
     void submit_commands_once(Handle<CommandList> handle) const;
 
     void image_barrier(Handle<CommandList> command_list, VkPipelineStageFlags src_stage, VkPipelineStageFlags dst_stage, const std::vector<ImageBarrier>& barriers) const;
+    void buffer_barrier(Handle<CommandList> command_list, VkPipelineStageFlags src_stage, VkPipelineStageFlags dst_stage, const std::vector<BufferBarrier>& barriers) const;
+
+    void blit_image(Handle<CommandList> command_list, Handle<Image> src_image_handle, VkImageLayout src_image_layout, Handle<Image> dst_image_handle, VkImageLayout dst_image_layout, VkFilter filter, const std::vector<ImageBlit>& blits) const;
+    void gen_mipmaps(Handle<CommandList> command_list, Handle<Image> target_image) const;
 
     void copy_buffer_to_buffer(Handle<CommandList> command_list, Handle<Buffer> src, Handle<Buffer> dst, const std::vector<VkBufferCopy>& regions) const;
-    void copy_buffer_to_image(Handle<CommandList> command_list, Handle<Buffer> src, Handle<Image> dst, VkImageLayout dst_layout, const std::vector<VkBufferImageCopy>& regions) const;
+    void copy_buffer_to_image(Handle<CommandList> command_list, Handle<Buffer> src, Handle<Image> dst, VkImageLayout dst_layout, const std::vector<BufferToImageCopy>& regions) const;
 
     void begin_graphics_pipeline(Handle<CommandList> command_list, Handle<GraphicsPipeline> pipeline, Handle<RenderTarget> render_target, const RenderTargetClear& clear) const;
     void end_graphics_pipeline(Handle<CommandList> command_list, Handle<GraphicsPipeline> pipeline, Handle<RenderTarget> render_target) const;

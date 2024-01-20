@@ -29,6 +29,7 @@
     <ClCompile Include="src\renderer\renderer.cpp" />
     <ClCompile Include="src\renderer\swapchain.cpp" />
     <ClCompile Include="src\renderer\vk_mem_alloc.cpp" />
+    <ClCompile Include="src\tests.cpp" />
     <ClCompile Include="src\window\window.cpp" />
     <ClCompile Include="src\world\world.cpp" />
   </ItemGroup>
@@ -45,6 +46,7 @@
     <ClInclude Include="src\renderer\renderer.hpp" />
     <ClInclude Include="src\renderer\swapchain.hpp" />
     <ClInclude Include="src\renderer\vertex.hpp" />
+    <ClInclude Include="src\tests.hpp" />
     <ClInclude Include="src\window\window.hpp" />
     <ClInclude Include="src\world\world.hpp" />
   </ItemGroup>

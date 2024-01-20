@@ -127,9 +127,6 @@ public:
     const Descriptor& get_descriptor_data(Handle<Descriptor> descriptor_handle) const;
     const Sampler& get_sampler_data(Handle<Sampler> sampler_handle) const;
 
-    const u32 per_descriptor_pool_size = 32U;
-    //const u32 max_descriptor_sets = 256U;
-
 private:
     const VkDevice vk_device;
     const VmaAllocator vk_allocator;

@@ -545,3 +545,10 @@ bool Instance::validation_layers_supported() {
 
     return true;
 }
+
+VkFormatProperties Instance::get_format_properties(VkFormat format) const {
+    VkFormatProperties properties;
+    vkGetPhysicalDeviceFormatProperties(vk_physical_device, format, &properties);
+
+    return properties;
+}

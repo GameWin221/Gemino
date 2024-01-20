@@ -158,6 +158,28 @@ void Renderer::image_barrier(Handle<CommandList> command_list, VkPipelineStageFl
         const auto& barrier = barriers[i];
         const Image& image = resource_manager->get_image_data(barrier.image_handle);
 
+        u32 level_count;
+        if(barrier.level_count_override != 0) {
+            level_count = barrier.level_count_override;
+        } else {
+            level_count = image.mip_level_count;
+        }
+
+        u32 layer_count;
+        if(barrier.layer_count_override != 0) {
+            layer_count = barrier.layer_count_override;
+        } else {
+            layer_count = image.array_layer_count;
+        }
+
+        if(barrier.base_level_override + level_count > image.mip_level_count) {
+            DEBUG_PANIC("Invalid image barrier! - Image barrier[" << i << "] base_level + level_count is out of range, base_level = " << barrier.base_level_override << ", level_count = " << level_count << ", image.mip_level_count = " << image.mip_level_count)
+        }
+
+        if(barrier.base_array_layer_override + layer_count > image.array_layer_count) {
+            DEBUG_PANIC("Invalid image barrier! - Image barrier[" << i << "] base_array_layer + array_layer_count is out of range, base_array_layer = " << barrier.base_array_layer_override << ", array_layer_count = " << layer_count << ", image.array_layer_count = " << image.array_layer_count)
+        }
+
         image_barriers[i] = VkImageMemoryBarrier{
             .sType = VK_STRUCTURE_TYPE_IMAGE_MEMORY_BARRIER,
             .srcAccessMask = barrier.src_access_mask,
@@ -169,15 +191,168 @@ void Renderer::image_barrier(Handle<CommandList> command_list, VkPipelineStageFl
             .image = image.image,
             .subresourceRange {
                 .aspectMask = image.aspect_flags,
-                .baseMipLevel = barrier.dst_level_count,
-                .levelCount = barrier.level_count,
-                .baseArrayLayer = barrier.dst_array_layer,
-                .layerCount = barrier.layer_count,
+                .baseMipLevel = barrier.base_level_override,
+                .levelCount = level_count,
+                .baseArrayLayer = barrier.base_array_layer_override,
+                .layerCount = layer_count,
             }
         };
     }
 
     vkCmdPipelineBarrier(command_manager->get_command_list_data(command_list).command_buffer, src_stage, dst_stage, 0U, 0U, nullptr, 0U, nullptr, static_cast<u32>(image_barriers.size()), image_barriers.data());
+}
+void Renderer::buffer_barrier(Handle<CommandList> command_list, VkPipelineStageFlags src_stage, VkPipelineStageFlags dst_stage, const std::vector<BufferBarrier> &barriers) const {
+    std::vector<VkBufferMemoryBarrier> buffer_barriers(barriers.size());
+    for(usize i{}; i < barriers.size(); ++i) {
+        const auto& barrier = barriers[i];
+        const auto& buffer = resource_manager->get_buffer_data(barrier.buffer_handle);
+
+        VkDeviceSize size;
+        if(barrier.size_override != 0) {
+            size = barrier.size_override;
+        } else {
+            size = buffer.size;
+        }
+
+        if(barrier.offset_override + size > buffer.size) {
+            DEBUG_PANIC("Invalid buffer barrier! - Buffer barrier[" << i << "] offset + size is out of range, offset = " << barrier.offset_override << ", size = " << size << ", buffer.size = " << buffer.size)
+        }
+
+        buffer_barriers[i] = VkBufferMemoryBarrier{
+            .sType = VK_STRUCTURE_TYPE_BUFFER_MEMORY_BARRIER,
+            .srcAccessMask = barrier.src_access_mask,
+            .dstAccessMask = barrier.dst_access_mask,
+            .srcQueueFamilyIndex = VK_QUEUE_FAMILY_IGNORED,
+            .dstQueueFamilyIndex = VK_QUEUE_FAMILY_IGNORED,
+            .buffer = buffer.buffer,
+            .offset = barrier.offset_override,
+            .size = size,
+        };
+    }
+    vkCmdPipelineBarrier(command_manager->get_command_list_data(command_list).command_buffer, src_stage, dst_stage, 0U, 0U, nullptr, static_cast<u32>(buffer_barriers.size()), buffer_barriers.data(), 0U, nullptr);
+}
+
+void Renderer::blit_image(Handle<CommandList> command_list, Handle<Image> src_image_handle, VkImageLayout src_image_layout, Handle<Image> dst_image_handle, VkImageLayout dst_image_layout, VkFilter filter, const std::vector<ImageBlit>& blits) const {
+    const Image& src_image = resource_manager->get_image_data(src_image_handle);
+    const Image& dst_image = resource_manager->get_image_data(dst_image_handle);
+
+#if DEBUG_MODE
+    if(!(instance->get_format_properties(src_image.format).optimalTilingFeatures & VK_FORMAT_FEATURE_SAMPLED_IMAGE_FILTER_LINEAR_BIT)) {
+        DEBUG_PANIC("Failed to blit! - Source image's format does not support linear blitting, format = " << src_image.format)
+    }
+
+    if(!(instance->get_format_properties(dst_image.format).optimalTilingFeatures & VK_FORMAT_FEATURE_SAMPLED_IMAGE_FILTER_LINEAR_BIT)){
+        DEBUG_PANIC("Failed to blit! - Destination image's format does not support linear blitting, format = " << dst_image.format)
+    }
+#endif
+
+    std::vector<VkImageBlit> image_blits(blits.size());
+    for(usize i{}; i < image_blits.size(); ++i) {
+        const auto& blit = blits[i];
+
+        VkOffset3D src_lower_bounds{
+            static_cast<i32>(blit.src_lower_bounds_override.width),
+            static_cast<i32>(blit.src_lower_bounds_override.height),
+            static_cast<i32>(blit.src_lower_bounds_override.depth)
+        };
+        VkOffset3D dst_lower_bounds{
+            static_cast<i32>(blit.dst_lower_bounds_override.width),
+            static_cast<i32>(blit.dst_lower_bounds_override.height),
+            static_cast<i32>(blit.dst_lower_bounds_override.depth)
+        };
+
+        VkOffset3D src_upper_bounds;
+        VkOffset3D dst_upper_bounds;
+        if(blit.src_upper_bounds_override.width == 0 && blit.src_upper_bounds_override.height == 0 && blit.src_upper_bounds_override.depth == 0) {
+            src_upper_bounds.x = static_cast<i32>(src_image.extent.width);
+            src_upper_bounds.y = static_cast<i32>(src_image.extent.height);
+            src_upper_bounds.z = static_cast<i32>(src_image.extent.depth);
+        } else {
+            src_upper_bounds.x = std::max(static_cast<i32>(blit.src_upper_bounds_override.width), 1);
+            src_upper_bounds.y = std::max(static_cast<i32>(blit.src_upper_bounds_override.height), 1);
+            src_upper_bounds.z = std::max(static_cast<i32>(blit.src_upper_bounds_override.depth), 1);
+        }
+
+        if(blit.dst_upper_bounds_override.width == 0 && blit.dst_upper_bounds_override.height == 0 && blit.dst_upper_bounds_override.depth == 0) {
+            dst_upper_bounds.x = static_cast<i32>(dst_image.extent.width);
+            dst_upper_bounds.y = static_cast<i32>(dst_image.extent.height);
+            dst_upper_bounds.z = static_cast<i32>(dst_image.extent.depth);
+        } else {
+            dst_upper_bounds.x = std::max(static_cast<i32>(blit.dst_upper_bounds_override.width), 1);
+            dst_upper_bounds.y = std::max(static_cast<i32>(blit.dst_upper_bounds_override.height), 1);
+            dst_upper_bounds.z = std::max(static_cast<i32>(blit.dst_upper_bounds_override.depth), 1);
+        }
+
+        u32 src_layer_count;
+        if(blit.src_layer_count_override != 0) {
+            src_layer_count = blit.src_layer_count_override;
+        } else {
+            src_layer_count = src_image.array_layer_count;
+        }
+
+        if(blit.src_base_array_layer_override + src_layer_count > src_image.array_layer_count) {
+            DEBUG_PANIC("Invalid image blit! - Image blit[" << i << "] src_base_array_layer_override + src_layer_count is out of range, src_base_array_layer_override = " << blit.src_base_array_layer_override << ", src_layer_count = " << src_layer_count << ", src_image.array_layer_count = " << src_image.array_layer_count)
+        }
+
+        u32 dst_layer_count;
+        if(blit.dst_layer_count_override != 0) {
+            dst_layer_count = blit.dst_layer_count_override;
+        } else {
+            dst_layer_count = dst_image.array_layer_count;
+        }
+
+        if(blit.dst_base_array_layer_override + dst_layer_count > dst_image.array_layer_count) {
+            DEBUG_PANIC("Invalid image blit! - Image blit[" << i << "] dst_base_array_layer_override + dst_layer_count is out of range, dst_base_array_layer_override = " << blit.dst_base_array_layer_override << ", dst_layer_count = " << dst_layer_count << ", dst_image.array_layer_count = " << dst_image.array_layer_count)
+        }
+
+        if(src_layer_count != dst_layer_count) {
+            DEBUG_PANIC("Invalid image blit! - Image blit[" << i << "] src_layer_count is not equal to dst_layer_count, src_layer_count = " << src_layer_count << ", dst_layer_count = " << dst_layer_count)
+        }
+
+        image_blits[i] = VkImageBlit{
+            .srcSubresource {
+                .aspectMask = src_image.aspect_flags,
+                .mipLevel = blit.src_mipmap_level_override,
+                .baseArrayLayer = blit.src_base_array_layer_override,
+                .layerCount = src_layer_count
+            },
+            .srcOffsets {
+                src_lower_bounds, src_upper_bounds
+            },
+            .dstSubresource {
+                .aspectMask = dst_image.aspect_flags,
+                .mipLevel = blit.dst_mipmap_level_override,
+                .baseArrayLayer = blit.dst_base_array_layer_override,
+                .layerCount = dst_layer_count,
+            },
+            .dstOffsets {
+                dst_lower_bounds, dst_upper_bounds
+            }
+        };
+    }
+
+    vkCmdBlitImage(
+        command_manager->get_command_list_data(command_list).command_buffer,
+        src_image.image, src_image_layout, dst_image.image, dst_image_layout,
+        static_cast<u32>(image_blits.size()), image_blits.data(),
+        filter
+    );
+}
+
+void Renderer::gen_mipmaps(Handle<CommandList> command_list, Handle<Image> target_image) const {
+    const Image& image = resource_manager->get_image_data(target_image);
+    const CommandList& cmd = command_manager->get_command_list_data(command_list);
+
+    if(!(instance->get_format_properties(image.format).optimalTilingFeatures & VK_FORMAT_FEATURE_SAMPLED_IMAGE_FILTER_LINEAR_BIT)) {
+        DEBUG_PANIC("Failed to generate mipmaps! - Image's format does not support linear blitting, format = " << image.format)
+    }
+
+    i32 width = static_cast<i32>(image.extent.width);
+    i32 height = static_cast<i32>(image.extent.height);
+
+    for(u32 i = 1U; i < image.mip_level_count; ++i) {
+
+    }
 }
 
 void Renderer::copy_buffer_to_buffer(Handle<CommandList> command_list, Handle<Buffer> src, Handle<Buffer> dst, const std::vector<VkBufferCopy>& regions) const {
@@ -187,12 +362,55 @@ void Renderer::copy_buffer_to_buffer(Handle<CommandList> command_list, Handle<Bu
 
     vkCmdCopyBuffer(cmd.command_buffer, src_buffer.buffer, dst_buffer.buffer, static_cast<u32>(regions.size()), regions.data());
 }
-void Renderer::copy_buffer_to_image(Handle<CommandList> command_list, Handle<Buffer> src, Handle<Image> dst, VkImageLayout dst_layout, const std::vector<VkBufferImageCopy> &regions) const {
+void Renderer::copy_buffer_to_image(Handle<CommandList> command_list, Handle<Buffer> src, Handle<Image> dst, VkImageLayout dst_layout, const std::vector<BufferToImageCopy> &regions) const {
     const Buffer& src_buffer = resource_manager->get_buffer_data(src);
     const Image& dst_image = resource_manager->get_image_data(dst);
     const CommandList& cmd = command_manager->get_command_list_data(command_list);
 
-    vkCmdCopyBufferToImage(cmd.command_buffer, src_buffer.buffer, dst_image.image, dst_layout, static_cast<u32>(regions.size()), regions.data());
+    std::vector<VkBufferImageCopy> image_copies(regions.size());
+    for(usize i{}; i < image_copies.size(); ++i) {
+        const auto& region = regions[i];
+
+        u32 layer_count;
+        if(region.layer_count_override != 0) {
+            layer_count = region.layer_count_override;
+        } else {
+            layer_count = dst_image.array_layer_count;
+        }
+
+        if(region.base_array_layer_override + layer_count > dst_image.array_layer_count) {
+            DEBUG_PANIC("Invalid image copy! - Image copy[" << i << "] base_array_layer_override + layer_count is out of range, base_array_layer_override = " << region.base_array_layer_override << ", layer_count = " << layer_count << ", dst_image.array_layer_count = " << dst_image.array_layer_count)
+        }
+
+        VkOffset3D offset{
+            static_cast<i32>(region.dst_image_offset_override.width),
+            static_cast<i32>(region.dst_image_offset_override.height),
+            static_cast<i32>(region.dst_image_offset_override.depth)
+        };
+
+        VkExtent3D dst_extent;
+        if(region.dst_image_extent_override.width == 0U && region.dst_image_extent_override.height == 0U && region.dst_image_extent_override.depth == 0U) {
+            dst_extent = dst_image.extent;
+        } else {
+            dst_extent.width = std::max(region.dst_image_extent_override.width, 1U);
+            dst_extent.height = std::max(region.dst_image_extent_override.height, 1U);
+            dst_extent.depth = std::max(region.dst_image_extent_override.depth, 1U);
+        }
+
+        image_copies[i] = VkBufferImageCopy{
+            .bufferOffset = region.src_buffer_offset,
+            .imageSubresource {
+                .aspectMask = dst_image.aspect_flags,
+                .mipLevel = region.mipmap_level_override,
+                .baseArrayLayer = region.base_array_layer_override,
+                .layerCount = layer_count
+            },
+            .imageOffset = offset,
+            .imageExtent = dst_extent
+        };
+    }
+
+    vkCmdCopyBufferToImage(cmd.command_buffer, src_buffer.buffer, dst_image.image, dst_layout, static_cast<u32>(image_copies.size()), image_copies.data());
 }
 
 void Renderer::begin_graphics_pipeline(Handle<CommandList> command_list, Handle<GraphicsPipeline> pipeline, Handle<RenderTarget> render_target, const RenderTargetClear& clear) const {
@@ -303,7 +521,6 @@ void Renderer::push_graphics_constants(Handle<CommandList> command_list, Handle<
         data
     );
 }
-
 void Renderer::push_compute_constants(Handle<CommandList> command_list, Handle<ComputePipeline> pipeline, const void *data, u8 size_override, u8 offset_override) const {
     const ComputePipeline& pipe = pipeline_manager->get_compute_pipeline_data(pipeline);
 
@@ -372,5 +589,5 @@ void Renderer::bind_compute_descriptor(Handle<CommandList> command_list, Handle<
 }
 
 void Renderer::draw_count(Handle<CommandList> command_list, u32 vertex_count, u32 first_vertex, u32 instance_count) const {
-    vkCmdDraw(command_manager->get_command_list_data(command_list).command_buffer, vertex_count, instance_count, first_vertex, 0U);
+    vkCmdDraw(command_manager->get_command_list_data(command_list).command_buffer, vertex_count, instance_count,first_vertex, 0U);
 }

@@ -16,8 +16,8 @@ layout(push_constant, std430) uniform PushConstant {
 } push_constants;
 
 void main() {
-    //vec3 albedo = texture(array_of_textures[nonuniformEXT(0)], f_texcoord).rgb;
-    vec3 albedo = texture(textures_array, vec3(f_texcoord, 0)).rgb;
+    vec3 albedo = texture(array_of_textures[nonuniformEXT(0)], f_texcoord).rgb;
+    //vec3 albedo = texture(textures_array, vec3(f_texcoord, 0)).rgb;
 
     out_color = vec4(albedo * push_constants.color_multiplier, 1.0);
 }

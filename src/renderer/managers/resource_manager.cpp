@@ -3,23 +3,28 @@
 
 ResourceManager::ResourceManager(VkDevice device, VmaAllocator allocator) : vk_device(device), vk_allocator(allocator) {
     std::vector<VkDescriptorPoolSize> pool_sizes {
-        VkDescriptorPoolSize { VK_DESCRIPTOR_TYPE_SAMPLER, per_descriptor_pool_size },
-        VkDescriptorPoolSize { VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER, per_descriptor_pool_size },
-        VkDescriptorPoolSize { VK_DESCRIPTOR_TYPE_SAMPLED_IMAGE, per_descriptor_pool_size },
-        VkDescriptorPoolSize { VK_DESCRIPTOR_TYPE_STORAGE_IMAGE, per_descriptor_pool_size },
-        //VkDescriptorPoolSize { VK_DESCRIPTOR_TYPE_UNIFORM_TEXEL_BUFFER, per_descriptor_pool_size },
-        //VkDescriptorPoolSize { VK_DESCRIPTOR_TYPE_STORAGE_TEXEL_BUFFER, per_descriptor_pool_size },
-        VkDescriptorPoolSize { VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER, per_descriptor_pool_size },
-        VkDescriptorPoolSize { VK_DESCRIPTOR_TYPE_STORAGE_BUFFER, per_descriptor_pool_size },
-        //VkDescriptorPoolSize { VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER_DYNAMIC, per_descriptor_pool_size },
-        //VkDescriptorPoolSize { VK_DESCRIPTOR_TYPE_STORAGE_BUFFER_DYNAMIC, per_descriptor_pool_size },
-        //VkDescriptorPoolSize { VK_DESCRIPTOR_TYPE_INPUT_ATTACHMENT, per_descriptor_pool_size }
+        VkDescriptorPoolSize { VK_DESCRIPTOR_TYPE_SAMPLER, 128U },
+        VkDescriptorPoolSize { VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER, 4096U },
+        VkDescriptorPoolSize { VK_DESCRIPTOR_TYPE_SAMPLED_IMAGE, 4096U },
+        VkDescriptorPoolSize { VK_DESCRIPTOR_TYPE_STORAGE_IMAGE, 1024U },
+        //VkDescriptorPoolSize { VK_DESCRIPTOR_TYPE_UNIFORM_TEXEL_BUFFER, 0U },
+        //VkDescriptorPoolSize { VK_DESCRIPTOR_TYPE_STORAGE_TEXEL_BUFFER, 0U },
+        VkDescriptorPoolSize { VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER, 256U },
+        VkDescriptorPoolSize { VK_DESCRIPTOR_TYPE_STORAGE_BUFFER, 256U },
+        //VkDescriptorPoolSize { VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER_DYNAMIC, 0U },
+        //VkDescriptorPoolSize { VK_DESCRIPTOR_TYPE_STORAGE_BUFFER_DYNAMIC, 0U },
+        //VkDescriptorPoolSize { VK_DESCRIPTOR_TYPE_INPUT_ATTACHMENT, 0U }
     };
+
+    u32 max_sets{};
+    for(const auto& size : pool_sizes) {
+        max_sets += size.descriptorCount;
+    }
 
     VkDescriptorPoolCreateInfo descriptor_pool_create_info{
         .sType = VK_STRUCTURE_TYPE_DESCRIPTOR_POOL_CREATE_INFO,
         .flags = VK_DESCRIPTOR_POOL_CREATE_UPDATE_AFTER_BIND_BIT_EXT | VK_DESCRIPTOR_POOL_CREATE_FREE_DESCRIPTOR_SET_BIT,
-        .maxSets = per_descriptor_pool_size * static_cast<u32>(pool_sizes.size()),
+        .maxSets = max_sets,
         .poolSizeCount = static_cast<u32>(pool_sizes.size()),
         .pPoolSizes = pool_sizes.data()
     };
@@ -60,6 +65,7 @@ Handle<Image> ResourceManager::create_image(const ImageCreateInfo& info) {
     Image image{
         .image_type = static_cast<VkImageType>(dimension_count - 1U),
         .format = info.format,
+        .extent = image_extent,
         //.initial_layout = VK_IMAGE_LAYOUT_UNDEFINED,
         .usage_flags = info.usage_flags,
         .aspect_flags = info.aspect_flags,
@@ -160,7 +166,7 @@ Handle<Descriptor> ResourceManager::create_descriptor(const DescriptorCreateInfo
             .binding = static_cast<u32>(bindings.size()),
             .descriptorType = binding.descriptor_type,
             .descriptorCount = binding.count,
-            .stageFlags = VK_SHADER_STAGE_VERTEX_BIT | VK_SHADER_STAGE_FRAGMENT_BIT | VK_SHADER_STAGE_COMPUTE_BIT,
+            .stageFlags = VK_SHADER_STAGE_VERTEX_BIT | VK_SHADER_STAGE_FRAGMENT_BIT | VK_SHADER_STAGE_COMPUTE_BIT
         });
     }
 
@@ -304,7 +310,7 @@ void ResourceManager::update_descriptor(Handle<Descriptor> descriptor_handle, co
             .dstBinding = binding.binding_index,
             .dstArrayElement = binding.array_index,
             .descriptorCount = 1U,
-            .descriptorType = descriptor.create_info.bindings[binding.binding_index].descriptor_type,
+            .descriptorType = descriptor.create_info.bindings[binding.binding_index].descriptor_type
         };
 
         if(binding.buffer_info.buffer_handle != INVALID_HANDLE && binding.image_info.image_handle == INVALID_HANDLE) {

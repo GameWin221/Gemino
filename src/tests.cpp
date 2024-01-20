@@ -65,6 +65,12 @@ void tests::run_api_test() {
     Handle<Image> image_a = renderer.resource_manager->create_image(ImageCreateInfo{
         .format = VK_FORMAT_R8G8B8A8_SRGB,
         .extent = VkExtent3D{3U, 3U},
+        .usage_flags = VK_IMAGE_USAGE_SAMPLED_BIT | VK_IMAGE_USAGE_TRANSFER_DST_BIT | VK_IMAGE_USAGE_TRANSFER_SRC_BIT,
+        .aspect_flags = VK_IMAGE_ASPECT_COLOR_BIT,
+    });
+    Handle<Image> image_a_blit_target = renderer.resource_manager->create_image(ImageCreateInfo{
+        .format = VK_FORMAT_R8G8B8A8_SRGB,
+        .extent = VkExtent3D{9U, 9U},
         .usage_flags = VK_IMAGE_USAGE_SAMPLED_BIT | VK_IMAGE_USAGE_TRANSFER_DST_BIT,
         .aspect_flags = VK_IMAGE_ASPECT_COLOR_BIT,
     });
@@ -97,6 +103,12 @@ void tests::run_api_test() {
         .new_layout = VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL
     }});
     renderer.image_barrier(upload_cmd, VK_PIPELINE_STAGE_TOP_OF_PIPE_BIT, VK_PIPELINE_STAGE_TRANSFER_BIT, {ImageBarrier{
+        .image_handle = image_a_blit_target,
+        .dst_access_mask = VK_ACCESS_TRANSFER_WRITE_BIT,
+        .old_layout = VK_IMAGE_LAYOUT_UNDEFINED,
+        .new_layout = VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL
+    }});
+    renderer.image_barrier(upload_cmd, VK_PIPELINE_STAGE_TOP_OF_PIPE_BIT, VK_PIPELINE_STAGE_TRANSFER_BIT, {ImageBarrier{
         .image_handle = image_b,
         .dst_access_mask = VK_ACCESS_TRANSFER_WRITE_BIT,
         .old_layout = VK_IMAGE_LAYOUT_UNDEFINED,
@@ -106,66 +118,30 @@ void tests::run_api_test() {
         .image_handle = image_array,
         .dst_access_mask = VK_ACCESS_TRANSFER_WRITE_BIT,
         .old_layout = VK_IMAGE_LAYOUT_UNDEFINED,
-        .new_layout = VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL,
-        .layer_count = 2U
+        .new_layout = VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL
     }});
-    renderer.copy_buffer_to_image(upload_cmd, upload_buffer, image_a, VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL, {VkBufferImageCopy{
-        .bufferOffset = 0,
-        .imageSubresource {
-            .aspectMask = VK_IMAGE_ASPECT_COLOR_BIT,
-            .layerCount = 1U
-        },
-        .imageExtent = VkExtent3D{
-            .width = 3U,
-            .height = 3U,
-            .depth = 1U
-        },
-    }});
-    renderer.copy_buffer_to_image(upload_cmd, upload_buffer, image_b, VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL, {VkBufferImageCopy{
-        .bufferOffset = sizeof(EXAMPLE_IMAGE_A_DATA),
-        .imageSubresource {
-            .aspectMask = VK_IMAGE_ASPECT_COLOR_BIT,
-            .layerCount = 1U
-        },
-        .imageExtent = VkExtent3D{
-            .width = 3U,
-            .height = 3U,
-            .depth = 1U
-        },
-    }});
-    renderer.copy_buffer_to_image(upload_cmd, upload_buffer, image_array, VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL, {
-        VkBufferImageCopy{
-            .bufferOffset = sizeof(EXAMPLE_IMAGE_A_DATA),
-            .imageSubresource {
-                .aspectMask = VK_IMAGE_ASPECT_COLOR_BIT,
-                .baseArrayLayer = 0U,
-                .layerCount = 1U,
-            },
-            .imageExtent = VkExtent3D{
-                .width = 3U,
-                .height = 3U,
-                .depth = 1U
-            },
-        },
-        VkBufferImageCopy{
-            .bufferOffset = sizeof(EXAMPLE_IMAGE_B_DATA),
-            .imageSubresource {
-                .aspectMask = VK_IMAGE_ASPECT_COLOR_BIT,
-                .baseArrayLayer = 1U,
-                .layerCount = 1U
-            },
-            .imageExtent = VkExtent3D{
-                .width = 3U,
-                .height = 3U,
-                .depth = 1U
-            }
-        },
+    renderer.copy_buffer_to_image(upload_cmd, upload_buffer, image_a, VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL, {BufferToImageCopy{}});
+    renderer.copy_buffer_to_image(upload_cmd, upload_buffer, image_b, VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL, {
+        BufferToImageCopy{
+            .src_buffer_offset = sizeof(EXAMPLE_IMAGE_A_DATA),
+        }
     });
-    renderer.image_barrier(upload_cmd, VK_PIPELINE_STAGE_TRANSFER_BIT, VK_PIPELINE_STAGE_FRAGMENT_SHADER_BIT, {ImageBarrier{
+    renderer.copy_buffer_to_image(upload_cmd, upload_buffer, image_array, VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL, {BufferToImageCopy{}});
+    renderer.image_barrier(upload_cmd, VK_PIPELINE_STAGE_TRANSFER_BIT, VK_PIPELINE_STAGE_TRANSFER_BIT, {ImageBarrier{
         .image_handle = image_a,
         .src_access_mask = VK_ACCESS_TRANSFER_WRITE_BIT,
-        .dst_access_mask = VK_ACCESS_SHADER_READ_BIT,
+        .dst_access_mask = VK_ACCESS_TRANSFER_READ_BIT,
         .old_layout = VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL,
+        .new_layout = VK_IMAGE_LAYOUT_TRANSFER_SRC_OPTIMAL
+    }});
+    renderer.blit_image(upload_cmd, image_a, VK_IMAGE_LAYOUT_TRANSFER_SRC_OPTIMAL, image_a_blit_target, VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL, VK_FILTER_LINEAR, {ImageBlit{
+        .src_access_mask = VK_ACCESS_TRANSFER_WRITE_BIT,
+    }});
+    renderer.image_barrier(upload_cmd, VK_PIPELINE_STAGE_TRANSFER_BIT, VK_PIPELINE_STAGE_FRAGMENT_SHADER_BIT, {ImageBarrier{
+        .image_handle = image_a,
+        .src_access_mask = VK_ACCESS_TRANSFER_READ_BIT,
+        .dst_access_mask = VK_ACCESS_SHADER_READ_BIT,
+        .old_layout = VK_IMAGE_LAYOUT_TRANSFER_SRC_OPTIMAL,
         .new_layout = VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL
     }});
     renderer.image_barrier(upload_cmd, VK_PIPELINE_STAGE_TRANSFER_BIT, VK_PIPELINE_STAGE_FRAGMENT_SHADER_BIT, {ImageBarrier{
@@ -205,8 +181,9 @@ void tests::run_api_test() {
                 .binding_index = 0U,
                 .array_index = 0U,
                 .image_info {
-                    .image_handle = image_a,
+                    .image_handle = image_a_blit_target,
                     .image_sampler = sampler
+
                 }
             },
             DescriptorBindingUpdateInfo{
