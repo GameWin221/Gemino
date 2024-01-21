@@ -1,6 +1,6 @@
 #include "pipeline_manager.hpp"
 
-#include <common/file_utils.hpp>
+#include <common/utils.hpp>
 #include <common/debug.hpp>
 
 PipelineManager::PipelineManager(VkDevice device, const ResourceManager* resource_manager_ptr) : vk_device(device), resource_manager(resource_manager_ptr) {
@@ -450,7 +450,7 @@ const RenderTarget& PipelineManager::get_render_target_data(Handle<RenderTarget>
 ShaderData PipelineManager::create_shader_data(const std::string &path, VkShaderStageFlagBits stage) {
     ShaderData data{};
 
-    std::vector<u8> spirv_code = FileUtils::read_file_bytes(path);
+    std::vector<u8> spirv_code = Utils::read_file_bytes(path);
 
     VkShaderModuleCreateInfo module_create_info{
         .sType = VK_STRUCTURE_TYPE_SHADER_MODULE_CREATE_INFO,

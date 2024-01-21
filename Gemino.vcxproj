@@ -19,7 +19,6 @@
     </ProjectConfiguration>
   </ItemGroup>
   <ItemGroup>
-    <ClCompile Include="src\common\file_utils.cpp" />
     <ClCompile Include="src\common\utils.cpp" />
     <ClCompile Include="src\main.cpp" />
     <ClCompile Include="src\renderer\instance.cpp" />
@@ -35,7 +34,6 @@
   </ItemGroup>
   <ItemGroup>
     <ClInclude Include="src\common\debug.hpp" />
-    <ClInclude Include="src\common\file_utils.hpp" />
     <ClInclude Include="src\common\types.hpp" />
     <ClInclude Include="src\common\utils.hpp" />
     <ClInclude Include="src\renderer\instance.hpp" />

@@ -5,6 +5,7 @@
 #include <world/world.hpp>
 
 #include <common/types.hpp>
+#include <common/utils.hpp>
 #include <common/debug.hpp>
 
 // Example file that tests most of Gemino's API features
@@ -66,13 +67,14 @@ void tests::run_api_test() {
         .format = VK_FORMAT_R8G8B8A8_SRGB,
         .extent = VkExtent3D{3U, 3U},
         .usage_flags = VK_IMAGE_USAGE_SAMPLED_BIT | VK_IMAGE_USAGE_TRANSFER_DST_BIT | VK_IMAGE_USAGE_TRANSFER_SRC_BIT,
-        .aspect_flags = VK_IMAGE_ASPECT_COLOR_BIT,
+        .aspect_flags = VK_IMAGE_ASPECT_COLOR_BIT
     });
     Handle<Image> image_a_blit_target = renderer.resource_manager->create_image(ImageCreateInfo{
         .format = VK_FORMAT_R8G8B8A8_SRGB,
         .extent = VkExtent3D{9U, 9U},
-        .usage_flags = VK_IMAGE_USAGE_SAMPLED_BIT | VK_IMAGE_USAGE_TRANSFER_DST_BIT,
+        .usage_flags = VK_IMAGE_USAGE_SAMPLED_BIT | VK_IMAGE_USAGE_TRANSFER_DST_BIT | VK_IMAGE_USAGE_TRANSFER_SRC_BIT,
         .aspect_flags = VK_IMAGE_ASPECT_COLOR_BIT,
+        .mip_level_count = Utils::calculate_mipmap_levels_xy(9U, 9U)
     });
     Handle<Image> image_b = renderer.resource_manager->create_image(ImageCreateInfo{
         .format = VK_FORMAT_R8G8B8A8_SRGB,
@@ -87,8 +89,12 @@ void tests::run_api_test() {
         .aspect_flags = VK_IMAGE_ASPECT_COLOR_BIT,
         .array_layer_count = 2U
     });
-    Handle<Sampler> sampler = renderer.resource_manager->create_sampler(SamplerCreateInfo{
+    Handle<Sampler> nearest_sampler = renderer.resource_manager->create_sampler(SamplerCreateInfo{
         .filter = VK_FILTER_NEAREST
+    });
+    Handle<Sampler> mipmap_sampler = renderer.resource_manager->create_sampler(SamplerCreateInfo{
+        .filter = VK_FILTER_LINEAR,
+        .max_mipmap = static_cast<f32>(renderer.resource_manager->get_image_data(image_a).mip_level_count)
     });
 
     renderer.resource_manager->memcpy_to_buffer_once(upload_buffer, EXAMPLE_IMAGE_A_DATA, sizeof(EXAMPLE_IMAGE_A_DATA));
@@ -120,6 +126,7 @@ void tests::run_api_test() {
         .old_layout = VK_IMAGE_LAYOUT_UNDEFINED,
         .new_layout = VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL
     }});
+
     renderer.copy_buffer_to_image(upload_cmd, upload_buffer, image_a, VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL, {BufferToImageCopy{}});
     renderer.copy_buffer_to_image(upload_cmd, upload_buffer, image_b, VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL, {
         BufferToImageCopy{
@@ -127,6 +134,7 @@ void tests::run_api_test() {
         }
     });
     renderer.copy_buffer_to_image(upload_cmd, upload_buffer, image_array, VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL, {BufferToImageCopy{}});
+
     renderer.image_barrier(upload_cmd, VK_PIPELINE_STAGE_TRANSFER_BIT, VK_PIPELINE_STAGE_TRANSFER_BIT, {ImageBarrier{
         .image_handle = image_a,
         .src_access_mask = VK_ACCESS_TRANSFER_WRITE_BIT,
@@ -134,9 +142,14 @@ void tests::run_api_test() {
         .old_layout = VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL,
         .new_layout = VK_IMAGE_LAYOUT_TRANSFER_SRC_OPTIMAL
     }});
-    renderer.blit_image(upload_cmd, image_a, VK_IMAGE_LAYOUT_TRANSFER_SRC_OPTIMAL, image_a_blit_target, VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL, VK_FILTER_LINEAR, {ImageBlit{
-        .src_access_mask = VK_ACCESS_TRANSFER_WRITE_BIT,
-    }});
+
+    renderer.blit_image(upload_cmd, image_a, VK_IMAGE_LAYOUT_TRANSFER_SRC_OPTIMAL, image_a_blit_target, VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL, VK_FILTER_LINEAR, {ImageBlit{}});
+
+    renderer.gen_mipmaps(upload_cmd, image_a_blit_target, VK_FILTER_LINEAR,
+        VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL, VK_PIPELINE_STAGE_TRANSFER_BIT, VK_ACCESS_TRANSFER_WRITE_BIT,
+        VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL, VK_PIPELINE_STAGE_FRAGMENT_SHADER_BIT, VK_ACCESS_SHADER_READ_BIT
+    );
+    // image_a_blit_target gets transitioned to VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL in the gen_mipmaps function
     renderer.image_barrier(upload_cmd, VK_PIPELINE_STAGE_TRANSFER_BIT, VK_PIPELINE_STAGE_FRAGMENT_SHADER_BIT, {ImageBarrier{
         .image_handle = image_a,
         .src_access_mask = VK_ACCESS_TRANSFER_READ_BIT,
@@ -182,8 +195,7 @@ void tests::run_api_test() {
                 .array_index = 0U,
                 .image_info {
                     .image_handle = image_a_blit_target,
-                    .image_sampler = sampler
-
+                    .image_sampler = mipmap_sampler
                 }
             },
             DescriptorBindingUpdateInfo{
@@ -191,14 +203,14 @@ void tests::run_api_test() {
                 .array_index = 1U,
                 .image_info {
                     .image_handle = image_b,
-                    .image_sampler = sampler
+                    .image_sampler = nearest_sampler
                 }
             },
             DescriptorBindingUpdateInfo{
                 .binding_index = 1U,
                 .image_info {
                     .image_handle = image_array,
-                    .image_sampler = sampler
+                    .image_sampler = nearest_sampler
                 },
             },
         }

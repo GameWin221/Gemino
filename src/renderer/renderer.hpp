@@ -42,10 +42,10 @@ struct ImageBarrier {
     VkImageLayout old_layout{};
     VkImageLayout new_layout{};
 
-    u32 base_level_override{};
-    u32 level_count_override{};
+    u32 base_mipmap_level_override{};
+    u32 mipmap_level_count_override{};
     u32 base_array_layer_override{};
-    u32 layer_count_override{};
+    u32 array_layer_count_override{};
 };
 struct BufferBarrier {
     Handle<Buffer> buffer_handle{};
@@ -63,16 +63,13 @@ struct ImageBlit {
     VkExtent3D dst_lower_bounds_override{};
     VkExtent3D dst_upper_bounds_override{};
 
-    VkAccessFlags src_access_mask{};
-    VkAccessFlags dst_access_mask{};
-
     u32 src_mipmap_level_override{};
     u32 src_base_array_layer_override{};
-    u32 src_layer_count_override{};
+    u32 src_array_layer_count_override{};
 
     u32 dst_mipmap_level_override{};
     u32 dst_base_array_layer_override{};
-    u32 dst_layer_count_override{};
+    u32 dst_array_layer_count_override{};
 };
 struct BufferToImageCopy {
     VkDeviceSize src_buffer_offset{};
@@ -82,7 +79,7 @@ struct BufferToImageCopy {
 
     u32 mipmap_level_override{};
     u32 base_array_layer_override{};
-    u32 layer_count_override{};
+    u32 array_layer_count_override{};
 };
 
 class Renderer {
@@ -115,7 +112,7 @@ public:
     void buffer_barrier(Handle<CommandList> command_list, VkPipelineStageFlags src_stage, VkPipelineStageFlags dst_stage, const std::vector<BufferBarrier>& barriers) const;
 
     void blit_image(Handle<CommandList> command_list, Handle<Image> src_image_handle, VkImageLayout src_image_layout, Handle<Image> dst_image_handle, VkImageLayout dst_image_layout, VkFilter filter, const std::vector<ImageBlit>& blits) const;
-    void gen_mipmaps(Handle<CommandList> command_list, Handle<Image> target_image) const;
+    void gen_mipmaps(Handle<CommandList> command_list, Handle<Image> target_image, VkFilter filter, VkImageLayout src_layout, VkPipelineStageFlags src_stage, VkAccessFlags src_access, VkImageLayout dst_layout, VkPipelineStageFlags dst_stage, VkAccessFlags dst_access) const;
 
     void copy_buffer_to_buffer(Handle<CommandList> command_list, Handle<Buffer> src, Handle<Buffer> dst, const std::vector<VkBufferCopy>& regions) const;
     void copy_buffer_to_image(Handle<CommandList> command_list, Handle<Buffer> src, Handle<Image> dst, VkImageLayout dst_layout, const std::vector<BufferToImageCopy>& regions) const;

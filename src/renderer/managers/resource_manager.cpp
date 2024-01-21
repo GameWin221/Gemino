@@ -424,7 +424,7 @@ const Descriptor& ResourceManager::get_descriptor_data(Handle<Descriptor> descri
 }
 const Sampler& ResourceManager::get_sampler_data(Handle<Sampler> sampler_handle) const {
 #if DEBUG_MODE // Remove hot-path checks in release mode
-    if (!descriptor_allocator.is_handle_valid(sampler_handle)) {
+    if (!sampler_allocator.is_handle_valid(sampler_handle)) {
         DEBUG_PANIC("Cannot get sampler data - Sampler with a handle id: = " << sampler_handle << ", does not exist!")
     }
 #endif

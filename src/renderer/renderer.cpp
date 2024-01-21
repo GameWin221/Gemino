@@ -159,21 +159,21 @@ void Renderer::image_barrier(Handle<CommandList> command_list, VkPipelineStageFl
         const Image& image = resource_manager->get_image_data(barrier.image_handle);
 
         u32 level_count;
-        if(barrier.level_count_override != 0) {
-            level_count = barrier.level_count_override;
+        if(barrier.mipmap_level_count_override != 0) {
+            level_count = barrier.mipmap_level_count_override;
         } else {
             level_count = image.mip_level_count;
         }
 
         u32 layer_count;
-        if(barrier.layer_count_override != 0) {
-            layer_count = barrier.layer_count_override;
+        if(barrier.array_layer_count_override != 0) {
+            layer_count = barrier.array_layer_count_override;
         } else {
             layer_count = image.array_layer_count;
         }
 
-        if(barrier.base_level_override + level_count > image.mip_level_count) {
-            DEBUG_PANIC("Invalid image barrier! - Image barrier[" << i << "] base_level + level_count is out of range, base_level = " << barrier.base_level_override << ", level_count = " << level_count << ", image.mip_level_count = " << image.mip_level_count)
+        if(barrier.base_mipmap_level_override + level_count > image.mip_level_count) {
+            DEBUG_PANIC("Invalid image barrier! - Image barrier[" << i << "] base_level + level_count is out of range, base_level = " << barrier.base_mipmap_level_override << ", level_count = " << level_count << ", image.mip_level_count = " << image.mip_level_count)
         }
 
         if(barrier.base_array_layer_override + layer_count > image.array_layer_count) {
@@ -191,7 +191,7 @@ void Renderer::image_barrier(Handle<CommandList> command_list, VkPipelineStageFl
             .image = image.image,
             .subresourceRange {
                 .aspectMask = image.aspect_flags,
-                .baseMipLevel = barrier.base_level_override,
+                .baseMipLevel = barrier.base_mipmap_level_override,
                 .levelCount = level_count,
                 .baseArrayLayer = barrier.base_array_layer_override,
                 .layerCount = layer_count,
@@ -284,8 +284,8 @@ void Renderer::blit_image(Handle<CommandList> command_list, Handle<Image> src_im
         }
 
         u32 src_layer_count;
-        if(blit.src_layer_count_override != 0) {
-            src_layer_count = blit.src_layer_count_override;
+        if(blit.src_array_layer_count_override != 0) {
+            src_layer_count = blit.src_array_layer_count_override;
         } else {
             src_layer_count = src_image.array_layer_count;
         }
@@ -295,8 +295,8 @@ void Renderer::blit_image(Handle<CommandList> command_list, Handle<Image> src_im
         }
 
         u32 dst_layer_count;
-        if(blit.dst_layer_count_override != 0) {
-            dst_layer_count = blit.dst_layer_count_override;
+        if(blit.dst_array_layer_count_override != 0) {
+            dst_layer_count = blit.dst_array_layer_count_override;
         } else {
             dst_layer_count = dst_image.array_layer_count;
         }
@@ -338,8 +338,7 @@ void Renderer::blit_image(Handle<CommandList> command_list, Handle<Image> src_im
         filter
     );
 }
-
-void Renderer::gen_mipmaps(Handle<CommandList> command_list, Handle<Image> target_image) const {
+void Renderer::gen_mipmaps(Handle<CommandList> command_list, Handle<Image> target_image, VkFilter filter, VkImageLayout src_layout, VkPipelineStageFlags src_stage, VkAccessFlags src_access, VkImageLayout dst_layout, VkPipelineStageFlags dst_stage, VkAccessFlags dst_access) const {
     const Image& image = resource_manager->get_image_data(target_image);
     const CommandList& cmd = command_manager->get_command_list_data(command_list);
 
@@ -347,12 +346,61 @@ void Renderer::gen_mipmaps(Handle<CommandList> command_list, Handle<Image> targe
         DEBUG_PANIC("Failed to generate mipmaps! - Image's format does not support linear blitting, format = " << image.format)
     }
 
-    i32 width = static_cast<i32>(image.extent.width);
-    i32 height = static_cast<i32>(image.extent.height);
+    image_barrier(command_list, src_stage, VK_PIPELINE_STAGE_TRANSFER_BIT, {ImageBarrier{
+        .image_handle = target_image,
+        .src_access_mask = src_access,
+        .dst_access_mask = VK_ACCESS_TRANSFER_WRITE_BIT,
+        .old_layout = src_layout,
+        .new_layout = VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL,
+    }});
+
+    VkExtent3D src_mip_extent = image.extent;
 
     for(u32 i = 1U; i < image.mip_level_count; ++i) {
+        VkExtent3D dst_mip_extent = VkExtent3D{
+            (src_mip_extent.width > 1U) ? (src_mip_extent.width / 2U) : 1U,
+            (src_mip_extent.height > 1U) ? (src_mip_extent.height / 2U) : 1U,
+            (src_mip_extent.depth > 1U) ? (src_mip_extent.depth / 2U) : 1U
+        };
 
+        image_barrier(command_list, VK_PIPELINE_STAGE_TRANSFER_BIT, VK_PIPELINE_STAGE_TRANSFER_BIT, {ImageBarrier{
+            .image_handle = target_image,
+            .src_access_mask = VK_ACCESS_TRANSFER_WRITE_BIT,
+            .dst_access_mask = VK_ACCESS_TRANSFER_READ_BIT,
+            .old_layout = VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL,
+            .new_layout = VK_IMAGE_LAYOUT_TRANSFER_SRC_OPTIMAL,
+            .base_mipmap_level_override = i - 1U,
+            .mipmap_level_count_override = 1U
+        }});
+
+        blit_image(command_list, target_image, VK_IMAGE_LAYOUT_TRANSFER_SRC_OPTIMAL, target_image, VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL, filter, {ImageBlit{
+            .src_upper_bounds_override = src_mip_extent,
+            .dst_upper_bounds_override = dst_mip_extent,
+            .src_mipmap_level_override = i - 1U,
+            .dst_mipmap_level_override = i,
+        }});
+
+        src_mip_extent = dst_mip_extent;
     }
+
+    // Transition last mipmap and then all back to the initial layout
+    image_barrier(command_list, VK_PIPELINE_STAGE_TRANSFER_BIT, VK_PIPELINE_STAGE_TRANSFER_BIT, {ImageBarrier{
+        .image_handle = target_image,
+        .src_access_mask = VK_ACCESS_TRANSFER_WRITE_BIT,
+        .dst_access_mask = VK_ACCESS_TRANSFER_READ_BIT,
+        .old_layout = VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL,
+        .new_layout = VK_IMAGE_LAYOUT_TRANSFER_SRC_OPTIMAL,
+        .base_mipmap_level_override = image.mip_level_count - 1U,
+        .mipmap_level_count_override = 1U
+    }});
+
+    image_barrier(command_list, VK_PIPELINE_STAGE_TRANSFER_BIT, dst_stage, {ImageBarrier{
+        .image_handle = target_image,
+        .src_access_mask = VK_ACCESS_TRANSFER_READ_BIT,
+        .dst_access_mask = dst_access,
+        .old_layout = VK_IMAGE_LAYOUT_TRANSFER_SRC_OPTIMAL,
+        .new_layout = dst_layout
+    }});
 }
 
 void Renderer::copy_buffer_to_buffer(Handle<CommandList> command_list, Handle<Buffer> src, Handle<Buffer> dst, const std::vector<VkBufferCopy>& regions) const {
@@ -372,8 +420,8 @@ void Renderer::copy_buffer_to_image(Handle<CommandList> command_list, Handle<Buf
         const auto& region = regions[i];
 
         u32 layer_count;
-        if(region.layer_count_override != 0) {
-            layer_count = region.layer_count_override;
+        if(region.array_layer_count_override != 0) {
+            layer_count = region.array_layer_count_override;
         } else {
             layer_count = dst_image.array_layer_count;
         }
