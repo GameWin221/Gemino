@@ -3,7 +3,7 @@
 
 #include <vk_mem_alloc.h>
 #include <common/types.hpp>
-#include <renderer/managers/handle_allocator.hpp>
+#include <common/handle_allocator.hpp>
 
 struct Buffer {
     VkBuffer buffer{};
@@ -28,8 +28,6 @@ struct Image {
 
     VkFormat format{};
     VkExtent3D extent{};
-
-    //VkImageLayout current_layout = VK_IMAGE_LAYOUT_UNDEFINED;
 
     VkImageUsageFlags usage_flags{};
     VkImageAspectFlags aspect_flags{};

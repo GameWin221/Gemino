@@ -66,7 +66,6 @@ Handle<Image> ResourceManager::create_image(const ImageCreateInfo& info) {
         .image_type = static_cast<VkImageType>(dimension_count - 1U),
         .format = info.format,
         .extent = image_extent,
-        //.initial_layout = VK_IMAGE_LAYOUT_UNDEFINED,
         .usage_flags = info.usage_flags,
         .aspect_flags = info.aspect_flags,
         .create_flags = info.create_flags,

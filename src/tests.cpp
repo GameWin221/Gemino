@@ -9,6 +9,7 @@
 #include <common/debug.hpp>
 
 // Example file that tests most of Gemino's API features
+// Run it with Vulkan Configurator already running with all validation areas enabled including GPU-Assisted validation (excluding Best Practices)
 
 constexpr static u8 EXAMPLE_IMAGE_A_DATA[3U * 3U * 4U] = {
     0xff, 0xff, 0xff, 0xff,
@@ -234,7 +235,7 @@ void tests::run_api_test() {
         //    .final_layout = VK_IMAGE_LAYOUT_DEPTH_STENCIL_ATTACHMENT_OPTIMAL
         //},
 
-        .enable_depth_write = true,
+       // .enable_depth_write = true,
     });
 
     Handle<ComputePipeline> kernel = renderer.pipeline_manager->create_compute_pipeline(ComputePipelineCreateInfo{
@@ -245,7 +246,7 @@ void tests::run_api_test() {
     std::vector<Handle<RenderTarget>> swapchain_render_targets{};
     for(const auto& view : renderer.swapchain->get_image_views()) {
         swapchain_render_targets.push_back(renderer.pipeline_manager->create_render_target(pipeline, RenderTargetCreateInfo{
-            .extent = renderer.swapchain->get_extent(),
+            .view_extent = renderer.swapchain->get_extent(),
             .color_target_view = view
         }));
     }

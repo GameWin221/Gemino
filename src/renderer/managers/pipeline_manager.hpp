@@ -4,8 +4,8 @@
 #include <string>
 #include <vulkan/vulkan.h>
 #include <renderer/vertex.hpp>
-#include <renderer/managers/handle_allocator.hpp>
 #include <renderer/managers/resource_manager.hpp>
+#include <common/handle_allocator.hpp>
 #include <common/types.hpp>
 
 struct ShaderData {
@@ -14,7 +14,7 @@ struct ShaderData {
 };
 
 struct RenderTargetCreateInfo {
-    VkExtent2D extent{};
+    VkExtent2D view_extent{};
 
     VkImageView color_target_view{};
     VkImageView depth_target_view{};

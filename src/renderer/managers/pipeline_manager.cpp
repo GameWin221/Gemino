@@ -329,7 +329,7 @@ Handle<ComputePipeline> PipelineManager::create_compute_pipeline(const ComputePi
 }
 Handle<RenderTarget> PipelineManager::create_render_target(Handle<GraphicsPipeline> src_pipeline, const RenderTargetCreateInfo& info) {
     RenderTarget rt{
-        .extent = info.extent,
+        .extent = info.view_extent,
         .color_handle = info.color_target_handle,
         .depth_handle = info.depth_target_handle,
     };
@@ -345,12 +345,22 @@ Handle<RenderTarget> PipelineManager::create_render_target(Handle<GraphicsPipeli
         rt.color_view = info.color_target_view;
     } else if(info.color_target_view == nullptr && info.color_target_handle != INVALID_HANDLE) {
         rt.color_view = resource_manager->get_image_data(info.color_target_handle).view;
+
+        if(info.view_extent.width == 0U && info.view_extent.height == 0U) {
+            VkExtent3D image_extent = resource_manager->get_image_data(info.color_target_handle).extent;
+            rt.extent = VkExtent2D { image_extent.width, image_extent.height };
+        }
     }
 
     if(info.depth_target_view != nullptr && info.depth_target_handle == INVALID_HANDLE) {
         rt.depth_view = info.depth_target_view;
     } else if(info.depth_target_view == nullptr && info.depth_target_handle != INVALID_HANDLE) {
         rt.depth_view = resource_manager->get_image_data(info.depth_target_handle).view;
+
+        if(info.view_extent.width == 0U && info.view_extent.height == 0U) {
+            VkExtent3D image_extent = resource_manager->get_image_data(info.depth_target_handle).extent;
+            rt.extent = VkExtent2D{image_extent.width, image_extent.height};
+        }
     }
 
     if(rt.color_view == nullptr && rt.depth_view == nullptr) {
@@ -375,8 +385,8 @@ Handle<RenderTarget> PipelineManager::create_render_target(Handle<GraphicsPipeli
         .renderPass = pipeline.render_pass,
         .attachmentCount = uses_color_attachment + uses_depth_attachment,
         .pAttachments = image_views,
-        .width = info.extent.width,
-        .height = info.extent.height,
+        .width = info.view_extent.width,
+        .height = info.view_extent.height,
         .layers = 1U,
     };
 

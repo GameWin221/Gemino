@@ -12,9 +12,10 @@ static constexpr std::array<const char*, 1> REQUESTED_VALIDATION_LAYER_NAMES {
     "VK_LAYER_KHRONOS_validation"
 };
 
-static constexpr std::array<const char*, 2> REQUESTED_DEVICE_EXTENSION_NAMES {
+static constexpr std::array<const char*, 3> REQUESTED_DEVICE_EXTENSION_NAMES {
     VK_KHR_SWAPCHAIN_EXTENSION_NAME,
-    VK_EXT_DESCRIPTOR_INDEXING_EXTENSION_NAME
+    VK_EXT_DESCRIPTOR_INDEXING_EXTENSION_NAME,
+    VK_KHR_SHADER_DRAW_PARAMETERS_EXTENSION_NAME
 };
 
 static constexpr VkPhysicalDeviceVulkan12Features REQUESTED_DEVICE_FEATURES_VK_1_2 {
@@ -30,7 +31,7 @@ static constexpr VkPhysicalDeviceVulkan12Features REQUESTED_DEVICE_FEATURES_VK_1
     .descriptorBindingUpdateUnusedWhilePending = true,
     .descriptorBindingPartiallyBound = true,
     //.descriptorBindingVariableDescriptorCount = true,
-    .runtimeDescriptorArray = true,
+    .runtimeDescriptorArray = true
 };
 
 static constexpr VkPhysicalDeviceVulkan11Features REQUESTED_DEVICE_FEATURES_VK_1_1 {
@@ -41,7 +42,7 @@ static constexpr VkPhysicalDeviceVulkan11Features REQUESTED_DEVICE_FEATURES_VK_1
 
 static constexpr VkPhysicalDeviceFeatures REQUESTED_DEVICE_FEATURES_VK_1_0 {
     .multiDrawIndirect = true,
-    .samplerAnisotropy = true,
+    .samplerAnisotropy = true
 };
 
 static VKAPI_ATTR VkBool32 VKAPI_CALL vk_debug_callback(VkDebugUtilsMessageSeverityFlagBitsEXT message_severity, VkDebugUtilsMessageTypeFlagsEXT message_type, const VkDebugUtilsMessengerCallbackDataEXT* p_callback_data, void* p_user_data) {
@@ -549,6 +550,13 @@ bool Instance::validation_layers_supported() {
 VkFormatProperties Instance::get_format_properties(VkFormat format) const {
     VkFormatProperties properties;
     vkGetPhysicalDeviceFormatProperties(vk_physical_device, format, &properties);
+
+    return properties;
+}
+
+VkPhysicalDeviceProperties Instance::get_physical_device_properties() const {
+    VkPhysicalDeviceProperties properties;
+    vkGetPhysicalDeviceProperties(vk_physical_device, &properties);
 
     return properties;
 }

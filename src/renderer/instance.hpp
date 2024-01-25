@@ -36,6 +36,7 @@ public:
     Instance& operator=(Instance&& other) noexcept = delete;
 
     VkFormatProperties get_format_properties(VkFormat format) const;
+    VkPhysicalDeviceProperties get_physical_device_properties() const;
 
     VkDevice get_device() const { return vk_device; }
     VkSurfaceKHR get_surface() const { return vk_surface; }

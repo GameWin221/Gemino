@@ -84,6 +84,11 @@ public:
         return handles;
     }
 
+    // This will return ALL elements, even the invalid ones
+    const std::vector<T>& get_all_elements() const {
+        return elements;
+    }
+
 private:
     std::vector<T> elements{};
     std::vector<Handle<T>> free_handles{};

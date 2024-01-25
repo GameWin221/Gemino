@@ -153,6 +153,8 @@ void Renderer::submit_commands_once(Handle<CommandList> handle) const {
 }
 
 void Renderer::image_barrier(Handle<CommandList> command_list, VkPipelineStageFlags src_stage, VkPipelineStageFlags dst_stage, const std::vector<ImageBarrier>& barriers) const {
+    if(barriers.empty()) return;
+
     std::vector<VkImageMemoryBarrier> image_barriers(barriers.size());
     for(usize i{}; i < barriers.size(); ++i) {
         const auto& barrier = barriers[i];
@@ -202,6 +204,8 @@ void Renderer::image_barrier(Handle<CommandList> command_list, VkPipelineStageFl
     vkCmdPipelineBarrier(command_manager->get_command_list_data(command_list).command_buffer, src_stage, dst_stage, 0U, 0U, nullptr, 0U, nullptr, static_cast<u32>(image_barriers.size()), image_barriers.data());
 }
 void Renderer::buffer_barrier(Handle<CommandList> command_list, VkPipelineStageFlags src_stage, VkPipelineStageFlags dst_stage, const std::vector<BufferBarrier> &barriers) const {
+    if(barriers.empty()) return;
+
     std::vector<VkBufferMemoryBarrier> buffer_barriers(barriers.size());
     for(usize i{}; i < barriers.size(); ++i) {
         const auto& barrier = barriers[i];
@@ -233,6 +237,8 @@ void Renderer::buffer_barrier(Handle<CommandList> command_list, VkPipelineStageF
 }
 
 void Renderer::blit_image(Handle<CommandList> command_list, Handle<Image> src_image_handle, VkImageLayout src_image_layout, Handle<Image> dst_image_handle, VkImageLayout dst_image_layout, VkFilter filter, const std::vector<ImageBlit>& blits) const {
+    if(blits.empty()) return;
+
     const Image& src_image = resource_manager->get_image_data(src_image_handle);
     const Image& dst_image = resource_manager->get_image_data(dst_image_handle);
 
@@ -404,6 +410,8 @@ void Renderer::gen_mipmaps(Handle<CommandList> command_list, Handle<Image> targe
 }
 
 void Renderer::copy_buffer_to_buffer(Handle<CommandList> command_list, Handle<Buffer> src, Handle<Buffer> dst, const std::vector<VkBufferCopy>& regions) const {
+    if(regions.empty()) return;
+
     const Buffer& src_buffer = resource_manager->get_buffer_data(src);
     const Buffer& dst_buffer = resource_manager->get_buffer_data(dst);
     const CommandList& cmd = command_manager->get_command_list_data(command_list);
@@ -411,6 +419,8 @@ void Renderer::copy_buffer_to_buffer(Handle<CommandList> command_list, Handle<Bu
     vkCmdCopyBuffer(cmd.command_buffer, src_buffer.buffer, dst_buffer.buffer, static_cast<u32>(regions.size()), regions.data());
 }
 void Renderer::copy_buffer_to_image(Handle<CommandList> command_list, Handle<Buffer> src, Handle<Image> dst, VkImageLayout dst_layout, const std::vector<BufferToImageCopy> &regions) const {
+    if(regions.empty()) return;
+
     const Buffer& src_buffer = resource_manager->get_buffer_data(src);
     const Image& dst_image = resource_manager->get_image_data(dst);
     const CommandList& cmd = command_manager->get_command_list_data(command_list);

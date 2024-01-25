@@ -5,7 +5,7 @@
 
 #include <vulkan/vulkan.h>
 #include <common/types.hpp>
-#include <renderer/managers/handle_allocator.hpp>
+#include <common/handle_allocator.hpp>
 
 enum struct QueueFamily : u32 {
     Graphics = 0U,
