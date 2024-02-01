@@ -17,13 +17,20 @@ public:
     Handle<Mesh> create_mesh(const std::vector<Vertex>& vertices, const std::vector<u32>& indices);
     void destroy_mesh(Handle<Mesh> mesh_handle);
 
-    const VkDeviceSize MAX_SCENE_VERTICES = (16 * 1024 * 1024) / sizeof(Vertex); // 16mb (device memory) of vertex data max (524288)
-    const VkDeviceSize MAX_SCENE_INDICES = (64 * 1024 * 1024) / sizeof(u32); // 64mb (device memory) of index data max (67108864)
-    const VkDeviceSize MAX_SCENE_DRAWS = (2 * 1024 * 1024) / sizeof(VkDrawIndexedIndirectCommand); // 2mb (device memory) of draw data max (104857)
-    const VkDeviceSize MAX_SCENE_OBJECTS = MAX_SCENE_DRAWS; // 0.8mb (device memory) of object data max
-    const VkDeviceSize MAX_SCENE_TRANSFORMS = MAX_SCENE_DRAWS; // 3.2mb (device memory) of transform data max
+    const VkDeviceSize MAX_SCENE_VERTICES = (16 * 1024 * 1024) / sizeof(Vertex); // 16mb (device memory) of vertex data max
+    const VkDeviceSize MAX_SCENE_INDICES = (64 * 1024 * 1024) / sizeof(u32); // 64mb (device memory) of index data max
+    const VkDeviceSize MAX_SCENE_DRAWS = (4 * 1024 * 1024) / sizeof(VkDrawIndexedIndirectCommand); // 4mb (device memory) of draw data max
+    const VkDeviceSize MAX_SCENE_OBJECTS = MAX_SCENE_DRAWS; // 3.2mb (device memory) of object data max
+    const VkDeviceSize MAX_SCENE_TRANSFORMS = MAX_SCENE_DRAWS; // 9.6mb (device memory) of transform data max
 
     const VkDeviceSize PER_FRAME_UPLOAD_BUFFER_SIZE = 16 * 1024 * 1024; // 16mb (host memory) of max data uploaded from cpu to gpu per frame
+
+    const VkDeviceSize OVERALL_DEVICE_MEMORY_USAGE =
+        (MAX_SCENE_VERTICES * sizeof(Vertex)) +
+        (MAX_SCENE_INDICES * sizeof(u32)) +
+        (MAX_SCENE_DRAWS * sizeof(VkDrawIndexedIndirectCommand)) +
+        (MAX_SCENE_OBJECTS * sizeof(Object)) +
+        (MAX_SCENE_TRANSFORMS * sizeof(Transform));
 
 private:
     void begin_recording_frame();

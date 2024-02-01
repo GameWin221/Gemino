@@ -51,8 +51,9 @@ public:
     void set_mesh(Handle<Object> object, Handle<u32> mesh);
     void set_visibility(Handle<Object> object, bool visible);
 
-    const glm::mat4& get_transform(Handle<Transform> transform) const { return transforms.get_element(transform).matrix; }
     const Object& get_object(Handle<Object> object) const { return objects.get_element(object); };
+    const Transform& get_transform(Handle<Transform> transform) const { return transforms.get_element(transform); }
+    const Camera& get_camera(Handle<Camera> camera) const { return cameras.get_element(camera); }
     bool get_visibility(Handle<Object> object) const { return static_cast<bool>(objects.get_element(object).visible); };
 
     void set_camera_position(Handle<Camera> camera, glm::vec3 position);

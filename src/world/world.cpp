@@ -58,7 +58,7 @@ void World::set_mesh(Handle<Object> object, Handle<u32> mesh) {
 void World::set_visibility(Handle<Object> object, bool visible) {
     Object& target = objects.get_element_mutable(object);
 
-    if(target.visible == visible) return;
+    if(target.visible == static_cast<u32>(visible)) return;
 
     target.visible = visible;
     changed_object_handles.insert(object);

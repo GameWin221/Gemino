@@ -26,8 +26,8 @@ int main(){
     std::srand(std::time(nullptr));
 
     World world{};
-    for(u32 x{}; x < 40U; ++x) {
-        for(u32 y{}; y < 40U; ++y) {
+    for(u32 x{}; x < 20U; ++x) {
+        for(u32 y{}; y < 20U; ++y) {
             glm::mat4 mat(1.0f);
 
             mat = glm::translate(mat, glm::vec3(x*3U, 0.0f, y*3U));
@@ -71,7 +71,7 @@ int main(){
         dt = DEBUG_TIME_DIFF(last_frame, now);
         last_frame = now;
 
-        DEBUG_LOG(1.0 / dt << "fps")
+        //DEBUG_LOG(1.0 / dt << "fps")
 
         time += dt;
     }

@@ -36,6 +36,21 @@ RasterRenderPath::RasterRenderPath(Window& window, VSyncMode v_sync) : renderer(
         .memory_usage_flags = VMA_MEMORY_USAGE_GPU_ONLY
     });
 
+    DEBUG_LOG("\nVulkan Device memory usage:")
+    DEBUG_LOG("MAX_SCENE_VERTICES = " << MAX_SCENE_VERTICES << ", " << (MAX_SCENE_VERTICES * sizeof(Vertex) / 1024.0 / 1024.0) << "mb")
+    DEBUG_LOG("MAX_SCENE_INDICES = " << MAX_SCENE_INDICES << ", " << (MAX_SCENE_INDICES * sizeof(u32) / 1024.0 / 1024.0) << "mb")
+    DEBUG_LOG("MAX_SCENE_DRAWS = " << MAX_SCENE_DRAWS << ", " << (MAX_SCENE_DRAWS * sizeof(VkDrawIndexedIndirectCommand) / 1024.0 / 1024.0) << "mb")
+    DEBUG_LOG("MAX_SCENE_OBJECTS = " << MAX_SCENE_OBJECTS << ", " << (MAX_SCENE_OBJECTS * sizeof(Object) / 1024.0 / 1024.0) << "mb")
+    DEBUG_LOG("MAX_SCENE_TRANSFORMS = " << MAX_SCENE_TRANSFORMS << ", " << (MAX_SCENE_TRANSFORMS * sizeof(Transform) / 1024.0 / 1024.0) << "mb")
+    DEBUG_LOG("OVERALL_DEVICE_MEMORY_USAGE = " << OVERALL_DEVICE_MEMORY_USAGE / 1024.0 / 1024.0 << "mb")
+
+    VkDeviceSize overall_host_memory_usage{};
+    overall_host_memory_usage += PER_FRAME_UPLOAD_BUFFER_SIZE * frames_in_flight;
+
+    DEBUG_LOG("\nVulkan Host memory usage:")
+    DEBUG_LOG("PER_FRAME_UPLOAD_BUFFER_SIZE * frames_in_flight = " << PER_FRAME_UPLOAD_BUFFER_SIZE * frames_in_flight / 1024.0 / 1024.0 << "mb");
+    DEBUG_LOG("OVERALL_HOST_MEMORY_USAGE = " << overall_host_memory_usage / 1024.0 / 1024.0 << "mb")
+
     depth_image = renderer.resource_manager->create_image(ImageCreateInfo{
         .format = VK_FORMAT_D32_SFLOAT,
         .extent = VkExtent3D{ window.get_size().x, window.get_size().y },
@@ -274,7 +289,7 @@ void RasterRenderPath::update_world(const World& world, Handle<Camera> camera) {
             DEBUG_PANIC("BUFFER OVERFLOW (Object)")
         }
 
-        frame.access_upload<Object>(upload_offset)->transform = world.get_object(handle).transform;
+        *frame.access_upload<Object>(upload_offset) = world.get_object(handle);
 
         object_copy_regions.push_back(VkBufferCopy{
             .srcOffset = upload_offset,
@@ -293,7 +308,7 @@ void RasterRenderPath::update_world(const World& world, Handle<Camera> camera) {
             DEBUG_PANIC("BUFFER OVERFLOW (Transform)")
         }
 
-        frame.access_upload<Transform>(upload_offset)->matrix = world.get_transform(handle);
+        *frame.access_upload<Transform>(upload_offset) = world.get_transform(handle);
 
         transform_copy_regions.push_back(VkBufferCopy{
             .srcOffset = upload_offset,
@@ -308,7 +323,7 @@ void RasterRenderPath::update_world(const World& world, Handle<Camera> camera) {
         DEBUG_PANIC("UPLOAD OVERFLOW (Camera)")
     }
 
-    *frame.access_upload<Camera>(upload_offset) = world.get_cameras()[camera];
+    *frame.access_upload<Camera>(upload_offset) = world.get_camera(camera);
 
     camera_copy_regions.push_back(VkBufferCopy{
         .srcOffset = upload_offset,
