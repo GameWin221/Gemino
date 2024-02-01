@@ -2,6 +2,7 @@
 #define GEMINO_DEBUG_HPP
 
 #include <iostream>
+#include <chrono>
 
 #define STRINGIFY(x) #x
 
@@ -17,6 +18,9 @@
 
 #define DEBUG_PANIC(message) { DEBUG_ERROR( __FILE__ << ":" << __LINE__ << ": " << message); exit(1); }
 #define DEBUG_ASSERT(x)  if (!(x)) DEBUG_PANIC("Expression failed: " << #x);
-#define CONST_ASSERT(x)  if constexpr(!(x)) DEBUG_PANIC("Expression failed: " << #x);
+#define DEBUG_CONST_ASSERT(x)  if constexpr(!(x)) DEBUG_PANIC("Expression failed: " << #x);
+
+#define DEBUG_TIMESTAMP(name) const auto name = std::chrono::high_resolution_clock::now()
+#define DEBUG_TIME_DIFF(a, b) std::chrono::duration<double>(b - a).count()
 
 #endif

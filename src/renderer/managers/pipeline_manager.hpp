@@ -14,11 +14,6 @@ struct ShaderData {
 };
 
 struct RenderTargetCreateInfo {
-    VkExtent2D view_extent{};
-
-    VkImageView color_target_view{};
-    VkImageView depth_target_view{};
-
     Handle<Image> color_target_handle = INVALID_HANDLE;
     Handle<Image> depth_target_handle = INVALID_HANDLE;
 };
@@ -34,9 +29,7 @@ struct RenderTarget {
 };
 struct RenderTargetCommonInfo {
     VkFormat format = VK_FORMAT_UNDEFINED;
-
-    VkImageLayout initial_layout = VK_IMAGE_LAYOUT_UNDEFINED;
-    VkImageLayout final_layout = VK_IMAGE_LAYOUT_UNDEFINED;
+    VkImageLayout layout = VK_IMAGE_LAYOUT_UNDEFINED;
 
     VkAttachmentLoadOp load_op = VK_ATTACHMENT_LOAD_OP_CLEAR;
     VkAttachmentStoreOp store_op = VK_ATTACHMENT_STORE_OP_STORE;
@@ -55,7 +48,7 @@ struct GraphicsPipelineCreateInfo {
 
     bool enable_depth_test = false;
     bool enable_depth_write = false;
-    VkCompareOp depth_compare_op = VK_COMPARE_OP_LESS_OR_EQUAL;
+    VkCompareOp depth_compare_op = VK_COMPARE_OP_LESS;
 
     bool enable_vertex_input = false;
     bool enable_blending = false;

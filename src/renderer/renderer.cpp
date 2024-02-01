@@ -1,7 +1,7 @@
 #include "renderer.hpp"
 #include <bit>
 
-Renderer::Renderer(const Window& window, const RendererConfig& config) : renderer_config(config) {
+Renderer::Renderer(const Window& window, const SwapchainConfig& config) : swapchain_config(config) {
     instance = MakeUnique<Instance>(window.get_native_handle());
 
     swapchain = MakeUnique<Swapchain>(
@@ -9,7 +9,7 @@ Renderer::Renderer(const Window& window, const RendererConfig& config) : rendere
         instance->get_physical_device(),
         instance->get_surface(),
         window.get_size(),
-        renderer_config.v_sync
+        swapchain_config
     );
 
     const auto& family_indices = instance->get_queue_family_indices();
@@ -21,22 +21,41 @@ Renderer::Renderer(const Window& window, const RendererConfig& config) : rendere
         family_indices.transfer.value(),
         family_indices.compute.value()
     );
+
+    for(u32 i{}; i < swapchain->get_images().size(); ++i) {
+        borrowed_swapchain_images.push_back(resource_manager->create_image_borrowed(
+           swapchain->get_images().at(i),
+           swapchain->get_image_views().at(i),
+           ImageCreateInfo{
+               .format = swapchain->get_format(),
+               .extent = VkExtent3D{
+                   swapchain->get_extent().width, swapchain->get_extent().height
+               },
+               .usage_flags = swapchain->get_usage(),
+               .aspect_flags = VK_IMAGE_ASPECT_COLOR_BIT,
+            }
+        ));
+    }
 }
 
-u32 Renderer::get_next_swapchain_index(Handle<Semaphore> wait_semaphore) const {
-    u32 index{};
-    DEBUG_ASSERT(vkAcquireNextImageKHR(
-            instance->get_device(),
-            swapchain->get_handle(),
-            renderer_config.frame_timeout,
-            command_manager->get_semaphore_data(wait_semaphore).semaphore,
-            nullptr,
-            &index
-    ) == VK_SUCCESS)
+Handle<Image> Renderer::get_swapchain_image_handle(u32 image_index) const {
+    DEBUG_ASSERT(image_index < static_cast<u32>(swapchain->get_image_views().size()))
 
-    return index;
+    return borrowed_swapchain_images[image_index];
 }
-void Renderer::present_swapchain(Handle<Semaphore> wait_semaphore, u32 image_index) const {
+VkResult Renderer::get_next_swapchain_index(Handle<Semaphore> signal_semaphore, u32* swapchain_index) const {
+    VkResult result = vkAcquireNextImageKHR(
+        instance->get_device(),
+        swapchain->get_handle(),
+        1000000000,
+        command_manager->get_semaphore_data(signal_semaphore).semaphore,
+        nullptr,
+        swapchain_index
+    );
+
+    return result;
+}
+VkResult Renderer::present_swapchain(Handle<Semaphore> wait_semaphore, u32 image_index) const {
     VkSwapchainKHR present_swapchain = swapchain->get_handle();
 
     VkPresentInfoKHR info{
@@ -48,7 +67,43 @@ void Renderer::present_swapchain(Handle<Semaphore> wait_semaphore, u32 image_ind
         .pImageIndices = &image_index,
     };
 
-    DEBUG_ASSERT(vkQueuePresentKHR(instance->get_graphics_queue(), &info) == VK_SUCCESS);
+    return vkQueuePresentKHR(instance->get_graphics_queue(), &info);
+}
+u32 Renderer::get_swapchain_index_count() const {
+    return static_cast<u32>(swapchain->get_images().size());
+}
+void Renderer::recreate_swapchain(glm::uvec2 size, const SwapchainConfig& config) {
+    swapchain.reset();
+
+    swapchain_config = config;
+
+    swapchain = MakeUnique<Swapchain>(
+        instance->get_device(),
+        instance->get_physical_device(),
+        instance->get_surface(),
+        size,
+        swapchain_config
+    );
+
+    for(const auto& handle : borrowed_swapchain_images) {
+        resource_manager->destroy_image(handle);
+    }
+    borrowed_swapchain_images.clear();
+
+    for(u32 i{}; i < swapchain->get_images().size(); ++i) {
+        borrowed_swapchain_images.push_back(resource_manager->create_image_borrowed(
+            swapchain->get_images().at(i),
+            swapchain->get_image_views().at(i),
+            ImageCreateInfo{
+                .format = swapchain->get_format(),
+                .extent = VkExtent3D{
+                    swapchain->get_extent().width, swapchain->get_extent().height
+                },
+                .usage_flags = swapchain->get_usage(),
+                .aspect_flags = VK_IMAGE_ASPECT_COLOR_BIT,
+            }
+        ));
+    }
 }
 
 void Renderer::wait_for_fence(Handle<Fence> handle) const {
@@ -57,7 +112,7 @@ void Renderer::wait_for_fence(Handle<Fence> handle) const {
         1U,
         &command_manager->get_fence_data(handle).fence,
         VK_TRUE,
-        renderer_config.frame_timeout
+        1000000000
     ) == VK_SUCCESS)
 }
 void Renderer::reset_fence(Handle<Fence> handle) const {
@@ -513,22 +568,8 @@ void Renderer::begin_graphics_pipeline(Handle<CommandList> command_list, Handle<
     vkCmdSetViewport(cmd.command_buffer, 0U, 1U, &viewport);
     vkCmdSetScissor(cmd.command_buffer, 0U, 1U, &scissor);
 }
-void Renderer::end_graphics_pipeline(Handle<CommandList> command_list, Handle<GraphicsPipeline> pipeline, Handle<RenderTarget> render_target) const {
+void Renderer::end_graphics_pipeline(Handle<CommandList> command_list, Handle<GraphicsPipeline> pipeline) const {
     vkCmdEndRenderPass(command_manager->get_command_list_data(command_list).command_buffer);
-
-    /*
-    const GraphicsPipeline& pipe = pipeline_manager->get_graphics_pipeline_data(pipeline);
-    const RenderTarget& rt = pipeline_manager->get_render_target_data(render_target);
-
-    u32 uses_color_target = static_cast<u32>(pipe.create_info.color_target.format != VK_FORMAT_UNDEFINED);
-    u32 uses_depth_target = static_cast<u32>(pipe.create_info.depth_target.format != VK_FORMAT_UNDEFINED);
-    if(uses_color_target) {
-        resource_manager->update_image_layout(rt.)
-    }
-    if(uses_depth_target) {
-
-    }
-     */
 }
 
 void Renderer::begin_compute_pipeline(Handle<CommandList> command_list, Handle<ComputePipeline> pipeline) const {
@@ -646,6 +687,17 @@ void Renderer::bind_compute_descriptor(Handle<CommandList> command_list, Handle<
     vkCmdBindDescriptorSets(command_manager->get_command_list_data(command_list).command_buffer, VK_PIPELINE_BIND_POINT_COMPUTE, pipe.layout, 0U, 1U, &desc.set, 0U, nullptr);
 }
 
+void Renderer::bind_vertex_buffer(Handle<CommandList> command_list, Handle<Buffer> buffer, u32 index, VkDeviceSize offset) const {
+    vkCmdBindVertexBuffers(command_manager->get_command_list_data(command_list).command_buffer, index, 1U, &resource_manager->get_buffer_data(buffer).buffer, &offset);
+}
+void Renderer::bind_index_buffer(Handle<CommandList> command_list, Handle<Buffer> buffer, VkDeviceSize offset) const {
+    vkCmdBindIndexBuffer(command_manager->get_command_list_data(command_list).command_buffer, resource_manager->get_buffer_data(buffer).buffer, offset, VK_INDEX_TYPE_UINT32);
+}
+
 void Renderer::draw_count(Handle<CommandList> command_list, u32 vertex_count, u32 first_vertex, u32 instance_count) const {
     vkCmdDraw(command_manager->get_command_list_data(command_list).command_buffer, vertex_count, instance_count,first_vertex, 0U);
+}
+
+void Renderer::draw_indexed(Handle<CommandList> command_list, u32 index_count, u32 first_index, i32 vertex_offset, u32 instance_count) const {
+    vkCmdDrawIndexed(command_manager->get_command_list_data(command_list).command_buffer, index_count, instance_count, first_index, vertex_offset, 0U);
 }

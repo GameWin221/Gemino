@@ -26,23 +26,32 @@ struct alignas(16) Camera {
     alignas(16) glm::vec3 right = glm::vec3(1.0f, 0.0f, 0.0f);
     alignas(16) glm::vec3 up = glm::vec3(0.0f, 1.0f, 0.0f);
 };
+struct alignas(16) Mesh {
+    alignas(4) u32 index_count{};
+    alignas(4) u32 first_index{};
+    alignas(4) i32 vertex_offset{};
+};
 struct alignas(16) Transform {
     alignas(16) glm::mat4 matrix = glm::mat4(1.0f);
 };
 struct alignas(16) Object {
     alignas(4) Handle<Transform> transform{};
+    alignas(4) Handle<u32> mesh = INVALID_HANDLE;
 };
 
 class World {
 public:
-    void update_tick();
-    void post_render_tick();
+    void render_finished_tick();
 
-    Handle<Object> create_object(const glm::mat4& matrix = glm::mat4(1.0f));
+    Handle<Object> create_object(Handle<u32> mesh = INVALID_HANDLE, const glm::mat4& matrix = glm::mat4(1.0f));
     Handle<Camera> create_camera(glm::vec2 viewport_size, glm::vec3 position = glm::vec3(0.0f), float pitch = 0.0f, float yaw = 0.0f, float fov = 60.0f, float near_plane = 0.02f, float far_plane = 1000.0f);
 
     void set_transform(Handle<Object> object, const glm::mat4& matrix);
-    const glm::mat4& get_transform(Handle<Object> object) const { return transforms.get_element(object).matrix;}
+    const glm::mat4& get_transform(Handle<Transform> object) const { return transforms.get_element(objects.get_element(object).transform).matrix; }
+
+    void set_mesh(Handle<Object> object, Handle<u32> mesh);
+
+    const Object& get_object(Handle<Object> object) const { return objects.get_element(object); };
 
     void set_camera_position(Handle<Camera> camera, glm::vec3 position);
     void set_camera_rotation(Handle<Camera> camera, float pitch, float yaw);
@@ -54,6 +63,10 @@ public:
     float get_camera_pitch(Handle<Camera> camera) const { return cameras.get_element(camera).pitch; }
     float get_camera_fov(Handle<Camera> camera) const { return cameras.get_element(camera).fov; }
     glm::vec2 get_camera_viewport(Handle<Camera> camera) const { return cameras.get_element(camera).viewport_size; }
+
+    const std::unordered_set<Handle<Object>>& get_valid_object_handles() const { return objects.get_valid_handles(); }
+    const std::unordered_set<Handle<Transform>>& get_valid_transform_handles() const { return transforms.get_valid_handles(); }
+    const std::unordered_set<Handle<Camera>>& get_valid_camera_handles() const { return cameras.get_valid_handles(); }
 
     const std::vector<Object>& get_objects() const { return objects.get_all_elements(); };
     const std::vector<Transform>& get_transforms() const { return transforms.get_all_elements(); };

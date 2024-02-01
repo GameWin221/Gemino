@@ -4,8 +4,14 @@
 
 #include "forward.glsl"
 
-layout(location = 0) out vec2 f_texcoord;
-layout(location = 1) out flat uint f_draw_id;
+layout(location = 0) in vec3 v_position;
+layout(location = 1) in vec3 v_normal;
+layout(location = 2) in vec2 v_texcoord;
+
+layout(location = 0) out vec3 f_position;
+layout(location = 1) out vec3 f_normal;
+layout(location = 2) out vec2 f_texcoord;
+layout(location = 3) out flat uint f_draw_id;
 
 layout(std140, set = 0, binding = 0) readonly buffer ObjectBuffer{
     Object objects[];
@@ -17,13 +23,16 @@ layout(set = 0, binding = 2) uniform CameraBuffer {
     Camera camera;
 };
 
-vec2 vert_positions[6] = vec2[](
-    vec2(-0.5, 0.5), vec2(0.5, 0.5), vec2(0.5, -0.5),
-    vec2(-0.5, 0.5), vec2(0.5, -0.5), vec2(-0.5, -0.5)
-);
-
 void main() {
-    f_draw_id = gl_InstanceIndex;//gl_DrawIDARB;
-    f_texcoord = vert_positions[gl_VertexIndex] + vec2(0.5);
-    gl_Position = camera.view_proj * transforms[objects[f_draw_id].transform].matrix * vec4(vert_positions[gl_VertexIndex].x, 0.0, vert_positions[gl_VertexIndex].y, 1.0);
+    vec4 v_world_space = transforms[gl_DrawIDARB].matrix * vec4(v_position, 1.0);
+
+    gl_Position = camera.view_proj * v_world_space;
+
+    f_position = v_world_space.xyz;
+
+    f_normal = normalize(mat3(transforms[gl_DrawIDARB].matrix) * v_normal);
+
+    f_texcoord = v_texcoord;
+
+    f_draw_id = gl_DrawIDARB;
 }

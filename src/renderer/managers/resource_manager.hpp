@@ -101,14 +101,18 @@ public:
     ResourceManager& operator=(ResourceManager&& other) noexcept = delete;
 
     Handle<Image> create_image(const ImageCreateInfo& info);
+    Handle<Image> create_image_borrowed(VkImage borrowed_image, VkImageView borrowed_view, const ImageCreateInfo& info);
     Handle<Buffer> create_buffer(const BufferCreateInfo& info);
     Handle<Descriptor> create_descriptor(const DescriptorCreateInfo& info);
     Handle<Sampler> create_sampler(const SamplerCreateInfo& info);
 
     void* map_buffer(Handle<Buffer> buffer_handle);
     void unmap_buffer(Handle<Buffer> buffer_handle);
+    void flush_mapped_buffer(Handle<Buffer> buffer_handle, VkDeviceSize size = 0, VkDeviceSize offset = 0);
 
     void memcpy_to_buffer_once(Handle<Buffer> buffer_handle, const void* src_data, usize size, usize dst_offset = 0, usize src_offset = 0);
+
+    // Requires an already mapped buffer
     void memcpy_to_buffer(void* dst_mapped_buffer, const void* src_data, usize size, usize dst_offset = 0, usize src_offset = 0);
 
     // Only sets the struct value

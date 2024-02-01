@@ -1,19 +1,17 @@
 #include "world.hpp"
 
-void World::update_tick() {
-
-}
-void World::post_render_tick() {
+void World::render_finished_tick() {
     changed_object_handles.clear();
     changed_transform_handles.clear();
 }
 
-Handle<Object> World::create_object(const glm::mat4& matrix) {
+Handle<Object> World::create_object(Handle<u32> mesh, const glm::mat4& matrix) {
     Handle<Transform> transform_handle = transforms.alloc(Transform{
         .matrix = matrix
     });
     Handle<Object> object_handle = objects.alloc(Object{
-        .transform = transform_handle
+        .transform = transform_handle,
+        .mesh = mesh
     });
 
     changed_object_handles.insert(object_handle);
@@ -48,6 +46,14 @@ void World::set_transform(Handle<Object> object, const glm::mat4& matrix) {
 
     target.matrix = matrix;
     changed_transform_handles.insert(target_handle);
+}
+void World::set_mesh(Handle<Object> object, Handle<u32> mesh) {
+    Object& target = objects.get_element_mutable(object);
+
+    if(target.mesh == mesh) return;
+
+    target.mesh = mesh;
+    changed_object_handles.insert(object);
 }
 
 void World::set_camera_position(Handle<Camera> camera, glm::vec3 position) {

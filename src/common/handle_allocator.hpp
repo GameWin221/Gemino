@@ -84,6 +84,10 @@ public:
         return handles;
     }
 
+    const std::unordered_set<Handle<T>>& get_valid_handles() const {
+        return valid_handles;
+    }
+
     // This will return ALL elements, even the invalid ones
     const std::vector<T>& get_all_elements() const {
         return elements;

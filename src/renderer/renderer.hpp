@@ -28,11 +28,6 @@ struct SubmitInfo {
     std::vector<VkPipelineStageFlags> signal_stages{};
 };
 
-struct RendererConfig {
-    VSyncMode v_sync = VSyncMode::Enabled;
-    u64 frame_timeout = 1000000000; // 1 second
-};
-
 struct ImageBarrier {
     Handle<Image> image_handle{};
 
@@ -84,7 +79,7 @@ struct BufferToImageCopy {
 
 class Renderer {
 public:
-    Renderer(const Window& window, const RendererConfig& config);
+    Renderer(const Window& window, const SwapchainConfig& config);
 
     /// Managers
     Unique<Instance> instance;
@@ -95,8 +90,12 @@ public:
     Unique<CommandManager> command_manager;
 
     /// Rendering functions
-    u32 get_next_swapchain_index(Handle<Semaphore> wait_semaphore) const;
-    void present_swapchain(Handle<Semaphore> wait_semaphore, u32 image_index) const;
+    Handle<Image> get_swapchain_image_handle(u32 image_index) const;
+    VkResult get_next_swapchain_index(Handle<Semaphore> signal_semaphore, u32* swapchain_index) const;
+    VkResult present_swapchain(Handle<Semaphore> wait_semaphore, u32 image_index) const;
+    u32 get_swapchain_index_count() const;
+
+    void recreate_swapchain(glm::uvec2 size, const SwapchainConfig& config);
 
     void wait_for_device_idle() const;
     void wait_for_fence(Handle<Fence> handle) const;
@@ -118,7 +117,7 @@ public:
     void copy_buffer_to_image(Handle<CommandList> command_list, Handle<Buffer> src, Handle<Image> dst, VkImageLayout dst_layout, const std::vector<BufferToImageCopy>& regions) const;
 
     void begin_graphics_pipeline(Handle<CommandList> command_list, Handle<GraphicsPipeline> pipeline, Handle<RenderTarget> render_target, const RenderTargetClear& clear) const;
-    void end_graphics_pipeline(Handle<CommandList> command_list, Handle<GraphicsPipeline> pipeline, Handle<RenderTarget> render_target) const;
+    void end_graphics_pipeline(Handle<CommandList> command_list, Handle<GraphicsPipeline> pipeline) const;
 
     void begin_compute_pipeline(Handle<CommandList> command_list, Handle<ComputePipeline> pipeline) const;
     void dispatch_compute_pipeline(Handle<CommandList> command_list, glm::uvec3 groups) const;
@@ -129,10 +128,18 @@ public:
     void bind_graphics_descriptor(Handle<CommandList> command_list, Handle<GraphicsPipeline> pipeline, Handle<Descriptor> descriptor, u32 dst_index) const;
     void bind_compute_descriptor(Handle<CommandList> command_list, Handle<ComputePipeline> pipeline, Handle<Descriptor> descriptor, u32 dst_index) const;
 
+    void bind_vertex_buffer(Handle<CommandList> command_list, Handle<Buffer> buffer, u32 index = 0U, VkDeviceSize offset = 0) const;
+    void bind_index_buffer(Handle<CommandList> command_list, Handle<Buffer> buffer, VkDeviceSize offset = 0) const;
+
     void draw_count(Handle<CommandList> command_list, u32 vertex_count, u32 first_vertex = 0U, u32 instance_count = 1U) const;
+    void draw_indexed(Handle<CommandList> command_list, u32 index_count, u32 first_index = 0U, i32 vertex_offset = 1U, u32 instance_count = 1U) const;
+
+    const SwapchainConfig& get_swapchain_config() const { return swapchain_config; }
 
 private:
-    RendererConfig renderer_config{};
+    SwapchainConfig swapchain_config{};
+
+    std::vector<Handle<Image>> borrowed_swapchain_images{};
 };
 
 

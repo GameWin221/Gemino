@@ -2,8 +2,8 @@
 #include <algorithm>
 #include <common/debug.hpp>
 
-Swapchain::Swapchain(VkDevice device, VkPhysicalDevice physical_device, VkSurfaceKHR surface, glm::uvec2 desired_extent, VSyncMode v_sync)
-    : vk_device(device) {
+Swapchain::Swapchain(VkDevice device, VkPhysicalDevice physical_device, VkSurfaceKHR surface, glm::uvec2 desired_extent, const SwapchainConfig& config)
+    : vk_device(device), swapchain_usage(config.usage) {
     VkSurfaceCapabilitiesKHR capabilities{};
     vkGetPhysicalDeviceSurfaceCapabilitiesKHR(physical_device, surface, &capabilities);
 
@@ -31,7 +31,7 @@ Swapchain::Swapchain(VkDevice device, VkPhysicalDevice physical_device, VkSurfac
         desired_image_count = capabilities.maxImageCount;
 
     swapchain_format = pick_swapchain_format(available_formats);
-    swapchain_present_mode = pick_swapchain_present_mode(available_present_modes, static_cast<bool>(v_sync));
+    swapchain_present_mode = pick_swapchain_present_mode(available_present_modes, static_cast<bool>(config.v_sync));
 
     VkSwapchainCreateInfoKHR create_info {
         .sType = VK_STRUCTURE_TYPE_SWAPCHAIN_CREATE_INFO_KHR,
@@ -41,7 +41,7 @@ Swapchain::Swapchain(VkDevice device, VkPhysicalDevice physical_device, VkSurfac
         .imageColorSpace = swapchain_format.colorSpace,
         .imageExtent = swapchain_extent,
         .imageArrayLayers = 1U,
-        .imageUsage = VK_IMAGE_USAGE_COLOR_ATTACHMENT_BIT,
+        .imageUsage = swapchain_usage,
         .imageSharingMode = VK_SHARING_MODE_EXCLUSIVE,
         .preTransform = capabilities.currentTransform,
         .compositeAlpha = VK_COMPOSITE_ALPHA_OPAQUE_BIT_KHR,

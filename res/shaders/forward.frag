@@ -4,8 +4,10 @@
 
 #include "forward.glsl"
 
-layout(location = 0) in vec2 f_texcoord;
-layout(location = 1) in flat uint f_draw_id;
+layout(location = 0) in vec3 f_position;
+layout(location = 1) in vec3 f_normal;
+layout(location = 2) in vec2 f_texcoord;
+layout(location = 3) in flat uint f_draw_id;
 
 layout(location = 0) out vec4 out_color;
 
@@ -23,7 +25,7 @@ void main() {
     //vec3 albedo = texture(array_of_textures[nonuniformEXT(0)], f_texcoord).rgb;
     //vec3 albedo = texture(textures_array, vec3(f_texcoord, 0)).rgb;
 
-    vec3 albedo = vec3(f_texcoord, 0.0);
+    vec3 albedo = vec3(max(dot(vec3(1.0), f_normal), 0.2));
 
     out_color = vec4(albedo, 1.0);
 }

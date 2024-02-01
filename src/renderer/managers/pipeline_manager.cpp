@@ -46,7 +46,7 @@ Handle<GraphicsPipeline> PipelineManager::create_graphics_pipeline(const Graphic
             .layout = VK_IMAGE_LAYOUT_COLOR_ATTACHMENT_OPTIMAL,
         };
 
-        DEBUG_ASSERT(info.color_target.final_layout != VK_IMAGE_LAYOUT_UNDEFINED)
+        DEBUG_ASSERT(info.color_target.layout != VK_IMAGE_LAYOUT_UNDEFINED)
 
         all_descriptions[color_reference.attachment] = VkAttachmentDescription{
             .format = info.color_target.format,
@@ -55,8 +55,8 @@ Handle<GraphicsPipeline> PipelineManager::create_graphics_pipeline(const Graphic
             .storeOp = info.color_target.store_op,
             .stencilLoadOp = VK_ATTACHMENT_LOAD_OP_DONT_CARE,
             .stencilStoreOp = VK_ATTACHMENT_STORE_OP_DONT_CARE,
-            .initialLayout = info.color_target.initial_layout,
-            .finalLayout = info.color_target.final_layout,
+            .initialLayout = info.color_target.layout,
+            .finalLayout = info.color_target.layout,
         };
 
         subpass_description.colorAttachmentCount = 1U;
@@ -64,8 +64,15 @@ Handle<GraphicsPipeline> PipelineManager::create_graphics_pipeline(const Graphic
 
         subpass_dependency.srcStageMask |= VK_PIPELINE_STAGE_COLOR_ATTACHMENT_OUTPUT_BIT;
         subpass_dependency.dstStageMask |= VK_PIPELINE_STAGE_COLOR_ATTACHMENT_OUTPUT_BIT;
-        subpass_dependency.srcAccessMask |= VK_ACCESS_COLOR_ATTACHMENT_WRITE_BIT;
-        subpass_dependency.dstAccessMask |= VK_ACCESS_COLOR_ATTACHMENT_WRITE_BIT | VK_ACCESS_COLOR_ATTACHMENT_READ_BIT;
+        if(info.color_target.load_op == VK_ATTACHMENT_LOAD_OP_CLEAR) {
+            subpass_dependency.srcAccessMask |= VK_ACCESS_COLOR_ATTACHMENT_WRITE_BIT;
+        } else if(info.color_target.load_op == VK_ATTACHMENT_LOAD_OP_LOAD) {
+            subpass_dependency.srcAccessMask |= VK_ACCESS_COLOR_ATTACHMENT_READ_BIT;
+        }
+
+        if(info.color_target.store_op == VK_ATTACHMENT_STORE_OP_STORE) {
+            subpass_dependency.dstAccessMask |= VK_ACCESS_COLOR_ATTACHMENT_WRITE_BIT;
+        }
     }
     if (uses_depth_attachment) {
         depth_reference = VkAttachmentReference{
@@ -73,7 +80,7 @@ Handle<GraphicsPipeline> PipelineManager::create_graphics_pipeline(const Graphic
             .layout = VK_IMAGE_LAYOUT_DEPTH_STENCIL_ATTACHMENT_OPTIMAL,
         };
 
-        DEBUG_ASSERT(info.depth_target.final_layout != VK_IMAGE_LAYOUT_UNDEFINED)
+        DEBUG_ASSERT(info.depth_target.layout != VK_IMAGE_LAYOUT_UNDEFINED)
 
         all_descriptions[depth_reference.attachment] = VkAttachmentDescription{
             .format = info.depth_target.format,
@@ -82,16 +89,23 @@ Handle<GraphicsPipeline> PipelineManager::create_graphics_pipeline(const Graphic
             .storeOp = info.depth_target.store_op,
             .stencilLoadOp = VK_ATTACHMENT_LOAD_OP_DONT_CARE,
             .stencilStoreOp = VK_ATTACHMENT_STORE_OP_DONT_CARE,
-            .initialLayout = info.depth_target.initial_layout,
-            .finalLayout = info.depth_target.final_layout,
+            .initialLayout = info.depth_target.layout,
+            .finalLayout = info.depth_target.layout,
         };
 
         subpass_description.pDepthStencilAttachment = &depth_reference;
 
         subpass_dependency.srcStageMask |= VK_PIPELINE_STAGE_EARLY_FRAGMENT_TESTS_BIT;
         subpass_dependency.dstStageMask |= VK_PIPELINE_STAGE_LATE_FRAGMENT_TESTS_BIT;
-        subpass_dependency.srcAccessMask |= VK_ACCESS_DEPTH_STENCIL_ATTACHMENT_WRITE_BIT;
-        subpass_dependency.dstAccessMask |= VK_ACCESS_DEPTH_STENCIL_ATTACHMENT_WRITE_BIT | VK_ACCESS_DEPTH_STENCIL_ATTACHMENT_READ_BIT;
+        if(info.depth_target.load_op == VK_ATTACHMENT_LOAD_OP_CLEAR) {
+            subpass_dependency.srcAccessMask |= VK_ACCESS_DEPTH_STENCIL_ATTACHMENT_WRITE_BIT;
+        } else if(info.depth_target.load_op == VK_ATTACHMENT_LOAD_OP_LOAD) {
+            subpass_dependency.srcAccessMask |= VK_ACCESS_DEPTH_STENCIL_ATTACHMENT_READ_BIT;
+        }
+
+        if(info.depth_target.store_op == VK_ATTACHMENT_STORE_OP_STORE) {
+            subpass_dependency.dstAccessMask |= VK_ACCESS_DEPTH_STENCIL_ATTACHMENT_WRITE_BIT;
+        }
     }
 
     VkRenderPassCreateInfo render_pass_create_info{
@@ -329,42 +343,32 @@ Handle<ComputePipeline> PipelineManager::create_compute_pipeline(const ComputePi
 }
 Handle<RenderTarget> PipelineManager::create_render_target(Handle<GraphicsPipeline> src_pipeline, const RenderTargetCreateInfo& info) {
     RenderTarget rt{
-        .extent = info.view_extent,
         .color_handle = info.color_target_handle,
         .depth_handle = info.depth_target_handle,
     };
 
-    if(info.color_target_view != nullptr && info.color_target_handle != INVALID_HANDLE) {
-        DEBUG_PANIC("Cannot create a color render target! - Either info.color_target_view or info.color_target_handle or none must be valid")
-    }
-    if(info.depth_target_view != nullptr && info.depth_target_handle != INVALID_HANDLE) {
-        DEBUG_PANIC("Cannot create a depth render target! - Either info.depth_target_view or info.depth_target_handle or none must be valid")
-    }
-
-    if(info.color_target_view != nullptr && info.color_target_handle == INVALID_HANDLE) {
-        rt.color_view = info.color_target_view;
-    } else if(info.color_target_view == nullptr && info.color_target_handle != INVALID_HANDLE) {
+    if(info.color_target_handle != INVALID_HANDLE) {
         rt.color_view = resource_manager->get_image_data(info.color_target_handle).view;
 
-        if(info.view_extent.width == 0U && info.view_extent.height == 0U) {
-            VkExtent3D image_extent = resource_manager->get_image_data(info.color_target_handle).extent;
-            rt.extent = VkExtent2D { image_extent.width, image_extent.height };
-        }
+        VkExtent3D image_extent = resource_manager->get_image_data(info.color_target_handle).extent;
+        rt.extent = VkExtent2D{ image_extent.width, image_extent.height };
     }
 
-    if(info.depth_target_view != nullptr && info.depth_target_handle == INVALID_HANDLE) {
-        rt.depth_view = info.depth_target_view;
-    } else if(info.depth_target_view == nullptr && info.depth_target_handle != INVALID_HANDLE) {
+    if(info.depth_target_handle != INVALID_HANDLE) {
         rt.depth_view = resource_manager->get_image_data(info.depth_target_handle).view;
 
-        if(info.view_extent.width == 0U && info.view_extent.height == 0U) {
-            VkExtent3D image_extent = resource_manager->get_image_data(info.depth_target_handle).extent;
-            rt.extent = VkExtent2D{image_extent.width, image_extent.height};
+        VkExtent3D image_extent = resource_manager->get_image_data(info.depth_target_handle).extent;
+        if(info.color_target_handle != INVALID_HANDLE) {
+            if(rt.extent.width != image_extent.width || rt.extent.height != image_extent.height) {
+                DEBUG_PANIC("Failed to create a render target! - If both color and depth targets are used, their extents must be identical")
+            }
         }
+
+        rt.extent = VkExtent2D{ image_extent.width, image_extent.height };
     }
 
     if(rt.color_view == nullptr && rt.depth_view == nullptr) {
-        DEBUG_PANIC("Cannot create an empty render target!")
+        DEBUG_PANIC("Failed to create a render target! - Both color and depth targets were not used")
     }
 
     const GraphicsPipeline& pipeline = graphics_pipeline_allocator.get_element(src_pipeline);
@@ -385,8 +389,8 @@ Handle<RenderTarget> PipelineManager::create_render_target(Handle<GraphicsPipeli
         .renderPass = pipeline.render_pass,
         .attachmentCount = uses_color_attachment + uses_depth_attachment,
         .pAttachments = image_views,
-        .width = info.view_extent.width,
-        .height = info.view_extent.height,
+        .width = rt.extent.width,
+        .height = rt.extent.height,
         .layers = 1U,
     };
 

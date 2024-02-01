@@ -3,6 +3,7 @@ struct Transform {
 };
 struct Object {
     uint transform;
+    uint mesh;
 };
 struct Camera {
     mat4 view;

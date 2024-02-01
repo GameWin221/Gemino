@@ -133,6 +133,57 @@ Handle<Image> ResourceManager::create_image(const ImageCreateInfo& info) {
 
     return image_allocator.alloc(image);
 }
+Handle<Image> ResourceManager::create_image_borrowed(VkImage borrowed_image, VkImageView borrowed_view, const ImageCreateInfo &info) {
+    VkExtent3D image_extent{
+        .width = std::max(1U, info.extent.width),
+        .height = std::max(1U, info.extent.height),
+        .depth = std::max(1U, info.extent.depth)
+    };
+
+    u32 dimension_count =
+        static_cast<u32>((image_extent.width > 1U)) +
+        static_cast<u32>((image_extent.height > 1U)) +
+        static_cast<u32>((image_extent.depth > 1U));
+
+    DEBUG_ASSERT(dimension_count > 0U)
+
+    Image image{
+        .image = borrowed_image,
+        .image_type = static_cast<VkImageType>(dimension_count - 1U),
+        .view = borrowed_view,
+        .format = info.format,
+        .extent = image_extent,
+        .usage_flags = info.usage_flags,
+        .aspect_flags = info.aspect_flags,
+        .create_flags = info.create_flags,
+        .mip_level_count = info.mip_level_count,
+        .array_layer_count = info.array_layer_count,
+    };
+
+    if(info.create_flags & VK_IMAGE_CREATE_2D_ARRAY_COMPATIBLE_BIT) {
+        image.image_type = VK_IMAGE_TYPE_3D;
+    }
+
+    if (info.create_flags & VK_IMAGE_CREATE_CUBE_COMPATIBLE_BIT) {
+        if (info.array_layer_count % 6 != 0) {
+            DEBUG_PANIC("info.array_layer_count for cube textures must be a multiple of 6! Meanwhile info.array_layer_count = " << info.array_layer_count)
+        }
+
+        if (info.array_layer_count > 6U) {
+            image.view_type = VK_IMAGE_VIEW_TYPE_CUBE_ARRAY;
+        } else {
+            image.view_type = VK_IMAGE_VIEW_TYPE_CUBE;
+        }
+    } else {
+        if (info.array_layer_count > 1U) {
+            image.view_type = static_cast<VkImageViewType>(dimension_count - 1U + 4U); // Array types values are always greater by 4 (except for VK_IMAGE_VIEW_TYPE_CUBE)
+        } else {
+            image.view_type = static_cast<VkImageViewType>(dimension_count - 1U);
+        }
+    }
+
+    return image_allocator.alloc(image);
+}
 Handle<Buffer> ResourceManager::create_buffer(const BufferCreateInfo &info) {
     Buffer buffer{
         .size = info.size,
@@ -234,7 +285,7 @@ Handle<Sampler> ResourceManager::create_sampler(const SamplerCreateInfo &info) {
 void* ResourceManager::map_buffer(Handle<Buffer> buffer_handle) {
 #if DEBUG_MODE // Remove hot-path checks in release mode
     if (!buffer_allocator.is_handle_valid(buffer_handle)) {
-        DEBUG_PANIC("Cannot map buffer - Buffer with a handle id: = " << buffer_handle << ", does not exist!")
+        DEBUG_PANIC("Cannot map buffer! - Buffer with a handle id: = " << buffer_handle << ", does not exist!")
     }
 #endif
 
@@ -246,12 +297,35 @@ void* ResourceManager::map_buffer(Handle<Buffer> buffer_handle) {
 void ResourceManager::unmap_buffer(Handle<Buffer> buffer_handle) {
 #if DEBUG_MODE // Remove hot-path checks in release mode
     if (!buffer_allocator.is_handle_valid(buffer_handle)) {
-        DEBUG_PANIC("Cannot unmap buffer - Buffer with a handle id: = " << buffer_handle << ", does not exist!")
+        DEBUG_PANIC("Cannot unmap buffer! - Buffer with a handle id: = " << buffer_handle << ", does not exist!")
     }
 #endif
 
     vmaUnmapMemory(vk_allocator, buffer_allocator.get_element(buffer_handle).allocation);
 }
+void ResourceManager::flush_mapped_buffer(Handle<Buffer> buffer_handle, VkDeviceSize size, VkDeviceSize offset) {
+#if DEBUG_MODE // Remove hot-path checks in release mode
+    if (!buffer_allocator.is_handle_valid(buffer_handle)) {
+        DEBUG_PANIC("Cannot flush mapped buffer! - Buffer with a handle id: = " << buffer_handle << ", does not exist!")
+    }
+#endif
+
+    const Buffer& buffer = buffer_allocator.get_element(buffer_handle);
+
+    VkDeviceSize flush_size;
+    if(size != 0) {
+        flush_size = size;
+    } else {
+        flush_size = buffer.size;
+    }
+
+    if(flush_size + offset > buffer.size) {
+        DEBUG_PANIC("Cannot flush mapped buffer! - Flush range out of bounds: flush_size = " << flush_size << ", offset = " << offset)
+    }
+
+    vmaFlushAllocation(vk_allocator, buffer.allocation, offset, size);
+}
+
 void ResourceManager::memcpy_to_buffer_once(Handle<Buffer> buffer_handle, const void* src_data, usize size, usize dst_offset, usize src_offset) {
     void* mapped = reinterpret_cast<void*>(reinterpret_cast<usize>(map_buffer(buffer_handle)) + dst_offset);
     void* src = reinterpret_cast<void*>(reinterpret_cast<usize>(src_data) + src_offset);
@@ -353,6 +427,11 @@ void ResourceManager::destroy_image(Handle<Image> image_handle) {
     }
 
     const Image& image = image_allocator.get_element(image_handle);
+
+    // If it is a borrowed image
+    if(image.allocation == nullptr) {
+        return;
+    }
 
     vkDestroyImageView(vk_device, image.view, nullptr);
     vmaDestroyImage(vk_allocator, image.image, image.allocation);
