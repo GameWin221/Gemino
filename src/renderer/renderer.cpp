@@ -112,7 +112,7 @@ void Renderer::wait_for_fence(Handle<Fence> handle) const {
         1U,
         &command_manager->get_fence_data(handle).fence,
         VK_TRUE,
-        1000000000
+        UINT64_MAX
     ) == VK_SUCCESS)
 }
 void Renderer::reset_fence(Handle<Fence> handle) const {
@@ -697,7 +697,9 @@ void Renderer::bind_index_buffer(Handle<CommandList> command_list, Handle<Buffer
 void Renderer::draw_count(Handle<CommandList> command_list, u32 vertex_count, u32 first_vertex, u32 instance_count) const {
     vkCmdDraw(command_manager->get_command_list_data(command_list).command_buffer, vertex_count, instance_count,first_vertex, 0U);
 }
-
 void Renderer::draw_indexed(Handle<CommandList> command_list, u32 index_count, u32 first_index, i32 vertex_offset, u32 instance_count) const {
     vkCmdDrawIndexed(command_manager->get_command_list_data(command_list).command_buffer, index_count, instance_count, first_index, vertex_offset, 0U);
+}
+void Renderer::draw_indexed_indirect(Handle<CommandList> command_list, Handle<Buffer> indirect_buffer, u32 draw_count, u32 stride) const {
+    vkCmdDrawIndexedIndirect(command_manager->get_command_list_data(command_list).command_buffer, resource_manager->get_buffer_data(indirect_buffer).buffer, 0, draw_count, stride);
 }

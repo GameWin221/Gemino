@@ -55,6 +55,14 @@ void World::set_mesh(Handle<Object> object, Handle<u32> mesh) {
     target.mesh = mesh;
     changed_object_handles.insert(object);
 }
+void World::set_visibility(Handle<Object> object, bool visible) {
+    Object& target = objects.get_element_mutable(object);
+
+    if(target.visible == visible) return;
+
+    target.visible = visible;
+    changed_object_handles.insert(object);
+}
 
 void World::set_camera_position(Handle<Camera> camera, glm::vec3 position) {
     Camera& target = cameras.get_element_mutable(camera);

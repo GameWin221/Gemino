@@ -4,6 +4,7 @@ struct Transform {
 struct Object {
     uint transform;
     uint mesh;
+    uint visible;
 };
 struct Camera {
     mat4 view;

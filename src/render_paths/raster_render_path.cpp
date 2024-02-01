@@ -4,17 +4,22 @@ RasterRenderPath::RasterRenderPath(Window& window, VSyncMode v_sync) : renderer(
     .v_sync = v_sync,
     .usage = VK_IMAGE_USAGE_COLOR_ATTACHMENT_BIT
 }) {
-    object_buffer = renderer.resource_manager->create_buffer(BufferCreateInfo{
-        .size = sizeof(Object) * MAX_OBJECTS,
+    scene_draw_buffer = renderer.resource_manager->create_buffer(BufferCreateInfo{
+       .size = sizeof(VkDrawIndexedIndirectCommand) * MAX_SCENE_DRAWS,
+       .buffer_usage_flags = VK_BUFFER_USAGE_INDIRECT_BUFFER_BIT | VK_BUFFER_USAGE_TRANSFER_DST_BIT,
+       .memory_usage_flags = VMA_MEMORY_USAGE_GPU_ONLY
+    });
+    scene_object_buffer = renderer.resource_manager->create_buffer(BufferCreateInfo{
+        .size = sizeof(Object) * MAX_SCENE_OBJECTS,
         .buffer_usage_flags = VK_BUFFER_USAGE_STORAGE_BUFFER_BIT | VK_BUFFER_USAGE_TRANSFER_DST_BIT,
         .memory_usage_flags = VMA_MEMORY_USAGE_GPU_ONLY
     });
-    transform_buffer = renderer.resource_manager->create_buffer(BufferCreateInfo{
-        .size = sizeof(Transform) * MAX_TRANSFORMS,
+    scene_transform_buffer = renderer.resource_manager->create_buffer(BufferCreateInfo{
+        .size = sizeof(Transform) * MAX_SCENE_TRANSFORMS,
         .buffer_usage_flags = VK_BUFFER_USAGE_STORAGE_BUFFER_BIT | VK_BUFFER_USAGE_TRANSFER_DST_BIT,
         .memory_usage_flags = VMA_MEMORY_USAGE_GPU_ONLY
     });
-    camera_buffer = renderer.resource_manager->create_buffer(BufferCreateInfo{
+    scene_camera_buffer = renderer.resource_manager->create_buffer(BufferCreateInfo{
         .size = sizeof(Camera),
         .buffer_usage_flags = VK_BUFFER_USAGE_UNIFORM_BUFFER_BIT | VK_BUFFER_USAGE_TRANSFER_DST_BIT,
         .memory_usage_flags = VMA_MEMORY_USAGE_GPU_ONLY
@@ -70,19 +75,19 @@ RasterRenderPath::RasterRenderPath(Window& window, VSyncMode v_sync) : renderer(
             DescriptorBindingUpdateInfo{
                 .binding_index = 0U,
                 .buffer_info {
-                    .buffer_handle = object_buffer
+                    .buffer_handle = scene_object_buffer
                 }
             },
             DescriptorBindingUpdateInfo{
                 .binding_index = 1U,
                 .buffer_info {
-                    .buffer_handle = transform_buffer
+                    .buffer_handle = scene_transform_buffer
                 }
             },
             DescriptorBindingUpdateInfo{
                 .binding_index = 2U,
                 .buffer_info {
-                    .buffer_handle = camera_buffer
+                    .buffer_handle = scene_camera_buffer
                 }
             }
         }
@@ -217,9 +222,12 @@ void RasterRenderPath::begin_recording_frame() {
 void RasterRenderPath::update_world(const World& world, Handle<Camera> camera) {
     Frame& frame = frames[frame_in_flight_index];
 
+    std::vector<VkBufferCopy> draw_copy_regions{};
     std::vector<VkBufferCopy> object_copy_regions{};
     std::vector<VkBufferCopy> transform_copy_regions{};
     std::vector<VkBufferCopy> camera_copy_regions{};
+
+    draw_copy_regions.reserve(world.get_changed_object_handles().size());
     object_copy_regions.reserve(world.get_changed_object_handles().size());
     transform_copy_regions.reserve(world.get_changed_transform_handles().size());
     //camera_copy_regions.reserve(world.get_changed_camera_handles().size());
@@ -229,11 +237,44 @@ void RasterRenderPath::update_world(const World& world, Handle<Camera> camera) {
     usize upload_offset{};
 
     for(const auto& handle : world.get_changed_object_handles()) {
-        if(upload_offset + sizeof(Object) >= upload_buffer_size) {
-            DEBUG_PANIC("UPLOAD OVERFLOW")
+        if(upload_offset + sizeof(VkDrawIndexedIndirectCommand) >= upload_buffer_size) {
+            DEBUG_PANIC("UPLOAD OVERFLOW (VkDrawIndexedIndirectCommand)")
+        }
+        if(handle >= MAX_SCENE_DRAWS) {
+            DEBUG_PANIC("BUFFER OVERFLOW (VkDrawIndexedIndirectCommand)")
         }
 
-        frame.access_upload<Object>(upload_offset)->transform = world.get_objects()[handle].transform;
+        const auto& object = world.get_object(handle);
+
+        VkDrawIndexedIndirectCommand draw_command{};
+        if(object.mesh != INVALID_HANDLE && object.visible) {
+            const auto& mesh = mesh_allocator.get_element(object.mesh);
+            draw_command.indexCount = mesh.index_count;
+            draw_command.instanceCount = 1U;
+            draw_command.firstIndex = mesh.first_index;
+            draw_command.vertexOffset = mesh.vertex_offset;
+        }
+
+        *frame.access_upload<VkDrawIndexedIndirectCommand>(upload_offset) = draw_command;
+
+        draw_copy_regions.push_back(VkBufferCopy{
+            .srcOffset = upload_offset,
+            .dstOffset = static_cast<VkDeviceSize>(handle) * sizeof(VkDrawIndexedIndirectCommand),
+            .size = sizeof(VkDrawIndexedIndirectCommand)
+        });
+
+        upload_offset += sizeof(VkDrawIndexedIndirectCommand);
+    }
+
+    for(const auto& handle : world.get_changed_object_handles()) {
+        if(upload_offset + sizeof(Object) >= upload_buffer_size) {
+            DEBUG_PANIC("UPLOAD OVERFLOW (Object)")
+        }
+        if(handle >= MAX_SCENE_OBJECTS) {
+            DEBUG_PANIC("BUFFER OVERFLOW (Object)")
+        }
+
+        frame.access_upload<Object>(upload_offset)->transform = world.get_object(handle).transform;
 
         object_copy_regions.push_back(VkBufferCopy{
             .srcOffset = upload_offset,
@@ -246,10 +287,13 @@ void RasterRenderPath::update_world(const World& world, Handle<Camera> camera) {
 
     for(const auto& handle : world.get_changed_transform_handles()) {
         if(upload_offset + sizeof(Transform) >= upload_buffer_size) {
-            DEBUG_PANIC("UPLOAD OVERFLOW")
+            DEBUG_PANIC("UPLOAD OVERFLOW (Transform)")
+        }
+        if(handle >= MAX_SCENE_TRANSFORMS) {
+            DEBUG_PANIC("BUFFER OVERFLOW (Transform)")
         }
 
-        frame.access_upload<Transform>(upload_offset)->matrix = world.get_transforms()[handle].matrix;
+        frame.access_upload<Transform>(upload_offset)->matrix = world.get_transform(handle);
 
         transform_copy_regions.push_back(VkBufferCopy{
             .srcOffset = upload_offset,
@@ -261,7 +305,7 @@ void RasterRenderPath::update_world(const World& world, Handle<Camera> camera) {
     }
 
     if(upload_offset + sizeof(Camera) >= upload_buffer_size) {
-        DEBUG_PANIC("UPLOAD OVERFLOW")
+        DEBUG_PANIC("UPLOAD OVERFLOW (Camera)")
     }
 
     *frame.access_upload<Camera>(upload_offset) = world.get_cameras()[camera];
@@ -277,41 +321,56 @@ void RasterRenderPath::update_world(const World& world, Handle<Camera> camera) {
     renderer.resource_manager->flush_mapped_buffer(frame.upload_buffer, upload_offset);
 
     // Ensure that other frames don't use these global buffers
+    renderer.buffer_barrier(frame.command_list, VK_PIPELINE_STAGE_DRAW_INDIRECT_BIT, VK_PIPELINE_STAGE_TRANSFER_BIT, {
+        BufferBarrier{
+            .buffer_handle = scene_draw_buffer,
+            .src_access_mask = VK_ACCESS_INDIRECT_COMMAND_READ_BIT,
+            .dst_access_mask = VK_ACCESS_TRANSFER_WRITE_BIT
+        }
+    });
     renderer.buffer_barrier(frame.command_list, VK_PIPELINE_STAGE_VERTEX_SHADER_BIT, VK_PIPELINE_STAGE_TRANSFER_BIT, {
         BufferBarrier{
-            .buffer_handle = object_buffer,
+            .buffer_handle = scene_object_buffer,
             .src_access_mask = VK_ACCESS_SHADER_READ_BIT,
             .dst_access_mask = VK_ACCESS_TRANSFER_WRITE_BIT
         },
         BufferBarrier{
-            .buffer_handle = transform_buffer,
+            .buffer_handle = scene_transform_buffer,
             .src_access_mask = VK_ACCESS_SHADER_READ_BIT,
             .dst_access_mask = VK_ACCESS_TRANSFER_WRITE_BIT
         },
         BufferBarrier{
-            .buffer_handle = camera_buffer,
+            .buffer_handle = scene_camera_buffer,
             .src_access_mask = VK_ACCESS_UNIFORM_READ_BIT,
             .dst_access_mask = VK_ACCESS_TRANSFER_WRITE_BIT
         },
     });
 
-    renderer.copy_buffer_to_buffer(frame.command_list, frame.upload_buffer, object_buffer, object_copy_regions);;
-    renderer.copy_buffer_to_buffer(frame.command_list, frame.upload_buffer, transform_buffer, transform_copy_regions);
-    renderer.copy_buffer_to_buffer(frame.command_list, frame.upload_buffer, camera_buffer, camera_copy_regions);
+    renderer.copy_buffer_to_buffer(frame.command_list, frame.upload_buffer, scene_draw_buffer, draw_copy_regions);
+    renderer.copy_buffer_to_buffer(frame.command_list, frame.upload_buffer, scene_object_buffer, object_copy_regions);
+    renderer.copy_buffer_to_buffer(frame.command_list, frame.upload_buffer, scene_transform_buffer, transform_copy_regions);
+    renderer.copy_buffer_to_buffer(frame.command_list, frame.upload_buffer, scene_camera_buffer, camera_copy_regions);
 
+    renderer.buffer_barrier(frame.command_list, VK_PIPELINE_STAGE_TRANSFER_BIT, VK_PIPELINE_STAGE_DRAW_INDIRECT_BIT, {
+        BufferBarrier{
+            .buffer_handle = scene_draw_buffer,
+            .src_access_mask = VK_ACCESS_TRANSFER_WRITE_BIT,
+            .dst_access_mask = VK_ACCESS_INDIRECT_COMMAND_READ_BIT
+        }
+    });
     renderer.buffer_barrier(frame.command_list, VK_PIPELINE_STAGE_TRANSFER_BIT, VK_PIPELINE_STAGE_VERTEX_SHADER_BIT, {
         BufferBarrier{
-            .buffer_handle = object_buffer,
+            .buffer_handle = scene_object_buffer,
             .src_access_mask = VK_ACCESS_TRANSFER_WRITE_BIT,
             .dst_access_mask = VK_ACCESS_SHADER_READ_BIT
         },
         BufferBarrier{
-            .buffer_handle = transform_buffer,
+            .buffer_handle = scene_transform_buffer,
             .src_access_mask = VK_ACCESS_TRANSFER_WRITE_BIT,
             .dst_access_mask = VK_ACCESS_SHADER_READ_BIT
         },
         BufferBarrier{
-            .buffer_handle = camera_buffer,
+            .buffer_handle = scene_camera_buffer,
             .src_access_mask = VK_ACCESS_TRANSFER_WRITE_BIT,
             .dst_access_mask = VK_ACCESS_UNIFORM_READ_BIT
         },
@@ -328,13 +387,7 @@ void RasterRenderPath::render_world(const World& world, Handle<Camera> camera) {
     renderer.bind_graphics_descriptor(frame.command_list, forward_pipeline, forward_descriptor, 0U);
     renderer.bind_vertex_buffer(frame.command_list, scene_vertex_buffer);
     renderer.bind_index_buffer(frame.command_list, scene_index_buffer);
-
-    for(const auto& object_handle : world.get_valid_object_handles()) {
-        const Object& object = world.get_object(object_handle);
-        const Mesh& mesh = mesh_allocator.get_element(object.mesh);
-
-        renderer.draw_indexed(frame.command_list, mesh.index_count, mesh.first_index, mesh.vertex_offset);
-    }
+    renderer.draw_indexed_indirect(frame.command_list,scene_draw_buffer, world.get_objects().size(),sizeof(VkDrawIndexedIndirectCommand));
 
     renderer.end_graphics_pipeline(frame.command_list, forward_pipeline);
 }
@@ -370,33 +423,39 @@ Handle<Mesh> RasterRenderPath::create_mesh(const std::vector<Vertex>& vertices, 
     Mesh mesh{
         .index_count = static_cast<u32>(indices.size()),
         .first_index = allocated_indices,
-        .vertex_offset = static_cast<i32>(allocated_vertices)
+        .vertex_offset = -static_cast<i32>(allocated_vertices)
     };
 
+    u32 vertex_count = static_cast<u32>(vertices.size());
+    u32 index_count = static_cast<u32>(indices.size());
+
     Handle<Buffer> staging_buffer = renderer.resource_manager->create_buffer(BufferCreateInfo{
-       .size = (vertices.size() * sizeof(Vertex)) + (indices.size() * sizeof(u32)),
+       .size = (vertex_count * sizeof(Vertex)) + (index_count * sizeof(u32)),
        .buffer_usage_flags = VK_BUFFER_USAGE_TRANSFER_SRC_BIT,
        .memory_usage_flags = VMA_MEMORY_USAGE_CPU_TO_GPU
     });
 
-    renderer.resource_manager->memcpy_to_buffer_once(staging_buffer, vertices.data(), vertices.size() * sizeof(Vertex));
-    renderer.resource_manager->memcpy_to_buffer_once(staging_buffer, indices.data(), indices.size() * sizeof(u32), vertices.size() * sizeof(Vertex));
+    renderer.resource_manager->memcpy_to_buffer_once(staging_buffer, vertices.data(), vertex_count * sizeof(Vertex));
+    renderer.resource_manager->memcpy_to_buffer_once(staging_buffer, indices.data(), index_count * sizeof(u32), vertex_count * sizeof(Vertex));
 
     auto cmd = renderer.command_manager->create_command_list(QueueFamily::Graphics);
     renderer.begin_recording_commands(cmd);
     renderer.copy_buffer_to_buffer(cmd, staging_buffer,  scene_vertex_buffer, { VkBufferCopy{
         .srcOffset = 0,
-        .size = vertices.size() * sizeof(Vertex)
+        .size = vertex_count * sizeof(Vertex)
     }});
     renderer.copy_buffer_to_buffer(cmd, staging_buffer, scene_index_buffer, { VkBufferCopy{
-        .srcOffset = vertices.size() * sizeof(Vertex),
-        .size = indices.size() * sizeof(u32)
+        .srcOffset = vertex_count * sizeof(Vertex),
+        .size = index_count * sizeof(u32)
     }});
     renderer.end_recording_commands(cmd);
     renderer.submit_commands_once(cmd);
 
     renderer.command_manager->destroy_command_list(cmd);
     renderer.resource_manager->destroy_buffer(staging_buffer);
+
+    allocated_vertices += vertex_count;
+    allocated_indices += index_count;
 
     return mesh_allocator.alloc(mesh);
 }

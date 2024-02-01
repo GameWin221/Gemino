@@ -17,12 +17,13 @@ public:
     Handle<Mesh> create_mesh(const std::vector<Vertex>& vertices, const std::vector<u32>& indices);
     void destroy_mesh(Handle<Mesh> mesh_handle);
 
-    const VkDeviceSize MAX_SCENE_VERTICES = (16 * 1024 * 1024) / sizeof(Vertex); // 16mb of vertex data max
-    const VkDeviceSize MAX_SCENE_INDICES = (64 * 1024 * 1024) / sizeof(u32); // 64mb of index data max
+    const VkDeviceSize MAX_SCENE_VERTICES = (16 * 1024 * 1024) / sizeof(Vertex); // 16mb (device memory) of vertex data max (524288)
+    const VkDeviceSize MAX_SCENE_INDICES = (64 * 1024 * 1024) / sizeof(u32); // 64mb (device memory) of index data max (67108864)
+    const VkDeviceSize MAX_SCENE_DRAWS = (2 * 1024 * 1024) / sizeof(VkDrawIndexedIndirectCommand); // 2mb (device memory) of draw data max (104857)
+    const VkDeviceSize MAX_SCENE_OBJECTS = MAX_SCENE_DRAWS; // 0.8mb (device memory) of object data max
+    const VkDeviceSize MAX_SCENE_TRANSFORMS = MAX_SCENE_DRAWS; // 3.2mb (device memory) of transform data max
 
-    const VkDeviceSize MAX_OBJECTS = 1024;
-    const VkDeviceSize MAX_TRANSFORMS = 1024;
-    const VkDeviceSize PER_FRAME_UPLOAD_BUFFER_SIZE = 1 * 1024 * 1024; // 1MB = 1024KB = 1024 * 1024B - Max data uploaded from cpu to gpu per frame
+    const VkDeviceSize PER_FRAME_UPLOAD_BUFFER_SIZE = 16 * 1024 * 1024; // 16mb (host memory) of max data uploaded from cpu to gpu per frame
 
 private:
     void begin_recording_frame();
@@ -63,15 +64,15 @@ private:
 
     Handle<Image> depth_image{};
 
-    Handle<Buffer> scene_vertex_buffer{};
-    Handle<Buffer> scene_index_buffer{};
-
     u32 allocated_vertices{};
     u32 allocated_indices{};
 
-    Handle<Buffer> transform_buffer{};
-    Handle<Buffer> object_buffer{};
-    Handle<Buffer> camera_buffer{};
+    Handle<Buffer> scene_vertex_buffer{};
+    Handle<Buffer> scene_index_buffer{};
+    Handle<Buffer> scene_transform_buffer{};
+    Handle<Buffer> scene_object_buffer{};
+    Handle<Buffer> scene_camera_buffer{};
+    Handle<Buffer> scene_draw_buffer{};
 };
 
 #endif

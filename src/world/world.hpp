@@ -37,6 +37,7 @@ struct alignas(16) Transform {
 struct alignas(16) Object {
     alignas(4) Handle<Transform> transform{};
     alignas(4) Handle<u32> mesh = INVALID_HANDLE;
+    alignas(4) u32 visible = 1U;
 };
 
 class World {
@@ -47,11 +48,12 @@ public:
     Handle<Camera> create_camera(glm::vec2 viewport_size, glm::vec3 position = glm::vec3(0.0f), float pitch = 0.0f, float yaw = 0.0f, float fov = 60.0f, float near_plane = 0.02f, float far_plane = 1000.0f);
 
     void set_transform(Handle<Object> object, const glm::mat4& matrix);
-    const glm::mat4& get_transform(Handle<Transform> object) const { return transforms.get_element(objects.get_element(object).transform).matrix; }
-
     void set_mesh(Handle<Object> object, Handle<u32> mesh);
+    void set_visibility(Handle<Object> object, bool visible);
 
+    const glm::mat4& get_transform(Handle<Transform> transform) const { return transforms.get_element(transform).matrix; }
     const Object& get_object(Handle<Object> object) const { return objects.get_element(object); };
+    bool get_visibility(Handle<Object> object) const { return static_cast<bool>(objects.get_element(object).visible); };
 
     void set_camera_position(Handle<Camera> camera, glm::vec3 position);
     void set_camera_rotation(Handle<Camera> camera, float pitch, float yaw);

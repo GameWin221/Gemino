@@ -133,6 +133,7 @@ public:
 
     void draw_count(Handle<CommandList> command_list, u32 vertex_count, u32 first_vertex = 0U, u32 instance_count = 1U) const;
     void draw_indexed(Handle<CommandList> command_list, u32 index_count, u32 first_index = 0U, i32 vertex_offset = 1U, u32 instance_count = 1U) const;
+    void draw_indexed_indirect(Handle<CommandList> command_list, Handle<Buffer> indirect_buffer, u32 draw_count, u32 stride) const;
 
     const SwapchainConfig& get_swapchain_config() const { return swapchain_config; }
 

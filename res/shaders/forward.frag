@@ -25,7 +25,9 @@ void main() {
     //vec3 albedo = texture(array_of_textures[nonuniformEXT(0)], f_texcoord).rgb;
     //vec3 albedo = texture(textures_array, vec3(f_texcoord, 0)).rgb;
 
-    vec3 albedo = vec3(max(dot(vec3(1.0), f_normal), 0.2));
+    vec3 albedo = vec3(f_texcoord, 0.0);
+
+    albedo *= max(dot(vec3(1.0), f_normal), 0.1);
 
     out_color = vec4(albedo, 1.0);
 }
