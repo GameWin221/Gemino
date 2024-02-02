@@ -473,7 +473,7 @@ void Renderer::copy_buffer_to_buffer(Handle<CommandList> command_list, Handle<Bu
 
     vkCmdCopyBuffer(cmd.command_buffer, src_buffer.buffer, dst_buffer.buffer, static_cast<u32>(regions.size()), regions.data());
 }
-void Renderer::copy_buffer_to_image(Handle<CommandList> command_list, Handle<Buffer> src, Handle<Image> dst, VkImageLayout dst_layout, const std::vector<BufferToImageCopy> &regions) const {
+void Renderer::copy_buffer_to_image(Handle<CommandList> command_list, Handle<Buffer> src, Handle<Image> dst, const std::vector<BufferToImageCopy> &regions) const {
     if(regions.empty()) return;
 
     const Buffer& src_buffer = resource_manager->get_buffer_data(src);
@@ -523,7 +523,7 @@ void Renderer::copy_buffer_to_image(Handle<CommandList> command_list, Handle<Buf
         };
     }
 
-    vkCmdCopyBufferToImage(cmd.command_buffer, src_buffer.buffer, dst_image.image, dst_layout, static_cast<u32>(image_copies.size()), image_copies.data());
+    vkCmdCopyBufferToImage(cmd.command_buffer, src_buffer.buffer, dst_image.image, VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL, static_cast<u32>(image_copies.size()), image_copies.data());
 }
 
 void Renderer::begin_graphics_pipeline(Handle<CommandList> command_list, Handle<GraphicsPipeline> pipeline, Handle<RenderTarget> render_target, const RenderTargetClear& clear) const {

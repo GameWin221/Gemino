@@ -1,9 +1,15 @@
 #include "raster_render_path.hpp"
+#include <common/utils.hpp>
 
 RasterRenderPath::RasterRenderPath(Window& window, VSyncMode v_sync) : renderer(window, SwapchainConfig{
     .v_sync = v_sync,
     .usage = VK_IMAGE_USAGE_COLOR_ATTACHMENT_BIT
 }) {
+    scene_material_buffer  = renderer.resource_manager->create_buffer(BufferCreateInfo{
+        .size = sizeof(Material) * MAX_SCENE_MATERIALS,
+        .buffer_usage_flags = VK_BUFFER_USAGE_STORAGE_BUFFER_BIT | VK_BUFFER_USAGE_TRANSFER_DST_BIT,
+        .memory_usage_flags = VMA_MEMORY_USAGE_GPU_ONLY
+    });
     scene_draw_buffer = renderer.resource_manager->create_buffer(BufferCreateInfo{
        .size = sizeof(VkDrawIndexedIndirectCommand) * MAX_SCENE_DRAWS,
        .buffer_usage_flags = VK_BUFFER_USAGE_INDIRECT_BUFFER_BIT | VK_BUFFER_USAGE_TRANSFER_DST_BIT,
@@ -37,6 +43,8 @@ RasterRenderPath::RasterRenderPath(Window& window, VSyncMode v_sync) : renderer(
     });
 
     DEBUG_LOG("\nVulkan Device memory usage:")
+    DEBUG_LOG("MAX_SCENE_TEXTURES = " << MAX_SCENE_TEXTURES << ", " << (MAX_SCENE_TEXTURES * sizeof(Material) / 1024.0 / 1024.0) << "mb")
+    DEBUG_LOG("MAX_SCENE_MATERIALS = " << MAX_SCENE_MATERIALS << ", " << (MAX_SCENE_MATERIALS * sizeof(Material) / 1024.0 / 1024.0) << "mb")
     DEBUG_LOG("MAX_SCENE_VERTICES = " << MAX_SCENE_VERTICES << ", " << (MAX_SCENE_VERTICES * sizeof(Vertex) / 1024.0 / 1024.0) << "mb")
     DEBUG_LOG("MAX_SCENE_INDICES = " << MAX_SCENE_INDICES << ", " << (MAX_SCENE_INDICES * sizeof(u32) / 1024.0 / 1024.0) << "mb")
     DEBUG_LOG("MAX_SCENE_DRAWS = " << MAX_SCENE_DRAWS << ", " << (MAX_SCENE_DRAWS * sizeof(VkDrawIndexedIndirectCommand) / 1024.0 / 1024.0) << "mb")
@@ -50,6 +58,49 @@ RasterRenderPath::RasterRenderPath(Window& window, VSyncMode v_sync) : renderer(
     DEBUG_LOG("\nVulkan Host memory usage:")
     DEBUG_LOG("PER_FRAME_UPLOAD_BUFFER_SIZE * frames_in_flight = " << PER_FRAME_UPLOAD_BUFFER_SIZE * frames_in_flight / 1024.0 / 1024.0 << "mb");
     DEBUG_LOG("OVERALL_HOST_MEMORY_USAGE = " << overall_host_memory_usage / 1024.0 / 1024.0 << "mb")
+
+    forward_descriptor = renderer.resource_manager->create_descriptor(DescriptorCreateInfo{
+        .bindings{
+            DescriptorBindingCreateInfo{ VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER, static_cast<u32>(MAX_SCENE_TEXTURES) },
+            DescriptorBindingCreateInfo{ VK_DESCRIPTOR_TYPE_STORAGE_BUFFER },
+            DescriptorBindingCreateInfo{ VK_DESCRIPTOR_TYPE_STORAGE_BUFFER },
+            DescriptorBindingCreateInfo{ VK_DESCRIPTOR_TYPE_STORAGE_BUFFER },
+            DescriptorBindingCreateInfo{ VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER },
+        }
+    });
+    renderer.resource_manager->update_descriptor(forward_descriptor, DescriptorUpdateInfo{
+        .bindings{
+            DescriptorBindingUpdateInfo{
+                .binding_index = 1U,
+                .buffer_info {
+                    .buffer_handle = scene_object_buffer
+                }
+            },
+            DescriptorBindingUpdateInfo{
+                .binding_index = 2U,
+                .buffer_info {
+                    .buffer_handle = scene_transform_buffer
+                }
+            },
+            DescriptorBindingUpdateInfo{
+                .binding_index = 3U,
+                .buffer_info {
+                    .buffer_handle = scene_material_buffer
+                }
+            },
+            DescriptorBindingUpdateInfo{
+                .binding_index = 4U,
+                .buffer_info {
+                    .buffer_handle = scene_camera_buffer
+                }
+            }
+        }
+    });
+
+    u8 default_white_srgb_texture_data[] = { 255 };
+    u8 default_grey_unorm_texture_data[] = { 127 };
+    default_white_srgb_texture = create_u8_texture(default_white_srgb_texture_data, 1U, 1U, 4U, true, false, false);
+    default_grey_unorm_texture = create_u8_texture(default_grey_unorm_texture_data, 1U, 1U, 4U, false, false, false);
 
     depth_image = renderer.resource_manager->create_image(ImageCreateInfo{
         .format = VK_FORMAT_D32_SFLOAT,
@@ -77,36 +128,6 @@ RasterRenderPath::RasterRenderPath(Window& window, VSyncMode v_sync) : renderer(
     }});
     renderer.end_recording_commands(init_cmd);
     renderer.submit_commands_once(init_cmd);
-
-    forward_descriptor = renderer.resource_manager->create_descriptor(DescriptorCreateInfo{
-        .bindings{
-            DescriptorBindingCreateInfo{ VK_DESCRIPTOR_TYPE_STORAGE_BUFFER },
-            DescriptorBindingCreateInfo{ VK_DESCRIPTOR_TYPE_STORAGE_BUFFER },
-            DescriptorBindingCreateInfo{ VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER },
-        }
-    });
-    renderer.resource_manager->update_descriptor(forward_descriptor, DescriptorUpdateInfo{
-        .bindings{
-            DescriptorBindingUpdateInfo{
-                .binding_index = 0U,
-                .buffer_info {
-                    .buffer_handle = scene_object_buffer
-                }
-            },
-            DescriptorBindingUpdateInfo{
-                .binding_index = 1U,
-                .buffer_info {
-                    .buffer_handle = scene_transform_buffer
-                }
-            },
-            DescriptorBindingUpdateInfo{
-                .binding_index = 2U,
-                .buffer_info {
-                    .buffer_handle = scene_camera_buffer
-                }
-            }
-        }
-    });
 
     forward_pipeline = renderer.pipeline_manager->create_graphics_pipeline(GraphicsPipelineCreateInfo{
         .vertex_shader_path = "./res/shaders/forward.vert.spv",
@@ -373,7 +394,7 @@ void RasterRenderPath::update_world(const World& world, Handle<Camera> camera) {
             .dst_access_mask = VK_ACCESS_INDIRECT_COMMAND_READ_BIT
         }
     });
-    renderer.buffer_barrier(frame.command_list, VK_PIPELINE_STAGE_TRANSFER_BIT, VK_PIPELINE_STAGE_VERTEX_SHADER_BIT, {
+    renderer.buffer_barrier(frame.command_list, VK_PIPELINE_STAGE_TRANSFER_BIT, VK_PIPELINE_STAGE_VERTEX_SHADER_BIT | VK_PIPELINE_STAGE_FRAGMENT_SHADER_BIT, {
         BufferBarrier{
             .buffer_handle = scene_object_buffer,
             .src_access_mask = VK_ACCESS_TRANSFER_WRITE_BIT,
@@ -402,7 +423,7 @@ void RasterRenderPath::render_world(const World& world, Handle<Camera> camera) {
     renderer.bind_graphics_descriptor(frame.command_list, forward_pipeline, forward_descriptor, 0U);
     renderer.bind_vertex_buffer(frame.command_list, scene_vertex_buffer);
     renderer.bind_index_buffer(frame.command_list, scene_index_buffer);
-    renderer.draw_indexed_indirect(frame.command_list,scene_draw_buffer, world.get_objects().size(),sizeof(VkDrawIndexedIndirectCommand));
+    renderer.draw_indexed_indirect(frame.command_list,scene_draw_buffer, static_cast<u32>(world.get_objects().size()),sizeof(VkDrawIndexedIndirectCommand));
 
     renderer.end_graphics_pipeline(frame.command_list, forward_pipeline);
 }
@@ -496,4 +517,183 @@ void RasterRenderPath::destroy_mesh(Handle<Mesh> mesh_handle) {
     mesh_allocator.free(mesh_handle);
 }
 
+Handle<Texture> RasterRenderPath::create_u8_texture(const u8 *pixel_data, u32 width, u32 height, u32 bytes_per_pixel, bool is_srgb, bool gen_mip_maps, bool linear_filter) {
+    VkFormat format{};
+    if(bytes_per_pixel == 1U) {
+        format = (is_srgb ? VK_FORMAT_R8_SRGB : VK_FORMAT_R8_UNORM);
+    } else if(bytes_per_pixel == 2U) {
+        format = (is_srgb ? VK_FORMAT_R8G8_SRGB : VK_FORMAT_R8G8_UNORM);
+    } else if(bytes_per_pixel == 3U) {
+        format = (is_srgb ? VK_FORMAT_R8G8B8_SRGB : VK_FORMAT_R8G8B8_UNORM);
+    } else if(bytes_per_pixel == 4U) {
+        format = (is_srgb ? VK_FORMAT_R8G8B8A8_SRGB : VK_FORMAT_R8G8B8A8_UNORM);
+    } else {
+        DEBUG_PANIC("Failed to create a texture! - A texture must have between 1 and 4 bytes per pixel: bytes_per_pixel=" << bytes_per_pixel)
+    }
 
+    DEBUG_ASSERT(texture_anisotropy <= 16U)
+
+    Texture texture{
+        .width = width,
+        .height = height,
+        .bytes_per_pixel = bytes_per_pixel,
+        .mip_level_count = (gen_mip_maps ? Utils::calculate_mipmap_levels_xy(width, height) : 1U),
+        .is_srgb = static_cast<u32>(is_srgb),
+        .use_linear_filter = static_cast<u32>(linear_filter)
+    };
+    DEBUG_LOG(texture.mip_level_count)
+    texture.image = renderer.resource_manager->create_image(ImageCreateInfo{
+        .format = format,
+        .extent {
+            .width = texture.width,
+            .height = texture.height
+        },
+        .usage_flags = VK_IMAGE_USAGE_SAMPLED_BIT | VK_IMAGE_USAGE_TRANSFER_DST_BIT | (gen_mip_maps ? VK_IMAGE_USAGE_TRANSFER_SRC_BIT : static_cast<VkImageUsageFlags>(0)),
+        .aspect_flags = VK_IMAGE_ASPECT_COLOR_BIT,
+        .mip_level_count = texture.mip_level_count
+    });
+
+    texture.sampler = renderer.resource_manager->create_sampler(SamplerCreateInfo{
+        .filter = linear_filter ? VK_FILTER_LINEAR : VK_FILTER_NEAREST,
+        .mipmap_mode = linear_filter ? VK_SAMPLER_MIPMAP_MODE_LINEAR : VK_SAMPLER_MIPMAP_MODE_NEAREST,
+
+        .max_mipmap = static_cast<f32>(texture.mip_level_count),
+        .mipmap_bias = texture_mip_bias,
+        .anisotropy = static_cast<f32>(texture_anisotropy)
+    });
+
+    // TEMPORARY TEMPORARY TEMPORARY TEMPORARY
+    // TEMPORARY TEMPORARY TEMPORARY TEMPORARY
+    // TEMPORARY TEMPORARY TEMPORARY TEMPORARY
+    // TEMPORARY TEMPORARY TEMPORARY TEMPORARY
+    // TEMPORARY TEMPORARY TEMPORARY TEMPORARY
+    // TEMPORARY TEMPORARY TEMPORARY TEMPORARY
+    // TEMPORARY TEMPORARY TEMPORARY TEMPORARY
+    // TEMPORARY TEMPORARY TEMPORARY TEMPORARY
+    // TEMPORARY TEMPORARY TEMPORARY TEMPORARY
+    // TEMPORARY TEMPORARY TEMPORARY TEMPORARY
+    // TEMPORARY TEMPORARY TEMPORARY TEMPORARY
+    // TEMPORARY TEMPORARY TEMPORARY TEMPORARY
+
+    Handle<Buffer> staging_buffer = renderer.resource_manager->create_buffer(BufferCreateInfo{
+        .size = width * height * bytes_per_pixel,
+        .buffer_usage_flags = VK_BUFFER_USAGE_TRANSFER_SRC_BIT,
+        .memory_usage_flags = VMA_MEMORY_USAGE_CPU_TO_GPU
+    });
+
+    renderer.resource_manager->memcpy_to_buffer_once(staging_buffer, pixel_data, width * height * bytes_per_pixel);
+
+    auto cmd = renderer.command_manager->create_command_list(QueueFamily::Graphics);
+    renderer.begin_recording_commands(cmd);
+    renderer.image_barrier(cmd, VK_PIPELINE_STAGE_TOP_OF_PIPE_BIT, VK_PIPELINE_STAGE_TRANSFER_BIT, { ImageBarrier{
+        .image_handle = texture.image,
+        .dst_access_mask = VK_ACCESS_TRANSFER_WRITE_BIT,
+        .new_layout = VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL,
+    }});
+    renderer.copy_buffer_to_image(cmd, staging_buffer, texture.image, { BufferToImageCopy{}});
+    if(gen_mip_maps) {
+        renderer.gen_mipmaps(cmd, texture.image, linear_filter ? VK_FILTER_LINEAR : VK_FILTER_NEAREST,
+            VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL, VK_PIPELINE_STAGE_TRANSFER_BIT, VK_ACCESS_TRANSFER_WRITE_BIT,
+            VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL, VK_PIPELINE_STAGE_FRAGMENT_SHADER_BIT, VK_ACCESS_SHADER_READ_BIT
+        );
+    } else {
+        renderer.image_barrier(cmd, VK_PIPELINE_STAGE_TRANSFER_BIT, VK_PIPELINE_STAGE_FRAGMENT_SHADER_BIT, { ImageBarrier{
+            .image_handle = texture.image,
+            .src_access_mask = VK_ACCESS_TRANSFER_WRITE_BIT,
+            .dst_access_mask = VK_ACCESS_SHADER_READ_BIT,
+            .old_layout = VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL,
+            .new_layout = VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL,
+        }});
+    }
+    renderer.end_recording_commands(cmd);
+    renderer.submit_commands_once(cmd);
+
+    renderer.command_manager->destroy_command_list(cmd);
+    renderer.resource_manager->destroy_buffer(staging_buffer);
+
+    auto handle = texture_allocator.alloc(texture);
+
+    renderer.resource_manager->update_descriptor(forward_descriptor, DescriptorUpdateInfo{
+        .bindings{
+            DescriptorBindingUpdateInfo{
+                .binding_index = 0U,
+                .array_index = static_cast<u32>(handle),
+                .image_info {
+                    .image_handle = texture.image,
+                    .image_sampler = texture.sampler
+                }
+            }
+        }
+    });
+
+    return handle;
+}
+void RasterRenderPath::destroy_texture(Handle<Texture> texture_handle) {
+    if(!texture_allocator.is_handle_valid(texture_handle)) {
+        DEBUG_PANIC("Cannot delete texture - Texture with a handle id: = " << texture_handle << ", does not exist!")
+    }
+
+    const Texture& texture = texture_allocator.get_element(texture_handle);
+    renderer.resource_manager->destroy_image(texture.image);
+    renderer.resource_manager->destroy_sampler(texture.sampler);
+
+    texture_allocator.free(texture_handle);
+}
+
+Handle<Material> RasterRenderPath::create_material(Handle<Texture> albedo_texture, Handle<Texture> roughness_texture, Handle<Texture> metalness_texture, Handle<Texture> normal_texture, glm::vec3 color) {
+    Material material{
+        .albedo_texture = (albedo_texture == INVALID_HANDLE) ? default_white_srgb_texture : albedo_texture,
+        .roughness_texture = (roughness_texture == INVALID_HANDLE) ? default_grey_unorm_texture : roughness_texture,
+        .metalness_texture = (metalness_texture == INVALID_HANDLE) ? default_grey_unorm_texture : metalness_texture,
+        .normal_texture = (normal_texture == INVALID_HANDLE) ? default_grey_unorm_texture : normal_texture,
+        .color = color
+    };
+
+    // TEMPORARY TEMPORARY TEMPORARY TEMPORARY
+    // TEMPORARY TEMPORARY TEMPORARY TEMPORARY
+    // TEMPORARY TEMPORARY TEMPORARY TEMPORARY
+    // TEMPORARY TEMPORARY TEMPORARY TEMPORARY
+    // TEMPORARY TEMPORARY TEMPORARY TEMPORARY
+    // TEMPORARY TEMPORARY TEMPORARY TEMPORARY
+    // TEMPORARY TEMPORARY TEMPORARY TEMPORARY
+    // TEMPORARY TEMPORARY TEMPORARY TEMPORARY
+    // TEMPORARY TEMPORARY TEMPORARY TEMPORARY
+    // TEMPORARY TEMPORARY TEMPORARY TEMPORARY
+    // TEMPORARY TEMPORARY TEMPORARY TEMPORARY
+    // TEMPORARY TEMPORARY TEMPORARY TEMPORARY
+
+    Handle<Buffer> staging_buffer = renderer.resource_manager->create_buffer(BufferCreateInfo{
+        .size = sizeof(Material),
+        .buffer_usage_flags = VK_BUFFER_USAGE_TRANSFER_SRC_BIT,
+        .memory_usage_flags = VMA_MEMORY_USAGE_CPU_TO_GPU
+    });
+
+    renderer.resource_manager->memcpy_to_buffer_once(staging_buffer, &material, sizeof(Material));
+
+    auto handle = material_allocator.alloc(material);
+
+    auto cmd = renderer.command_manager->create_command_list(QueueFamily::Graphics);
+    renderer.begin_recording_commands(cmd);
+    renderer.copy_buffer_to_buffer(cmd, staging_buffer, scene_material_buffer, {
+       VkBufferCopy {
+           .dstOffset = handle * sizeof(Material),
+           .size = sizeof(Material),
+       }
+    });
+    renderer.end_recording_commands(cmd);
+    renderer.submit_commands_once(cmd);
+
+    renderer.command_manager->destroy_command_list(cmd);
+    renderer.resource_manager->destroy_buffer(staging_buffer);
+
+    return handle;
+}
+void RasterRenderPath::destroy_material(Handle<Material> material_handle) {
+    if(!material_allocator.is_handle_valid(material_handle)) {
+        DEBUG_PANIC("Cannot delete material - Material with a handle id: = " << material_handle << ", does not exist!")
+    }
+
+    const Material& material = material_allocator.get_element(material_handle);
+
+    material_allocator.free(material_handle);
+}

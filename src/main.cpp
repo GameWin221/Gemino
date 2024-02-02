@@ -18,16 +18,32 @@ int main(){
         .resizable = true
     });
 
-    RasterRenderPath render_path(window, VSyncMode::Enabled);
+    RasterRenderPath render_path(window, VSyncMode::Disabled);
 
-    auto mesh = Utils::import_obj_mesh("res/monkey.obj")[0];
-    auto mesh_handle = render_path.create_mesh(mesh.vertices, mesh.indices);
+    auto texture = Utils::load_u8_image("res/texture.png", 4U);
+    auto texture_monkey = Utils::load_u8_image("res/monkey.jpg", 4U);
+    auto texture_handle = render_path.create_u8_texture(texture.pixels, texture.width, texture.height, texture.bytes_per_pixel, true, false);
+    auto texture_monkey_handle = render_path.create_u8_texture(texture_monkey.pixels, texture_monkey.width, texture_monkey.height, texture_monkey.bytes_per_pixel, true, false);
+    texture.free();
+    texture_monkey.free();
+
+    auto mesh = Utils::load_obj("res/monkey.obj");
+    auto mesh_handle = render_path.create_mesh(mesh.sub_meshes[0].vertices, mesh.sub_meshes[0].indices);
+    mesh.free();
+
+    auto material_handle = render_path.create_material(
+        texture_handle, INVALID_HANDLE, INVALID_HANDLE, INVALID_HANDLE, glm::vec3(1.0f, 1.0f, 1.0f)
+    );
+    auto material_monkey_handle = render_path.create_material(
+        texture_monkey_handle, INVALID_HANDLE, INVALID_HANDLE, INVALID_HANDLE, glm::vec3(1.0f, 0.4f, 1.0f)
+    );
 
     std::srand(std::time(nullptr));
 
+
     World world{};
-    for(u32 x{}; x < 20U; ++x) {
-        for(u32 y{}; y < 20U; ++y) {
+    for(u32 x{}; x < 10U; ++x) {
+        for(u32 y{}; y < 10U; ++y) {
             glm::mat4 mat(1.0f);
 
             mat = glm::translate(mat, glm::vec3(x*3U, 0.0f, y*3U));
@@ -35,7 +51,7 @@ int main(){
             mat = glm::rotate(mat, glm::radians((std::rand() % 3600) / 10.0f), glm::vec3(0, 0, 1));
             mat = glm::rotate(mat, glm::radians((std::rand() % 3600) / 10.0f), glm::vec3(1, 0, 0));
 
-            world.create_object(mesh_handle, mat);
+            world.create_object(mesh_handle, (((x + y) % 2 == 0) ? material_handle : material_monkey_handle), mat);
         }
     }
 
@@ -71,7 +87,7 @@ int main(){
         dt = DEBUG_TIME_DIFF(last_frame, now);
         last_frame = now;
 
-        //DEBUG_LOG(1.0 / dt << "fps")
+        DEBUG_LOG(1.0 / dt << "fps")
 
         time += dt;
     }

@@ -18,8 +18,8 @@ std::vector<u8> Utils::read_file_bytes(const std::string& path) {
         return std::vector<u8>{};
     }
 
-    usize file_size = static_cast<usize>(file.tellg());
-    std::vector<u8> buffer(file_size);
+    auto file_size = file.tellg();
+    std::vector<u8> buffer(static_cast<usize>(file_size));
 
     file.seekg(0);
     file.read(reinterpret_cast<char*>(buffer.data()), file_size);
@@ -46,8 +46,8 @@ std::vector<std::string> Utils::read_file_lines(const std::string& path) {
     return buffer;
 }
 
-std::vector<Utils::MeshImportData> Utils::import_obj_mesh(const std::string& path) {
-    std::vector<MeshImportData> data{};
+Utils::MeshImportData Utils::load_obj(const std::string& path) {
+    MeshImportData data{};
 
     auto lines = read_file_lines(path);
     if(lines.empty()) {
@@ -63,7 +63,7 @@ std::vector<Utils::MeshImportData> Utils::import_obj_mesh(const std::string& pat
     for(const auto& line : lines) {
         switch (line[0]) {
             case 'o': {
-                data.push_back(MeshImportData{});
+                data.sub_meshes.push_back(SubMeshImportData{});
             } break;
             case 'v':
                 switch (line[1]) {
@@ -110,8 +110,8 @@ std::vector<Utils::MeshImportData> Utils::import_obj_mesh(const std::string& pat
                     Vertex{ positions[pos[2] - 1], normals[normal[2] - 1], texcoords[uv[2] - 1] }
                 };
 
-                std::vector<u32>& indices = data.back().indices;
-                std::vector<Vertex>& vertices = data.back().vertices;
+                std::vector<u32>& indices = data.sub_meshes.back().indices;
+                std::vector<Vertex>& vertices = data.sub_meshes.back().vertices;
 
                 for (const auto& v : tri) {
                     if (vert_map.contains(v)) {
@@ -131,6 +131,26 @@ std::vector<Utils::MeshImportData> Utils::import_obj_mesh(const std::string& pat
     }
 
     DEBUG_LOG("Loaded meshes from \"" << path << "\"")
+
+    return data;
+}
+
+Utils::ImageImportData<u8> Utils::load_u8_image(const std::string& path, u32 desired_channels) {
+    ImageImportData<u8> data{};
+
+    stbi_set_flip_vertically_on_load(true);
+
+    i32 width, height, channels;
+    data.pixels = stbi_load(path.c_str(), &width, &height, &channels, static_cast<i32>(desired_channels));
+    if(!data.pixels) {
+        DEBUG_PANIC("Failed to load image from \"" << path << "\"")
+    }
+
+    data.width = static_cast<u32>(width);
+    data.height = static_cast<u32>(height);
+    data.bytes_per_pixel = desired_channels;
+
+    DEBUG_LOG("Loaded image from \"" << path << "\"")
 
     return data;
 }

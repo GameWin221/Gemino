@@ -4,7 +4,16 @@ struct Transform {
 struct Object {
     uint transform;
     uint mesh;
+    uint material;
     uint visible;
+};
+struct Material {
+    uint albedo_texture;
+    uint roughness_texture;
+    uint metalness_texture;
+    uint normal_texture;
+
+    vec3 color;
 };
 struct Camera {
     mat4 view;

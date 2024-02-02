@@ -11,22 +11,24 @@ layout(location = 3) in flat uint f_draw_id;
 
 layout(location = 0) out vec4 out_color;
 
-layout(std140, set = 0, binding = 0) readonly buffer ObjectBuffer{
+layout (set = 0, binding = 0) uniform sampler2D textures[];
+
+layout(std140, set = 0, binding = 1) readonly buffer ObjectBuffer{
     Object objects[];
 };
-layout(std140, set = 0, binding = 1) readonly buffer TransformBuffer{
+layout(std140, set = 0, binding = 2) readonly buffer TransformBuffer{
     Transform transforms[];
 };
-layout(set = 0, binding = 2) uniform CameraBuffer {
+layout(std140, set = 0, binding = 3) readonly buffer MaterialBuffer{
+    Material materials[];
+};
+layout(set = 0, binding = 4) uniform CameraBuffer {
     Camera camera;
 };
 
 void main() {
-    //vec3 albedo = texture(array_of_textures[nonuniformEXT(0)], f_texcoord).rgb;
-    //vec3 albedo = texture(textures_array, vec3(f_texcoord, 0)).rgb;
-
-    vec3 albedo = vec3(f_texcoord, 0.0);
-
+    Material material = materials[objects[f_draw_id].material];
+    vec3 albedo = texture(textures[material.albedo_texture], f_texcoord).rgb * material.color;
     albedo *= max(dot(vec3(1.0), f_normal), 0.1);
 
     out_color = vec4(albedo, 1.0);

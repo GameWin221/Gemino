@@ -56,9 +56,9 @@ Handle<Image> ResourceManager::create_image(const ImageCreateInfo& info) {
     };
 
     u32 dimension_count =
-        static_cast<u32>((image_extent.width > 1U)) +
-        static_cast<u32>((image_extent.height > 1U)) +
-        static_cast<u32>((image_extent.depth > 1U));
+        static_cast<u32>((info.extent.width > 0U)) +
+        static_cast<u32>((info.extent.height > 0U)) +
+        static_cast<u32>((info.extent.depth > 0U));
 
     DEBUG_ASSERT(dimension_count > 0U)
 

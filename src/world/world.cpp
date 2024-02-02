@@ -5,13 +5,14 @@ void World::render_finished_tick() {
     changed_transform_handles.clear();
 }
 
-Handle<Object> World::create_object(Handle<u32> mesh, const glm::mat4& matrix) {
+Handle<Object> World::create_object(Handle<Mesh> mesh, Handle<Material> material, const glm::mat4& matrix) {
     Handle<Transform> transform_handle = transforms.alloc(Transform{
         .matrix = matrix
     });
     Handle<Object> object_handle = objects.alloc(Object{
         .transform = transform_handle,
-        .mesh = mesh
+        .mesh = mesh,
+        .material = material
     });
 
     changed_object_handles.insert(object_handle);
@@ -47,12 +48,20 @@ void World::set_transform(Handle<Object> object, const glm::mat4& matrix) {
     target.matrix = matrix;
     changed_transform_handles.insert(target_handle);
 }
-void World::set_mesh(Handle<Object> object, Handle<u32> mesh) {
+void World::set_mesh(Handle<Object> object, Handle<Mesh> mesh) {
     Object& target = objects.get_element_mutable(object);
 
     if(target.mesh == mesh) return;
 
     target.mesh = mesh;
+    changed_object_handles.insert(object);
+}
+void World::set_material(Handle<Object> object, Handle<Material> material) {
+    Object& target = objects.get_element_mutable(object);
+
+    if(target.material == material) return;
+
+    target.material = material;
     changed_object_handles.insert(object);
 }
 void World::set_visibility(Handle<Object> object, bool visible) {
