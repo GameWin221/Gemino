@@ -18,7 +18,7 @@ int main(){
         .resizable = true
     });
 
-    RasterRenderPath render_path(window, VSyncMode::Disabled);
+    RasterRenderPath render_path(window, VSyncMode::Enabled);
 
     auto mesh = Utils::import_obj_mesh("res/monkey.obj")[0];
     auto mesh_handle = render_path.create_mesh(mesh.vertices, mesh.indices);

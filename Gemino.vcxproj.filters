@@ -48,7 +48,7 @@
     <ClCompile Include="src\renderer\managers\resource_manager.cpp">
       <Filter>Source Files</Filter>
     </ClCompile>
-    <ClCompile Include="src\tests.cpp">
+    <ClCompile Include="src\render_paths\raster_render_path.cpp">
       <Filter>Source Files</Filter>
     </ClCompile>
   </ItemGroup>
@@ -92,7 +92,10 @@
     <ClInclude Include="src\renderer\managers\resource_manager.hpp">
       <Filter>Header Files</Filter>
     </ClInclude>
-    <ClInclude Include="src\tests.hpp">
+    <ClInclude Include="src\common\handle_allocator.hpp">
+      <Filter>Header Files</Filter>
+    </ClInclude>
+    <ClInclude Include="src\render_paths\raster_render_path.hpp">
       <Filter>Header Files</Filter>
     </ClInclude>
   </ItemGroup>
