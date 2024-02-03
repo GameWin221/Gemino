@@ -49,6 +49,10 @@ namespace Utils {
 
     MeshImportData load_obj(const std::string& path);
     ImageImportData<u8> load_u8_image(const std::string& path, u32 desired_channels);
+
+    constexpr usize align(usize alignment, usize size) {
+        return (((size - 1) / alignment) + 1) * alignment;
+    }
 }
 
 #endif

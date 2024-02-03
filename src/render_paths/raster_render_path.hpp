@@ -70,7 +70,7 @@ private:
     u32 texture_anisotropy = 8U;
     float texture_mip_bias = 0.0f;
 
-    u32 frames_in_flight = 2U;
+    u32 frames_in_flight = 3U;
     u32 frame_in_flight_index{};
     u32 swapchain_target_index{};
     u32 frames_since_init{};

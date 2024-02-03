@@ -32,7 +32,7 @@ int main(){
     texture.free();
     texture_monkey.free();
 
-    auto mesh = Utils::load_obj("res/monkey3.obj");
+    auto mesh = Utils::load_obj("res/monkey.obj");
 
     auto mesh_handle = render_path.create_mesh(mesh.sub_meshes[0].vertices, mesh.sub_meshes[0].indices);
 
@@ -50,11 +50,11 @@ int main(){
     World world{};
     for(u32 x{}; x < 10U; ++x) {
         for(u32 y{}; y < 10U; ++y) {
-            for(u32 z{}; z < 1U; ++z) {
+            for(u32 z{}; z < 10U; ++z) {
                 world.create_object(
                         mesh_handle,
-                        (((x + y) % 2 == 0) ? material_handle : material_monkey_handle),
-                        glm::vec3(x * 3U, z * 3U, y * 3U),
+                        (((x + y + z) % 2 == 0) ? material_handle : material_monkey_handle),
+                        glm::vec3(x * 4U, z * 2U, y * 4U),
                         glm::vec3((std::rand() % 3600) / 10.0f, (std::rand() % 3600) / 10.0f, (std::rand() % 3600) / 10.0f
                     )
                 );
@@ -112,6 +112,12 @@ int main(){
         world.set_camera_position(main_camera, main_camera_data.position + camera_movement * static_cast<f32>(dt) * camera_movement_speed);
         world.set_camera_rotation(main_camera, main_camera_data.pitch - mouse_vel.y * camera_rotate_speed, main_camera_data.yaw + mouse_vel.x * camera_rotate_speed);
 
+        //world.set_camera_position(main_camera, glm::vec3(2.0f, 1.0f, 2.0f) + glm::vec3(std::sin(static_cast<f32>(time)) * 5.0f, 0.0f, std::cos(static_cast<f32>(time)) * 5.0f));
+        //world.set_camera_rotation(main_camera, 0.0f, -static_cast<f32>(time) / glm::pi<f32>() * 180.0f - 90.0f);
+
+        //world.set_camera_position(main_camera, glm::vec3(2.0f + std::sinf(static_cast<f32>(time * 3.0f)) * 3.0f, 0.0f, -5.0f));
+        //world.set_camera_rotation(main_camera, 0.0f, 90.0f);
+
         //for(Handle<Object> handle{}; handle < static_cast<u32>(world.get_objects().size()); ++handle) {
         //    Handle<Transform> t = world.get_object(handle).transform;
         //    world.set_rotation(handle, world.get_transform(t).rotation + glm::vec3(static_cast<f32>(dt) * 40.0f, static_cast<f32>(dt) * 20.0f, 0.0f));
@@ -138,7 +144,7 @@ int main(){
         dt = DEBUG_TIME_DIFF(last_frame, now);
         last_frame = now;
 
-        if(render_path.get_frames_since_init() % 128) {
+        if(render_path.get_frames_since_init() % 128 == 0) {
             DEBUG_LOG(1.0 / dt << "fps")
         }
 

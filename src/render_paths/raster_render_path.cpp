@@ -129,8 +129,6 @@ RasterRenderPath::RasterRenderPath(Window& window, VSyncMode v_sync) : renderer(
     renderer.end_recording_commands(init_cmd);
     renderer.submit_commands_once(init_cmd);
 
-    VkFormat ffmt = renderer.resource_manager->get_image_data(depth_image).format;
-
     forward_pipeline = renderer.pipeline_manager->create_graphics_pipeline(GraphicsPipelineCreateInfo{
         .vertex_shader_path = "./res/shaders/forward.vert.spv",
         .fragment_shader_path = "./res/shaders/forward.frag.spv",
@@ -302,7 +300,7 @@ void RasterRenderPath::update_world(const World& world, Handle<Camera> camera) {
             .size = sizeof(VkDrawIndexedIndirectCommand)
         });
 
-        upload_offset += sizeof(VkDrawIndexedIndirectCommand);
+        upload_offset += Utils::align(16, sizeof(VkDrawIndexedIndirectCommand));
     }
 
     for(const auto& handle : world.get_changed_object_handles()) {

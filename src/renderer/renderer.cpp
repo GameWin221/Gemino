@@ -47,7 +47,7 @@ VkResult Renderer::get_next_swapchain_index(Handle<Semaphore> signal_semaphore, 
     VkResult result = vkAcquireNextImageKHR(
         instance->get_device(),
         swapchain->get_handle(),
-        1000000000,
+        UINT64_MAX,
         command_manager->get_semaphore_data(signal_semaphore).semaphore,
         nullptr,
         swapchain_index
