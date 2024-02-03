@@ -25,14 +25,14 @@ public:
     void destroy_material(Handle<Material> material_handle);
 
     const VkDeviceSize MAX_SCENE_TEXTURES = 16384;
-    const VkDeviceSize MAX_SCENE_MATERIALS = (2 * 1024 * 1024) / sizeof(Material); // 2mb (device memory) of material data max
-    const VkDeviceSize MAX_SCENE_VERTICES = (16 * 1024 * 1024) / sizeof(Vertex); // 16mb (device memory) of vertex data max
-    const VkDeviceSize MAX_SCENE_INDICES = (64 * 1024 * 1024) / sizeof(u32); // 64mb (device memory) of index data max
-    const VkDeviceSize MAX_SCENE_DRAWS = (4 * 1024 * 1024) / sizeof(VkDrawIndexedIndirectCommand); // 4mb (device memory) of draw data max
-    const VkDeviceSize MAX_SCENE_OBJECTS = MAX_SCENE_DRAWS; // 3.2mb (device memory) of object data max
-    const VkDeviceSize MAX_SCENE_TRANSFORMS = MAX_SCENE_DRAWS; // 9.6mb (device memory) of transform data max
+    const VkDeviceSize MAX_SCENE_MATERIALS = (2 * 1024 * 1024) / sizeof(Material); // (device memory) of material data max
+    const VkDeviceSize MAX_SCENE_VERTICES = (16 * 1024 * 1024) / sizeof(Vertex); // (device memory) of vertex data max
+    const VkDeviceSize MAX_SCENE_INDICES = (64 * 1024 * 1024) / sizeof(u32); // (device memory) of index data max
+    const VkDeviceSize MAX_SCENE_DRAWS = (4 * 1024 * 1024) / sizeof(VkDrawIndexedIndirectCommand); // (device memory) of draw data max
+    const VkDeviceSize MAX_SCENE_OBJECTS = MAX_SCENE_DRAWS; // (device memory) of object data max
+    const VkDeviceSize MAX_SCENE_TRANSFORMS = MAX_SCENE_DRAWS; // (device memory) of transform data max
 
-    const VkDeviceSize PER_FRAME_UPLOAD_BUFFER_SIZE = 16 * 1024 * 1024; // 16mb (host memory) of max data uploaded from cpu to gpu per frame
+    const VkDeviceSize PER_FRAME_UPLOAD_BUFFER_SIZE = 16 * 1024 * 1024; // (host memory) of max data uploaded from cpu to gpu per frame
 
     const VkDeviceSize OVERALL_DEVICE_MEMORY_USAGE =
         (MAX_SCENE_VERTICES * sizeof(Vertex)) +

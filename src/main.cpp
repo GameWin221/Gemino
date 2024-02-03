@@ -21,7 +21,7 @@ int main(){
 
     InputManager input(window);
 
-    RasterRenderPath render_path(window, VSyncMode::Disabled);
+    RasterRenderPath render_path(window, VSyncMode::Enabled);
 
     auto texture = Utils::load_u8_image("res/texture.png", 4U);
     auto texture_monkey = Utils::load_u8_image("res/monkey.jpg", 4U);
@@ -32,7 +32,7 @@ int main(){
     texture.free();
     texture_monkey.free();
 
-    auto mesh = Utils::load_obj("res/monkey.obj");
+    auto mesh = Utils::load_obj("res/monkey3.obj");
 
     auto mesh_handle = render_path.create_mesh(mesh.sub_meshes[0].vertices, mesh.sub_meshes[0].indices);
 
@@ -48,20 +48,21 @@ int main(){
     std::srand(std::time(nullptr));
 
     World world{};
-    for(u32 x{}; x < 100U; ++x) {
-        for(u32 y{}; y < 100U; ++y) {
-            glm::mat4 mat(1.0f);
-
-            mat = glm::translate(mat, glm::vec3(x*3U, 0.0f, y*3U));
-            mat = glm::rotate(mat, glm::radians((std::rand() % 3600) / 10.0f), glm::vec3(0, 1, 0));
-            mat = glm::rotate(mat, glm::radians((std::rand() % 3600) / 10.0f), glm::vec3(0, 0, 1));
-            mat = glm::rotate(mat, glm::radians((std::rand() % 3600) / 10.0f), glm::vec3(1, 0, 0));
-
-            world.create_object(mesh_handle, (((x + y) % 2 == 0) ? material_handle : material_monkey_handle), mat);
+    for(u32 x{}; x < 10U; ++x) {
+        for(u32 y{}; y < 10U; ++y) {
+            for(u32 z{}; z < 1U; ++z) {
+                world.create_object(
+                        mesh_handle,
+                        (((x + y) % 2 == 0) ? material_handle : material_monkey_handle),
+                        glm::vec3(x * 3U, z * 3U, y * 3U),
+                        glm::vec3((std::rand() % 3600) / 10.0f, (std::rand() % 3600) / 10.0f, (std::rand() % 3600) / 10.0f
+                    )
+                );
+            }
         }
     }
 
-    auto main_camera = world.create_camera(glm::vec2(window.get_size()), glm::vec3(-2.0f, 10.0f, -2.0f), -25.0f);
+    auto main_camera = world.create_camera(glm::vec2(window.get_size()), glm::vec3(-2.0f, 10.0f, -2.0f), -25.0f, 0.0f, 60.0f, 0.02f, 40000.0f);
 
     double dt = 1.0, time{};
 
@@ -110,6 +111,11 @@ int main(){
 
         world.set_camera_position(main_camera, main_camera_data.position + camera_movement * static_cast<f32>(dt) * camera_movement_speed);
         world.set_camera_rotation(main_camera, main_camera_data.pitch - mouse_vel.y * camera_rotate_speed, main_camera_data.yaw + mouse_vel.x * camera_rotate_speed);
+
+        //for(Handle<Object> handle{}; handle < static_cast<u32>(world.get_objects().size()); ++handle) {
+        //    Handle<Transform> t = world.get_object(handle).transform;
+        //    world.set_rotation(handle, world.get_transform(t).rotation + glm::vec3(static_cast<f32>(dt) * 40.0f, static_cast<f32>(dt) * 20.0f, 0.0f));
+        //}
 
         if(window.is_window_size_nonzero()) {
             if(window.was_resized_last_time()) {

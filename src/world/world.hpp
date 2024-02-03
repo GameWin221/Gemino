@@ -50,6 +50,13 @@ struct alignas(16) Material {
 };
 struct alignas(16) Transform {
     alignas(16) glm::mat4 matrix = glm::mat4(1.0f);
+    alignas(16) glm::vec3 position{};
+    alignas(16) glm::vec3 rotation{};
+    alignas(16) glm::vec3 scale = glm::vec3(1.0f);
+
+    bool operator==(const Transform& other) const {
+        return matrix == other.matrix && position == other.position && rotation == other.rotation && scale == other.scale;
+    }
 };
 struct alignas(16) Object {
     alignas(4) Handle<Transform> transform = INVALID_HANDLE;
@@ -62,10 +69,14 @@ class World {
 public:
     void render_finished_tick();
 
-    Handle<Object> create_object(Handle<Mesh> mesh = INVALID_HANDLE, Handle<Material> material = INVALID_HANDLE, const glm::mat4& matrix = glm::mat4(1.0f));
+    Handle<Object> create_object(Handle<Mesh> mesh = INVALID_HANDLE, Handle<Material> material = INVALID_HANDLE, glm::vec3 position = glm::vec3(0.0f), glm::vec3 rotation = glm::vec3(0.0f), glm::vec3 scale = glm::vec3(1.0f));
     Handle<Camera> create_camera(glm::vec2 viewport_size, glm::vec3 position = glm::vec3(0.0f), float pitch = 0.0f, float yaw = 0.0f, float fov = 60.0f, float near_plane = 0.02f, float far_plane = 1000.0f);
 
-    void set_transform(Handle<Object> object, const glm::mat4& matrix);
+    void set_position(Handle<Object> object, glm::vec3 position);
+    void set_rotation(Handle<Object> object, glm::vec3 rotation);
+    void set_scale(Handle<Object> object, glm::vec3 scale);
+
+    void set_transform(Handle<Object> object, const Transform& transform);
     void set_mesh(Handle<Object> object, Handle<Mesh> mesh);
     void set_material(Handle<Object> object, Handle<Material> material);
     void set_visibility(Handle<Object> object, bool visible);
@@ -94,6 +105,8 @@ public:
     const glm::vec3 WORLD_UP = glm::vec3(0.0f, 1.0f, 0.0f);
 
 private:
+    glm::mat4 calculate_model_matrix(const Transform& transform);
+
     glm::mat4 calculate_view_matrix(const Camera& camera) const;
     glm::mat4 calculate_proj_matrix(const Camera& camera) const;
     void update_vectors(Camera& camera);

@@ -129,6 +129,8 @@ RasterRenderPath::RasterRenderPath(Window& window, VSyncMode v_sync) : renderer(
     renderer.end_recording_commands(init_cmd);
     renderer.submit_commands_once(init_cmd);
 
+    VkFormat ffmt = renderer.resource_manager->get_image_data(depth_image).format;
+
     forward_pipeline = renderer.pipeline_manager->create_graphics_pipeline(GraphicsPipelineCreateInfo{
         .vertex_shader_path = "./res/shaders/forward.vert.spv",
         .fragment_shader_path = "./res/shaders/forward.frag.spv",
@@ -147,9 +149,10 @@ RasterRenderPath::RasterRenderPath(Window& window, VSyncMode v_sync) : renderer(
 
         .enable_depth_test = true,
         .enable_depth_write = true,
-        .enable_vertex_input = true
 
-        //.depth_compare_op = VK_COMPARE_OP_GREATER_OR_EQUAL
+        //.depth_compare_op = VK_COMPARE_OP_GREATER,
+
+        .enable_vertex_input = true,
     });
 
     for(u32 i{}; i < frames_in_flight; ++i) {

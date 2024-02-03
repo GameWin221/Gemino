@@ -1,5 +1,8 @@
 struct Transform {
     mat4 matrix;
+    vec3 position;
+    vec3 rotation;
+    vec3 scale;
 };
 struct Object {
     uint transform;
