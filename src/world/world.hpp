@@ -80,12 +80,6 @@ public:
     void set_camera_fov(Handle<Camera> camera, float fov);
     void set_camera_viewport(Handle<Camera> camera, glm::vec2 viewport_size);
 
-    const glm::vec3& get_camera_position(Handle<Camera> camera) const { return cameras.get_element(camera).position; }
-    float get_camera_yaw(Handle<Camera> camera) const { return cameras.get_element(camera).yaw; }
-    float get_camera_pitch(Handle<Camera> camera) const { return cameras.get_element(camera).pitch; }
-    float get_camera_fov(Handle<Camera> camera) const { return cameras.get_element(camera).fov; }
-    glm::vec2 get_camera_viewport(Handle<Camera> camera) const { return cameras.get_element(camera).viewport_size; }
-
     const std::unordered_set<Handle<Object>>& get_valid_object_handles() const { return objects.get_valid_handles(); }
     const std::unordered_set<Handle<Transform>>& get_valid_transform_handles() const { return transforms.get_valid_handles(); }
     const std::unordered_set<Handle<Camera>>& get_valid_camera_handles() const { return cameras.get_valid_handles(); }

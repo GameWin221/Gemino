@@ -18,7 +18,7 @@ struct WindowConfig {
 
 class Window {
 public:
-    Window(const WindowConfig& config);
+    explicit Window(const WindowConfig& config);
     ~Window();
 
     Window& operator=(const Window& other) = delete;
@@ -41,8 +41,6 @@ public:
     Proxy get_native_handle() const { return static_cast<Proxy>(window_handle); }
 
     const WindowConfig& get_config() const { return window_config; }
-
-    void add_on_resize_callback(std::function<void(u32, u32)> fn);
 
 private:
     WindowConfig window_config{};

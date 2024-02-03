@@ -19,6 +19,7 @@
     </ProjectConfiguration>
   </ItemGroup>
   <ItemGroup>
+    <ClCompile Include="src\common\stb_impl.cpp" />
     <ClCompile Include="src\common\utils.cpp" />
     <ClCompile Include="src\main.cpp" />
     <ClCompile Include="src\renderer\instance.cpp" />
@@ -29,6 +30,7 @@
     <ClCompile Include="src\renderer\swapchain.cpp" />
     <ClCompile Include="src\renderer\vk_mem_alloc.cpp" />
     <ClCompile Include="src\render_paths\raster_render_path.cpp" />
+    <ClCompile Include="src\window\input_manager.cpp" />
     <ClCompile Include="src\window\window.cpp" />
     <ClCompile Include="src\world\world.cpp" />
   </ItemGroup>
@@ -46,6 +48,7 @@
     <ClInclude Include="src\renderer\swapchain.hpp" />
     <ClInclude Include="src\renderer\vertex.hpp" />
     <ClInclude Include="src\render_paths\raster_render_path.hpp" />
+    <ClInclude Include="src\window\input_manager.hpp" />
     <ClInclude Include="src\window\window.hpp" />
     <ClInclude Include="src\world\world.hpp" />
   </ItemGroup>
@@ -130,7 +133,7 @@
       <ConformanceMode>true</ConformanceMode>
       <LanguageStandard>stdcpp20</LanguageStandard>
       <LanguageStandard_C>stdc17</LanguageStandard_C>
-      <AdditionalIncludeDirectories>C:\Projekty\Programowanie\C++\Vulkan\Gemino\external\glfw_win64\include;C:\Projekty\Programowanie\C++\Vulkan\Gemino\src;C:\Projekty\Programowanie\C++\Vulkan\Gemino\external\glm;$(VULKAN_SDK)\Include;C:\Projekty\Programowanie\C++\Vulkan\Gemino\external\VulkanMemoryAllocator\include;%(AdditionalIncludeDirectories)</AdditionalIncludeDirectories>
+      <AdditionalIncludeDirectories>C:\Projekty\Programowanie\C++\Vulkan\Gemino\external\glfw_win64\include;C:\Projekty\Programowanie\C++\Vulkan\Gemino\src;C:\Projekty\Programowanie\C++\Vulkan\Gemino\external\glm;$(VULKAN_SDK)\Include;C:\Projekty\Programowanie\C++\Vulkan\Gemino\external\VulkanMemoryAllocator\include;C:\Projekty\Programowanie\C++\Vulkan\Gemino\external\stb;%(AdditionalIncludeDirectories)</AdditionalIncludeDirectories>
       <MultiProcessorCompilation>true</MultiProcessorCompilation>
     </ClCompile>
     <Link>
@@ -157,7 +160,7 @@ XCOPY "$(SolutionDir)res" "$(TargetDir)res" /S /Y /E</Command>
       <ConformanceMode>true</ConformanceMode>
       <LanguageStandard>stdcpp20</LanguageStandard>
       <LanguageStandard_C>stdc17</LanguageStandard_C>
-      <AdditionalIncludeDirectories>C:\Projekty\Programowanie\C++\Vulkan\Gemino\external\glfw_win64\include;C:\Projekty\Programowanie\C++\Vulkan\Gemino\src;C:\Projekty\Programowanie\C++\Vulkan\Gemino\external\glm;$(VULKAN_SDK)\Include;C:\Projekty\Programowanie\C++\Vulkan\Gemino\external\VulkanMemoryAllocator\include;%(AdditionalIncludeDirectories)</AdditionalIncludeDirectories>
+      <AdditionalIncludeDirectories>C:\Projekty\Programowanie\C++\Vulkan\Gemino\external\glfw_win64\include;C:\Projekty\Programowanie\C++\Vulkan\Gemino\src;C:\Projekty\Programowanie\C++\Vulkan\Gemino\external\glm;$(VULKAN_SDK)\Include;C:\Projekty\Programowanie\C++\Vulkan\Gemino\external\VulkanMemoryAllocator\include;C:\Projekty\Programowanie\C++\Vulkan\Gemino\external\stb;%(AdditionalIncludeDirectories)</AdditionalIncludeDirectories>
       <MultiProcessorCompilation>true</MultiProcessorCompilation>
     </ClCompile>
     <Link>
@@ -184,7 +187,7 @@ XCOPY "$(SolutionDir)res" "$(TargetDir)res" /S /Y /E</Command>
       <ConformanceMode>true</ConformanceMode>
       <LanguageStandard>stdcpp20</LanguageStandard>
       <LanguageStandard_C>stdc17</LanguageStandard_C>
-      <AdditionalIncludeDirectories>C:\Projekty\Programowanie\C++\Vulkan\Gemino\external\glfw_win64\include;C:\Projekty\Programowanie\C++\Vulkan\Gemino\src;C:\Projekty\Programowanie\C++\Vulkan\Gemino\external\glm;$(VULKAN_SDK)\Include;C:\Projekty\Programowanie\C++\Vulkan\Gemino\external\VulkanMemoryAllocator\include;%(AdditionalIncludeDirectories)</AdditionalIncludeDirectories>
+      <AdditionalIncludeDirectories>C:\Projekty\Programowanie\C++\Vulkan\Gemino\external\glfw_win64\include;C:\Projekty\Programowanie\C++\Vulkan\Gemino\src;C:\Projekty\Programowanie\C++\Vulkan\Gemino\external\glm;$(VULKAN_SDK)\Include;C:\Projekty\Programowanie\C++\Vulkan\Gemino\external\VulkanMemoryAllocator\include;C:\Projekty\Programowanie\C++\Vulkan\Gemino\external\stb;%(AdditionalIncludeDirectories)</AdditionalIncludeDirectories>
       <MultiProcessorCompilation>true</MultiProcessorCompilation>
     </ClCompile>
     <Link>
@@ -211,7 +214,7 @@ XCOPY "$(SolutionDir)res" "$(TargetDir)res" /S /Y /E</Command>
       <ConformanceMode>true</ConformanceMode>
       <LanguageStandard>stdcpp20</LanguageStandard>
       <LanguageStandard_C>stdc17</LanguageStandard_C>
-      <AdditionalIncludeDirectories>C:\Projekty\Programowanie\C++\Vulkan\Gemino\external\glfw_win64\include;C:\Projekty\Programowanie\C++\Vulkan\Gemino\src;C:\Projekty\Programowanie\C++\Vulkan\Gemino\external\glm;$(VULKAN_SDK)\Include;C:\Projekty\Programowanie\C++\Vulkan\Gemino\external\VulkanMemoryAllocator\include;%(AdditionalIncludeDirectories)</AdditionalIncludeDirectories>
+      <AdditionalIncludeDirectories>C:\Projekty\Programowanie\C++\Vulkan\Gemino\external\glfw_win64\include;C:\Projekty\Programowanie\C++\Vulkan\Gemino\src;C:\Projekty\Programowanie\C++\Vulkan\Gemino\external\glm;$(VULKAN_SDK)\Include;C:\Projekty\Programowanie\C++\Vulkan\Gemino\external\VulkanMemoryAllocator\include;C:\Projekty\Programowanie\C++\Vulkan\Gemino\external\stb;%(AdditionalIncludeDirectories)</AdditionalIncludeDirectories>
       <MultiProcessorCompilation>true</MultiProcessorCompilation>
     </ClCompile>
     <Link>

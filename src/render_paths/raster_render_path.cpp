@@ -97,8 +97,8 @@ RasterRenderPath::RasterRenderPath(Window& window, VSyncMode v_sync) : renderer(
         }
     });
 
-    u8 default_white_srgb_texture_data[] = { 255 };
-    u8 default_grey_unorm_texture_data[] = { 127 };
+    u8 default_white_srgb_texture_data[] = { 255, 255, 255, 255 };
+    u8 default_grey_unorm_texture_data[] = { 127, 127, 127, 255 };
     default_white_srgb_texture = create_u8_texture(default_white_srgb_texture_data, 1U, 1U, 4U, true, false, false);
     default_grey_unorm_texture = create_u8_texture(default_grey_unorm_texture_data, 1U, 1U, 4U, false, false, false);
 
@@ -541,7 +541,7 @@ Handle<Texture> RasterRenderPath::create_u8_texture(const u8 *pixel_data, u32 wi
         .is_srgb = static_cast<u32>(is_srgb),
         .use_linear_filter = static_cast<u32>(linear_filter)
     };
-    DEBUG_LOG(texture.mip_level_count)
+
     texture.image = renderer.resource_manager->create_image(ImageCreateInfo{
         .format = format,
         .extent {

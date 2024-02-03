@@ -10,6 +10,8 @@ public:
     RasterRenderPath(Window& window, VSyncMode v_sync);
     ~RasterRenderPath();
 
+    u32 get_frames_since_init() const { return frames_since_init; }
+
     void resize(const Window& window);
     void render(const World& world, Handle<Camera> camera);
 

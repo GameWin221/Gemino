@@ -29,7 +29,7 @@ struct QueueFamilyIndices {
 
 class Instance {
 public:
-    Instance(Proxy window_handle);
+    explicit Instance(Proxy window_handle);
     ~Instance();
 
     Instance& operator=(const Instance& other) = delete;
