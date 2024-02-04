@@ -3,21 +3,21 @@
 #include <common/debug.hpp>
 
 Swapchain::Swapchain(VkDevice device, VkPhysicalDevice physical_device, VkSurfaceKHR surface, glm::uvec2 desired_extent, const SwapchainConfig& config)
-    : vk_device(device), swapchain_usage(config.usage) {
+    : vk_device(device), vk_physical_device(physical_device), vk_surface(surface), swapchain_usage(config.usage) {
     VkSurfaceCapabilitiesKHR capabilities{};
-    vkGetPhysicalDeviceSurfaceCapabilitiesKHR(physical_device, surface, &capabilities);
+    vkGetPhysicalDeviceSurfaceCapabilitiesKHR(vk_physical_device, vk_surface, &capabilities);
 
     u32 format_count{};
-    vkGetPhysicalDeviceSurfaceFormatsKHR(physical_device, surface, &format_count, nullptr);
+    vkGetPhysicalDeviceSurfaceFormatsKHR(vk_physical_device, vk_surface, &format_count, nullptr);
 
     std::vector<VkSurfaceFormatKHR> available_formats(static_cast<usize>(format_count));
-    vkGetPhysicalDeviceSurfaceFormatsKHR(physical_device, surface, &format_count, available_formats.data());
+    vkGetPhysicalDeviceSurfaceFormatsKHR(vk_physical_device, vk_surface, &format_count, available_formats.data());
 
     u32 present_mode_count{};
-    vkGetPhysicalDeviceSurfacePresentModesKHR(physical_device, surface, &present_mode_count, nullptr);
+    vkGetPhysicalDeviceSurfacePresentModesKHR(vk_physical_device, vk_surface, &present_mode_count, nullptr);
 
     std::vector<VkPresentModeKHR> available_present_modes(static_cast<usize>(present_mode_count));
-    vkGetPhysicalDeviceSurfacePresentModesKHR(physical_device, surface, &present_mode_count, available_present_modes.data());
+    vkGetPhysicalDeviceSurfacePresentModesKHR(vk_physical_device, vk_surface, &present_mode_count, available_present_modes.data());
 
     swapchain_extent = VkExtent2D { desired_extent.x, desired_extent.y };
     swapchain_extent.width = std::clamp(swapchain_extent.width, capabilities.minImageExtent.width, capabilities.maxImageExtent.width);
@@ -31,11 +31,11 @@ Swapchain::Swapchain(VkDevice device, VkPhysicalDevice physical_device, VkSurfac
         desired_image_count = capabilities.maxImageCount;
 
     swapchain_format = pick_swapchain_format(available_formats);
-    swapchain_present_mode = pick_swapchain_present_mode(available_present_modes, static_cast<bool>(config.v_sync));
+    swapchain_present_mode = pick_swapchain_present_mode(available_present_modes, config.v_sync);
 
     VkSwapchainCreateInfoKHR create_info {
         .sType = VK_STRUCTURE_TYPE_SWAPCHAIN_CREATE_INFO_KHR,
-        .surface = surface,
+        .surface = vk_surface,
         .minImageCount = desired_image_count,
         .imageFormat = swapchain_format.format,
         .imageColorSpace = swapchain_format.colorSpace,
@@ -49,12 +49,12 @@ Swapchain::Swapchain(VkDevice device, VkPhysicalDevice physical_device, VkSurfac
         .clipped = VK_TRUE,
     };
 
-    DEBUG_ASSERT(vkCreateSwapchainKHR(device, &create_info, nullptr, &vk_swapchain) == VK_SUCCESS)
+    DEBUG_ASSERT(vkCreateSwapchainKHR(vk_device, &create_info, nullptr, &vk_swapchain) == VK_SUCCESS)
 
-    vkGetSwapchainImagesKHR(device, vk_swapchain, &desired_image_count, nullptr);
+    vkGetSwapchainImagesKHR(vk_device, vk_swapchain, &desired_image_count, nullptr);
     swapchain_images.resize(static_cast<usize>(desired_image_count));
     swapchain_image_views.resize(static_cast<usize>(desired_image_count));
-    vkGetSwapchainImagesKHR(device, vk_swapchain, &desired_image_count, swapchain_images.data());
+    vkGetSwapchainImagesKHR(vk_device, vk_swapchain, &desired_image_count, swapchain_images.data());
 
     for(usize i{}; i < swapchain_images.size(); ++i) {
         VkImageViewCreateInfo view_create_info {
@@ -69,7 +69,7 @@ Swapchain::Swapchain(VkDevice device, VkPhysicalDevice physical_device, VkSurfac
             }
         };
 
-        DEBUG_ASSERT(vkCreateImageView(device, &view_create_info, nullptr, &swapchain_image_views[i]) == VK_SUCCESS)
+        DEBUG_ASSERT(vkCreateImageView(vk_device, &view_create_info, nullptr, &swapchain_image_views[i]) == VK_SUCCESS)
     }
 }
 
@@ -92,21 +92,62 @@ VkSurfaceFormatKHR Swapchain::pick_swapchain_format(const std::vector<VkSurfaceF
     return available_formats[0];
 }
 
-VkPresentModeKHR Swapchain::pick_swapchain_present_mode(const std::vector<VkPresentModeKHR>& available_present_modes, bool v_sync) {
+VkPresentModeKHR Swapchain::pick_swapchain_present_mode(const std::vector<VkPresentModeKHR>& available_present_modes, VSyncMode v_sync) {
     bool supports_mailbox = std::find(available_present_modes.begin(), available_present_modes.end(), VK_PRESENT_MODE_MAILBOX_KHR) != available_present_modes.end();
     bool supports_immediate = std::find(available_present_modes.begin(), available_present_modes.end(), VK_PRESENT_MODE_IMMEDIATE_KHR) != available_present_modes.end();
+    bool supports_relaxed_fifo = std::find(available_present_modes.begin(), available_present_modes.end(), VK_PRESENT_MODE_FIFO_RELAXED_KHR) != available_present_modes.end();
 
-    if (v_sync) {
-        return VK_PRESENT_MODE_FIFO_KHR;
-    } else {
-        if (supports_mailbox) {
+    if(v_sync == VSyncMode::Disabled) {
+        if(supports_mailbox) {
+            DEBUG_LOG("Present mode: VK_PRESENT_MODE_MAILBOX_KHR")
             return VK_PRESENT_MODE_MAILBOX_KHR;
         } else if(supports_immediate) {
+            DEBUG_LOG("Present mode: VK_PRESENT_MODE_IMMEDIATE_KHR")
             return VK_PRESENT_MODE_IMMEDIATE_KHR;
         } else {
-            DEBUG_WARNING("This physical device does not support non-vsync present modes!")
-            DEBUG_WARNING("Falling back to VK_PRESENT_MODE_FIFO_KHR")
+            DEBUG_LOG("Requested Non-VSync present mode but this device doesn't support Non-VSync present modes!")
+            DEBUG_LOG("Present mode: VK_PRESENT_MODE_FIFO_KHR")
             return VK_PRESENT_MODE_FIFO_KHR;
         }
+    } else if(v_sync == VSyncMode::Enabled) {
+        DEBUG_LOG("Present mode: VK_PRESENT_MODE_FIFO_KHR")
+        return VK_PRESENT_MODE_FIFO_KHR;
+    } else if(v_sync == VSyncMode::Adaptive) {
+        if(supports_relaxed_fifo) {
+            DEBUG_LOG("Present mode: VK_PRESENT_MODE_FIFO_RELAXED_KHR")
+            return VK_PRESENT_MODE_FIFO_RELAXED_KHR;
+        } else {
+            DEBUG_LOG("Requested Adaptive-VSync present mode but this device doesn't support the Adaptive-VSync present mode!")
+            DEBUG_LOG("Present mode: VK_PRESENT_MODE_FIFO_KHR")
+            return VK_PRESENT_MODE_FIFO_KHR;
+        }
+    }  else {
+        DEBUG_LOG("Invalid VSyncMode value! Reverting to VK_PRESENT_MODE_FIFO_KHR")
+        return VK_PRESENT_MODE_FIFO_KHR;
     }
+}
+
+std::unordered_set<VSyncMode> Swapchain::get_available_vsync_modes() const {
+    u32 present_mode_count{};
+    vkGetPhysicalDeviceSurfacePresentModesKHR(vk_physical_device, vk_surface, &present_mode_count, nullptr);
+
+    std::vector<VkPresentModeKHR> available_present_modes(static_cast<usize>(present_mode_count));
+    vkGetPhysicalDeviceSurfacePresentModesKHR(vk_physical_device, vk_surface, &present_mode_count, available_present_modes.data());
+
+    std::unordered_set<VSyncMode> vsync_modes{};
+
+    bool supports_mailbox = std::find(available_present_modes.begin(), available_present_modes.end(), VK_PRESENT_MODE_MAILBOX_KHR) != available_present_modes.end();
+    bool supports_immediate = std::find(available_present_modes.begin(), available_present_modes.end(), VK_PRESENT_MODE_IMMEDIATE_KHR) != available_present_modes.end();
+    bool supports_relaxed_fifo = std::find(available_present_modes.begin(), available_present_modes.end(), VK_PRESENT_MODE_FIFO_RELAXED_KHR) != available_present_modes.end();
+
+    vsync_modes.insert(VSyncMode::Enabled);
+
+    if(supports_mailbox || supports_immediate) {
+        vsync_modes.insert(VSyncMode::Disabled);
+    }
+    if(supports_relaxed_fifo) {
+        vsync_modes.insert(VSyncMode::Adaptive);
+    }
+
+    return vsync_modes;
 }

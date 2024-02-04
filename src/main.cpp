@@ -21,7 +21,7 @@ int main(){
 
     InputManager input(window);
 
-    RasterRenderPath render_path(window, VSyncMode::Enabled);
+    RasterRenderPath render_path(window, VSyncMode::Adaptive);
 
     auto texture = Utils::load_u8_image("res/texture.png", 4U);
     auto texture_monkey = Utils::load_u8_image("res/monkey.jpg", 4U);
