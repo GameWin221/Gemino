@@ -1,40 +1,32 @@
 #include "world.hpp"
 
-void World::render_finished_tick() {
-    changed_object_handles.clear();
-    changed_transform_handles.clear();
-}
-
-Handle<Object> World::create_object(Handle<Mesh> mesh, Handle<Material> material, glm::vec3 position, glm::vec3 rotation, glm::vec3 scale ) {
-    Transform transform{
-        .position = position,
-        .rotation = rotation,
-        .scale = scale
+Handle<Object> World::create_object(const ObjectCreateInfo& create_info) {
+    Object object{
+        .mesh = create_info.mesh,
+        .material = create_info.material,
+        .visible = static_cast<u32>(create_info.visible),
+        .position = create_info.position,
+        .rotation = create_info.rotation,
+        .scale = create_info.scale
     };
 
-    transform.matrix = calculate_model_matrix(transform);
+    object.matrix = calculate_model_matrix(object);
 
-    Handle<Transform> transform_handle = transforms.alloc(transform);
-    Handle<Object> object_handle = objects.alloc(Object{
-        .transform = transform_handle,
-        .mesh = mesh,
-        .material = material
-    });
+    Handle<Object> object_handle = objects.alloc(object);
 
     changed_object_handles.insert(object_handle);
-    changed_transform_handles.insert(transform_handle);
 
     return object_handle;
 }
-Handle<Camera> World::create_camera(glm::vec2 viewport_size, glm::vec3 position, float pitch, float yaw, float fov, float near_plane, float far_plane) {
+Handle<Camera> World::create_camera(const CameraCreateInfo& create_info) {
     Camera camera{
-        .position = position,
-        .fov = fov,
-        .pitch = pitch,
-        .yaw = yaw,
-        .near_plane = near_plane,
-        .far_plane = far_plane,
-        .viewport_size = viewport_size
+        .position = create_info.position,
+        .fov = create_info.fov,
+        .pitch = create_info.pitch,
+        .yaw = create_info.yaw,
+        .near_plane = create_info.near_plane,
+        .far_plane = create_info.far_plane,
+        .viewport_size = create_info.viewport_size
     };
 
     update_vectors(camera);
@@ -46,45 +38,33 @@ Handle<Camera> World::create_camera(glm::vec2 viewport_size, glm::vec3 position,
 }
 
 void World::set_position(Handle<Object> object, glm::vec3 position) {
-    Handle<Transform> target_handle = objects.get_element(object).transform;
-    Transform& target = transforms.get_element_mutable(target_handle);
+    Object& target = objects.get_element_mutable(object);
 
     if(target.position == position) return;
 
     target.position = position;
     target.matrix = calculate_model_matrix(target);
-    changed_transform_handles.insert(target_handle);
+    changed_object_handles.insert(object);
 }
 void World::set_rotation(Handle<Object> object, glm::vec3 rotation) {
-    Handle<Transform> target_handle = objects.get_element(object).transform;
-    Transform& target = transforms.get_element_mutable(target_handle);
+    Object& target = objects.get_element_mutable(object);
 
     if(target.rotation == rotation) return;
 
     target.rotation = rotation;
     target.matrix = calculate_model_matrix(target);
-    changed_transform_handles.insert(target_handle);
+    changed_object_handles.insert(object);
 }
 void World::set_scale(Handle<Object> object, glm::vec3 scale) {
-    Handle<Transform> target_handle = objects.get_element(object).transform;
-    Transform& target = transforms.get_element_mutable(target_handle);
+    Object& target = objects.get_element_mutable(object);
 
     if(target.scale == scale) return;
 
     target.scale = scale;
     target.matrix = calculate_model_matrix(target);
-    changed_transform_handles.insert(target_handle);
+    changed_object_handles.insert(object);
 }
 
-void World::set_transform(Handle<Object> object, const Transform& transform) {
-    Handle<Transform> target_handle = objects.get_element(object).transform;
-    Transform& target = transforms.get_element_mutable(target_handle);
-
-    if(target == transform) return;
-
-    target = transform;
-    changed_transform_handles.insert(target_handle);
-}
 void World::set_mesh(Handle<Object> object, Handle<Mesh> mesh) {
     Object& target = objects.get_element_mutable(object);
 
@@ -152,20 +132,20 @@ void World::set_camera_viewport(Handle<Camera> camera, glm::vec2 viewport_size) 
     target.view_proj = target.proj * target.view;
 }
 
-glm::mat4 World::calculate_model_matrix(const Transform& transform) {
-    glm::mat4 mat = glm::translate(glm::mat4(1.0f), transform.position);
+glm::mat4 World::calculate_model_matrix(const Object& object) {
+    glm::mat4 mat = glm::translate(glm::mat4(1.0f), object.position);
 
-    if (transform.rotation.y != 0.0f) {
-        mat = glm::rotate(mat, glm::radians(transform.rotation.y), glm::vec3(0, 1, 0));
+    if (object.rotation.y != 0.0f) {
+        mat = glm::rotate(mat, glm::radians(object.rotation.y), glm::vec3(0, 1, 0));
     }
-    if(transform.rotation.z != 0.0f) {
-        mat = glm::rotate(mat, glm::radians(transform.rotation.z), glm::vec3(0, 0, 1));
+    if(object.rotation.z != 0.0f) {
+        mat = glm::rotate(mat, glm::radians(object.rotation.z), glm::vec3(0, 0, 1));
     }
-    if(transform.rotation.x != 0.0f) {
-        mat = glm::rotate(mat, glm::radians(transform.rotation.x), glm::vec3(1, 0, 0));
+    if(object.rotation.x != 0.0f) {
+        mat = glm::rotate(mat, glm::radians(object.rotation.x), glm::vec3(1, 0, 0));
     }
 
-    mat = glm::scale(mat, transform.scale);
+    mat = glm::scale(mat, object.scale);
 
     return mat;
 }
@@ -179,7 +159,7 @@ glm::mat4 World::calculate_proj_matrix(const Camera& camera) const {
     return proj;
 }
 
-void World::update_vectors(Camera &camera) {
+void World::update_vectors(Camera& camera) {
     camera.pitch = glm::clamp(camera.pitch, -89.999f, 89.999f);
 
     camera.forward = glm::normalize(glm::vec3(
@@ -190,4 +170,8 @@ void World::update_vectors(Camera &camera) {
 
     camera.right = glm::normalize(glm::cross(camera.forward, WORLD_UP));
     camera.up = glm::normalize(glm::cross(camera.right, camera.forward));
+}
+
+void World::_clear_updates() {
+    changed_object_handles.clear();
 }

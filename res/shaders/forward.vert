@@ -14,29 +14,26 @@ layout(location = 1) out vec3 f_normal;
 layout(location = 2) out vec2 f_texcoord;
 layout(location = 3) out flat uint f_draw_id;
 
-layout (set = 0, binding = 0) uniform texture2D textures[];
+layout (set = 0, binding = 0) uniform sampler2D textures[];
 
 layout(std140, set = 0, binding = 1) readonly buffer ObjectBuffer{
     Object objects[];
 };
-layout(std140, set = 0, binding = 2) readonly buffer TransformBuffer{
-    Transform transforms[];
-};
-layout(std140, set = 0, binding = 3) readonly buffer MaterialBuffer{
+layout(std140, set = 0, binding = 2) readonly buffer MaterialBuffer{
     Material materials[];
 };
-layout(set = 0, binding = 4) uniform CameraBuffer {
+layout(set = 0, binding = 3) uniform CameraBuffer {
     Camera camera;
 };
 
 void main() {
-    vec4 v_world_space = transforms[objects[gl_DrawIDARB].transform].matrix * vec4(v_position, 1.0);
+    vec4 v_world_space = objects[gl_DrawIDARB].matrix * vec4(v_position, 1.0);
 
     gl_Position = camera.view_proj * v_world_space;
 
     f_position = v_world_space.xyz;
 
-    f_normal = normalize(mat3(transforms[gl_DrawIDARB].matrix) * v_normal);
+    f_normal = normalize(mat3(objects[gl_DrawIDARB].matrix) * v_normal);
 
     f_texcoord = v_texcoord;
 

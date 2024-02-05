@@ -21,48 +21,72 @@ int main(){
 
     InputManager input(window);
 
-    RasterRenderPath render_path(window, VSyncMode::Adaptive);
+    RasterRenderPath render_path(window, VSyncMode::Disabled);
 
     auto texture = Utils::load_u8_image("res/texture.png", 4U);
     auto texture_monkey = Utils::load_u8_image("res/monkey.jpg", 4U);
 
-    auto texture_handle = render_path.create_u8_texture(texture.pixels, texture.width, texture.height, texture.bytes_per_pixel, true, true);
-    auto texture_monkey_handle = render_path.create_u8_texture(texture_monkey.pixels, texture_monkey.width, texture_monkey.height, texture_monkey.bytes_per_pixel, true, true);
+    auto texture_handle = render_path.create_u8_texture(TextureCreateInfo{
+        .pixel_data = texture.pixels,
+        .width = texture.width,
+        .height = texture.height,
+        .bytes_per_pixel = texture.bytes_per_pixel,
+        .is_srgb = true,
+        .gen_mip_maps = true
+    });
+    auto texture_monkey_handle = render_path.create_u8_texture(TextureCreateInfo{
+        .pixel_data = texture_monkey.pixels,
+        .width = texture_monkey.width,
+        .height = texture_monkey.height,
+        .bytes_per_pixel = texture_monkey.bytes_per_pixel,
+        .is_srgb = true,
+        .gen_mip_maps = true
+    });
 
     texture.free();
     texture_monkey.free();
 
     auto mesh = Utils::load_obj("res/monkey.obj");
 
-    auto mesh_handle = render_path.create_mesh(mesh.sub_meshes[0].vertices, mesh.sub_meshes[0].indices);
+    auto mesh_handle = render_path.create_mesh(MeshCreateInfo{
+        .vertex_data = mesh.sub_meshes[0].vertices.data(),
+        .vertex_count = static_cast<u32>(mesh.sub_meshes[0].vertices.size()),
+        .index_data = mesh.sub_meshes[0].indices.data(),
+        .index_count = static_cast<u32>(mesh.sub_meshes[0].indices.size())
+    });
 
     mesh.free();
 
-    auto material_handle = render_path.create_material(
-        texture_handle, INVALID_HANDLE, INVALID_HANDLE, INVALID_HANDLE, glm::vec3(1.0f, 1.0f, 1.0f)
-    );
-    auto material_monkey_handle = render_path.create_material(
-        texture_monkey_handle, INVALID_HANDLE, INVALID_HANDLE, INVALID_HANDLE, glm::vec3(1.0f, 0.4f, 1.0f)
-    );
+    auto material_handle = render_path.create_material(MaterialCreateInfo{
+        .albedo_texture = texture_handle,
+        .color = glm::vec3(1.0f, 1.0f, 1.0f)
+    });
+    auto material_monkey_handle = render_path.create_material(MaterialCreateInfo{
+        .albedo_texture = texture_monkey_handle,
+        .color = glm::vec3(1.0f, 0.4f, 1.0f)
+    });
 
-    std::srand(std::time(nullptr));
+    std::srand(static_cast<u32>(std::time(nullptr)));
 
     World world{};
     for(u32 x{}; x < 10U; ++x) {
         for(u32 y{}; y < 10U; ++y) {
             for(u32 z{}; z < 10U; ++z) {
-                world.create_object(
-                        mesh_handle,
-                        (((x + y + z) % 2 == 0) ? material_handle : material_monkey_handle),
-                        glm::vec3(x * 4U, z * 2U, y * 4U),
-                        glm::vec3((std::rand() % 3600) / 10.0f, (std::rand() % 3600) / 10.0f, (std::rand() % 3600) / 10.0f
-                    )
-                );
+                world.create_object(ObjectCreateInfo{
+                    .mesh = mesh_handle,
+                    .material = (((x + y + z) % 2 == 0) ? material_handle : material_monkey_handle),
+                    .position = glm::vec3(x * 4U, z * 2U, y * 4U),
+                    .rotation = glm::vec3((std::rand() % 3600) / 10.0f, (std::rand() % 3600) / 10.0f, (std::rand() % 3600) / 10.0f)
+                });
             }
         }
     }
 
-    auto main_camera = world.create_camera(glm::vec2(window.get_size()), glm::vec3(-2.0f, 10.0f, -2.0f), -25.0f, 0.0f, 60.0f, 0.02f, 40000.0f);
+    auto main_camera = world.create_camera(CameraCreateInfo{
+        .viewport_size = glm::vec2(window.get_size()),
+        .position = glm::vec3(-2.0f, 10.0f, -2.0f),
+        .pitch = -25.0f
+    });
 
     double dt = 1.0, time{};
 
@@ -134,7 +158,6 @@ int main(){
                 render_path.resize(window);
             } else {
                 render_path.render(world, main_camera);
-                world.render_finished_tick();
             }
         }
 

@@ -5,6 +5,31 @@
 #include <world/world.hpp>
 #include <window/window.hpp>
 
+struct TextureCreateInfo {
+    const void* pixel_data{};
+    u32 width{};
+    u32 height{};
+    u32 bytes_per_pixel{};
+    bool is_srgb = false;
+    bool gen_mip_maps = false;
+    bool linear_filter = true;
+};
+struct MaterialCreateInfo {
+    Handle<Texture> albedo_texture = INVALID_HANDLE;
+    Handle<Texture> roughness_texture = INVALID_HANDLE;
+    Handle<Texture> metalness_texture = INVALID_HANDLE;
+    Handle<Texture> normal_texture = INVALID_HANDLE;
+
+    glm::vec3 color = glm::vec3(1.0f);
+};
+struct MeshCreateInfo {
+    const Vertex* vertex_data{};
+    u32 vertex_count{};
+
+    const u32* index_data{};
+    u32 index_count{};
+};
+
 class RasterRenderPath {
 public:
     RasterRenderPath(Window& window, VSyncMode v_sync);
@@ -13,15 +38,16 @@ public:
     u32 get_frames_since_init() const { return frames_since_init; }
 
     void resize(const Window& window);
-    void render(const World& world, Handle<Camera> camera);
+    void render(World& world, Handle<Camera> camera);
+    void preload_world(World& world);
 
-    Handle<Mesh> create_mesh(const std::vector<Vertex>& vertices, const std::vector<u32>& indices);
+    Handle<Mesh> create_mesh(const MeshCreateInfo& create_info);
     void destroy_mesh(Handle<Mesh> mesh_handle);
 
-    Handle<Texture> create_u8_texture(const u8* pixel_data, u32 width, u32 height, u32 bytes_per_pixel, bool is_srgb = false, bool gen_mip_maps = false, bool linear_filter = true);
+    Handle<Texture> create_u8_texture(const TextureCreateInfo& create_info);
     void destroy_texture(Handle<Texture> texture_handle);
 
-    Handle<Material> create_material(Handle<Texture> albedo_texture = INVALID_HANDLE, Handle<Texture> roughness_texture = INVALID_HANDLE, Handle<Texture> metalness_texture = INVALID_HANDLE, Handle<Texture> normal_texture = INVALID_HANDLE, glm::vec3 color = glm::vec3(1.0f));
+    Handle<Material> create_material(const MaterialCreateInfo& create_info);
     void destroy_material(Handle<Material> material_handle);
 
     const VkDeviceSize MAX_SCENE_TEXTURES = 16384;
@@ -30,7 +56,6 @@ public:
     const VkDeviceSize MAX_SCENE_INDICES = (64 * 1024 * 1024) / sizeof(u32); // (device memory) of index data max
     const VkDeviceSize MAX_SCENE_DRAWS = (4 * 1024 * 1024) / sizeof(VkDrawIndexedIndirectCommand); // (device memory) of draw data max
     const VkDeviceSize MAX_SCENE_OBJECTS = MAX_SCENE_DRAWS; // (device memory) of object data max
-    const VkDeviceSize MAX_SCENE_TRANSFORMS = MAX_SCENE_DRAWS; // (device memory) of transform data max
 
     const VkDeviceSize PER_FRAME_UPLOAD_BUFFER_SIZE = 16 * 1024 * 1024; // (host memory) of max data uploaded from cpu to gpu per frame
 
@@ -39,13 +64,12 @@ public:
         (MAX_SCENE_INDICES * sizeof(u32)) +
         (MAX_SCENE_DRAWS * sizeof(VkDrawIndexedIndirectCommand)) +
         (MAX_SCENE_OBJECTS * sizeof(Object)) +
-        (MAX_SCENE_TRANSFORMS * sizeof(Transform)) +
         (MAX_SCENE_MATERIALS * sizeof(Material)) +
         (MAX_SCENE_TEXTURES * sizeof(u64) * 2);
 
 private:
     void begin_recording_frame();
-    void update_world(const World& world, Handle<Camera> camera);
+    void update_world(World& world, Handle<Camera> camera);
     void render_world(const World& world, Handle<Camera> camera);
     void end_recording_frame();
 
@@ -70,7 +94,7 @@ private:
     u32 texture_anisotropy = 8U;
     float texture_mip_bias = 0.0f;
 
-    u32 frames_in_flight = 3U;
+    u32 frames_in_flight = 2U;
     u32 frame_in_flight_index{};
     u32 swapchain_target_index{};
     u32 frames_since_init{};
@@ -95,7 +119,6 @@ private:
 
     Handle<Buffer> scene_vertex_buffer{};
     Handle<Buffer> scene_index_buffer{};
-    Handle<Buffer> scene_transform_buffer{};
     Handle<Buffer> scene_object_buffer{};
     Handle<Buffer> scene_material_buffer{};
     Handle<Buffer> scene_camera_buffer{};

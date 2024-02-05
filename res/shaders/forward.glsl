@@ -1,14 +1,12 @@
-struct Transform {
+struct Object {
+    uint mesh;
+    uint material;
+    uint visible;
+
     mat4 matrix;
     vec3 position;
     vec3 rotation;
     vec3 scale;
-};
-struct Object {
-    uint transform;
-    uint mesh;
-    uint material;
-    uint visible;
 };
 struct Material {
     uint albedo_texture;

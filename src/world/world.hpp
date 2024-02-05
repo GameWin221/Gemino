@@ -48,41 +48,53 @@ struct alignas(16) Material {
     alignas(4) Handle<Texture> normal_texture = INVALID_HANDLE;
     alignas(16) glm::vec3 color = glm::vec3(1.0f);
 };
-struct alignas(16) Transform {
+struct alignas(16) Object {
+    alignas(4) Handle<Mesh> mesh = INVALID_HANDLE;
+    alignas(4) Handle<Material> material = INVALID_HANDLE;
+    alignas(4) u32 visible = 1U;
+
     alignas(16) glm::mat4 matrix = glm::mat4(1.0f);
     alignas(16) glm::vec3 position{};
     alignas(16) glm::vec3 rotation{};
     alignas(16) glm::vec3 scale = glm::vec3(1.0f);
-
-    bool operator==(const Transform& other) const {
-        return matrix == other.matrix && position == other.position && rotation == other.rotation && scale == other.scale;
-    }
 };
-struct alignas(16) Object {
-    alignas(4) Handle<Transform> transform = INVALID_HANDLE;
-    alignas(4) Handle<Mesh> mesh = INVALID_HANDLE;
-    alignas(4) Handle<Material> material = INVALID_HANDLE;
-    alignas(4) u32 visible = 1U;
+
+struct ObjectCreateInfo{
+    Handle<Mesh> mesh = INVALID_HANDLE;
+    Handle<Material> material = INVALID_HANDLE;
+
+    bool visible = true;
+
+    glm::vec3 position = glm::vec3(0.0f);
+    glm::vec3 rotation = glm::vec3(0.0f);
+    glm::vec3 scale = glm::vec3(1.0f);
+};
+struct CameraCreateInfo{
+    glm::vec2 viewport_size{};
+    glm::vec3 position = glm::vec3(0.0f);
+
+    float pitch = 0.0f;
+    float yaw = 0.0f;
+    float fov = 60.0f;
+
+    float near_plane = 0.02f;
+    float far_plane = 1000.0f;
 };
 
 class World {
 public:
-    void render_finished_tick();
-
-    Handle<Object> create_object(Handle<Mesh> mesh = INVALID_HANDLE, Handle<Material> material = INVALID_HANDLE, glm::vec3 position = glm::vec3(0.0f), glm::vec3 rotation = glm::vec3(0.0f), glm::vec3 scale = glm::vec3(1.0f));
-    Handle<Camera> create_camera(glm::vec2 viewport_size, glm::vec3 position = glm::vec3(0.0f), float pitch = 0.0f, float yaw = 0.0f, float fov = 60.0f, float near_plane = 0.02f, float far_plane = 1000.0f);
+    Handle<Object> create_object(const ObjectCreateInfo& create_info);
+    Handle<Camera> create_camera(const CameraCreateInfo& create_info);
 
     void set_position(Handle<Object> object, glm::vec3 position);
     void set_rotation(Handle<Object> object, glm::vec3 rotation);
     void set_scale(Handle<Object> object, glm::vec3 scale);
 
-    void set_transform(Handle<Object> object, const Transform& transform);
     void set_mesh(Handle<Object> object, Handle<Mesh> mesh);
     void set_material(Handle<Object> object, Handle<Material> material);
     void set_visibility(Handle<Object> object, bool visible);
 
     const Object& get_object(Handle<Object> object) const { return objects.get_element(object); };
-    const Transform& get_transform(Handle<Transform> transform) const { return transforms.get_element(transform); }
     const Camera& get_camera(Handle<Camera> camera) const { return cameras.get_element(camera); }
     bool get_visibility(Handle<Object> object) const { return static_cast<bool>(objects.get_element(object).visible); };
 
@@ -92,31 +104,28 @@ public:
     void set_camera_viewport(Handle<Camera> camera, glm::vec2 viewport_size);
 
     const std::unordered_set<Handle<Object>>& get_valid_object_handles() const { return objects.get_valid_handles(); }
-    const std::unordered_set<Handle<Transform>>& get_valid_transform_handles() const { return transforms.get_valid_handles(); }
     const std::unordered_set<Handle<Camera>>& get_valid_camera_handles() const { return cameras.get_valid_handles(); }
 
     const std::vector<Object>& get_objects() const { return objects.get_all_elements(); };
-    const std::vector<Transform>& get_transforms() const { return transforms.get_all_elements(); };
     const std::vector<Camera>& get_cameras() const { return cameras.get_all_elements(); };
 
     const std::unordered_set<Handle<Object>>& get_changed_object_handles() const { return changed_object_handles; }
-    const std::unordered_set<Handle<Transform>>& get_changed_transform_handles() const { return changed_transform_handles; }
 
     const glm::vec3 WORLD_UP = glm::vec3(0.0f, 1.0f, 0.0f);
 
+    void _clear_updates();
+
 private:
-    glm::mat4 calculate_model_matrix(const Transform& transform);
+    glm::mat4 calculate_model_matrix(const Object& object);
 
     glm::mat4 calculate_view_matrix(const Camera& camera) const;
     glm::mat4 calculate_proj_matrix(const Camera& camera) const;
     void update_vectors(Camera& camera);
 
     HandleAllocator<Object> objects{};
-    HandleAllocator<Transform> transforms{};
     HandleAllocator<Camera> cameras{};
 
     std::unordered_set<Handle<Object>> changed_object_handles{};
-    std::unordered_set<Handle<Transform>> changed_transform_handles{};
 };
 
 #endif
