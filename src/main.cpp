@@ -46,16 +46,10 @@ int main(){
     texture.free();
     texture_monkey.free();
 
-    auto mesh = Utils::load_obj("res/monkey.obj");
+    auto monkey_mesh = Utils::load_obj("res/monkey.obj");
+    auto mesh_handle = render_path.create_mesh(MeshCreateInfo::from_mesh_data(monkey_mesh, 1000.0f, 0.5f));
 
-    auto mesh_handle = render_path.create_mesh(MeshCreateInfo{
-        .vertex_data = mesh.sub_meshes[0].vertices.data(),
-        .vertex_count = static_cast<u32>(mesh.sub_meshes[0].vertices.size()),
-        .index_data = mesh.sub_meshes[0].indices.data(),
-        .index_count = static_cast<u32>(mesh.sub_meshes[0].indices.size())
-    });
-
-    mesh.free();
+    monkey_mesh.free();
 
     auto material_handle = render_path.create_material(MaterialCreateInfo{
         .albedo_texture = texture_handle,
@@ -63,19 +57,19 @@ int main(){
     });
     auto material_monkey_handle = render_path.create_material(MaterialCreateInfo{
         .albedo_texture = texture_monkey_handle,
-        .color = glm::vec3(1.0f, 0.4f, 1.0f)
+        .color = glm::vec3(1.0f, 0.2f, 1.0f)
     });
 
     std::srand(static_cast<u32>(std::time(nullptr)));
 
     World world{};
-    for(u32 x{}; x < 10U; ++x) {
-        for(u32 y{}; y < 10U; ++y) {
-            for(u32 z{}; z < 10U; ++z) {
+    for(u32 x{}; x < 100U; ++x) {
+        for(u32 y{}; y < 1U; ++y) {
+            for(u32 z{}; z < 100U; ++z) {
                 world.create_object(ObjectCreateInfo{
                     .mesh = mesh_handle,
                     .material = (((x + y + z) % 2 == 0) ? material_handle : material_monkey_handle),
-                    .position = glm::vec3(x * 4U, z * 2U, y * 4U),
+                    .position = glm::vec3(x * 4U, y * 2U, z * 4U),
                     .rotation = glm::vec3((std::rand() % 3600) / 10.0f, (std::rand() % 3600) / 10.0f, (std::rand() % 3600) / 10.0f)
                 });
             }

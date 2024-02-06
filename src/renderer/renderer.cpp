@@ -526,6 +526,10 @@ void Renderer::copy_buffer_to_image(Handle<CommandList> command_list, Handle<Buf
     vkCmdCopyBufferToImage(cmd.command_buffer, src_buffer.buffer, dst_image.image, VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL, static_cast<u32>(image_copies.size()), image_copies.data());
 }
 
+void Renderer::fill_buffer(Handle<CommandList> command_list, Handle<Buffer> handle, u32 data, VkDeviceSize size, VkDeviceSize offset) const {
+    vkCmdFillBuffer(command_manager->get_command_list_data(command_list).command_buffer, resource_manager->get_buffer_data(handle).buffer, offset, size, data);
+}
+
 void Renderer::begin_graphics_pipeline(Handle<CommandList> command_list, Handle<GraphicsPipeline> pipeline, Handle<RenderTarget> render_target, const RenderTargetClear& clear) const {
     const GraphicsPipeline& pipe = pipeline_manager->get_graphics_pipeline_data(pipeline);
     const RenderTarget& rt = pipeline_manager->get_render_target_data(render_target);
@@ -702,4 +706,13 @@ void Renderer::draw_indexed(Handle<CommandList> command_list, u32 index_count, u
 }
 void Renderer::draw_indexed_indirect(Handle<CommandList> command_list, Handle<Buffer> indirect_buffer, u32 draw_count, u32 stride) const {
     vkCmdDrawIndexedIndirect(command_manager->get_command_list_data(command_list).command_buffer, resource_manager->get_buffer_data(indirect_buffer).buffer, 0, draw_count, stride);
+}
+void Renderer::draw_indexed_indirect_count(Handle<CommandList> command_list, Handle<Buffer> indirect_buffer, Handle<Buffer> count_buffer, u32 max_draws, u32 stride) const {
+    vkCmdDrawIndexedIndirectCount(
+        command_manager->get_command_list_data(command_list).command_buffer,
+        resource_manager->get_buffer_data(indirect_buffer).buffer, 0,
+        resource_manager->get_buffer_data(count_buffer).buffer, 0,
+        max_draws,
+        stride
+    );
 }

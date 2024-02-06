@@ -1,19 +1,54 @@
 #include "raster_render_path.hpp"
-#include <common/utils.hpp>
 
 RasterRenderPath::RasterRenderPath(Window& window, VSyncMode v_sync) : renderer(window, SwapchainConfig{
     .v_sync = v_sync,
     .usage = VK_IMAGE_USAGE_COLOR_ATTACHMENT_BIT
 }) {
-    scene_material_buffer  = renderer.resource_manager->create_buffer(BufferCreateInfo{
+    init_scene_buffers();
+    init_debug_info();
+    init_lod_assign_pipeline();
+    init_forward_pipeline(window);
+    init_frames();
+    init_defaults();
+}
+RasterRenderPath::~RasterRenderPath() {
+    renderer.wait_for_device_idle();
+
+    for(const auto& frame : frames) {
+        renderer.resource_manager->unmap_buffer(frame.upload_buffer);
+    }
+}
+
+void RasterRenderPath::init_scene_buffers() {
+    scene_material_buffer = renderer.resource_manager->create_buffer(BufferCreateInfo{
         .size = sizeof(Material) * MAX_SCENE_MATERIALS,
         .buffer_usage_flags = VK_BUFFER_USAGE_STORAGE_BUFFER_BIT | VK_BUFFER_USAGE_TRANSFER_DST_BIT,
         .memory_usage_flags = VMA_MEMORY_USAGE_GPU_ONLY
     });
     scene_draw_buffer = renderer.resource_manager->create_buffer(BufferCreateInfo{
-       .size = sizeof(VkDrawIndexedIndirectCommand) * MAX_SCENE_DRAWS,
-       .buffer_usage_flags = VK_BUFFER_USAGE_INDIRECT_BUFFER_BIT | VK_BUFFER_USAGE_TRANSFER_DST_BIT,
+        .size = sizeof(VkDrawIndexedIndirectCommand) * MAX_SCENE_DRAWS,
+        .buffer_usage_flags = VK_BUFFER_USAGE_STORAGE_BUFFER_BIT | VK_BUFFER_USAGE_INDIRECT_BUFFER_BIT,
+        .memory_usage_flags = VMA_MEMORY_USAGE_GPU_ONLY
+    });
+    scene_draw_index_buffer = renderer.resource_manager->create_buffer(BufferCreateInfo{
+        .size = sizeof(u32) * MAX_SCENE_DRAWS,
+        .buffer_usage_flags = VK_BUFFER_USAGE_STORAGE_BUFFER_BIT,
+        .memory_usage_flags = VMA_MEMORY_USAGE_GPU_ONLY
+    });
+    scene_draw_count_buffer = renderer.resource_manager->create_buffer(BufferCreateInfo{
+       .size = sizeof(u32),
+       .buffer_usage_flags = VK_BUFFER_USAGE_STORAGE_BUFFER_BIT | VK_BUFFER_USAGE_INDIRECT_BUFFER_BIT | VK_BUFFER_USAGE_TRANSFER_DST_BIT,
        .memory_usage_flags = VMA_MEMORY_USAGE_GPU_ONLY
+    });
+    scene_lod_buffer = renderer.resource_manager->create_buffer(BufferCreateInfo{
+        .size = sizeof(MeshLOD) * MAX_SCENE_LODS,
+        .buffer_usage_flags = VK_BUFFER_USAGE_STORAGE_BUFFER_BIT | VK_BUFFER_USAGE_TRANSFER_DST_BIT,
+        .memory_usage_flags = VMA_MEMORY_USAGE_GPU_ONLY
+    });
+    scene_mesh_buffer = renderer.resource_manager->create_buffer(BufferCreateInfo{
+        .size = sizeof(Mesh) * MAX_SCENE_MESHES,
+        .buffer_usage_flags = VK_BUFFER_USAGE_STORAGE_BUFFER_BIT | VK_BUFFER_USAGE_TRANSFER_DST_BIT,
+        .memory_usage_flags = VMA_MEMORY_USAGE_GPU_ONLY
     });
     scene_object_buffer = renderer.resource_manager->create_buffer(BufferCreateInfo{
         .size = sizeof(Object) * MAX_SCENE_OBJECTS,
@@ -25,7 +60,6 @@ RasterRenderPath::RasterRenderPath(Window& window, VSyncMode v_sync) : renderer(
         .buffer_usage_flags = VK_BUFFER_USAGE_UNIFORM_BUFFER_BIT | VK_BUFFER_USAGE_TRANSFER_DST_BIT,
         .memory_usage_flags = VMA_MEMORY_USAGE_GPU_ONLY
     });
-
     scene_vertex_buffer = renderer.resource_manager->create_buffer(BufferCreateInfo{
         .size = sizeof(Vertex) * MAX_SCENE_VERTICES,
         .buffer_usage_flags = VK_BUFFER_USAGE_VERTEX_BUFFER_BIT | VK_BUFFER_USAGE_TRANSFER_DST_BIT,
@@ -36,29 +70,97 @@ RasterRenderPath::RasterRenderPath(Window& window, VSyncMode v_sync) : renderer(
         .buffer_usage_flags = VK_BUFFER_USAGE_INDEX_BUFFER_BIT | VK_BUFFER_USAGE_TRANSFER_DST_BIT,
         .memory_usage_flags = VMA_MEMORY_USAGE_GPU_ONLY
     });
-
+}
+void RasterRenderPath::init_debug_info() {
     DEBUG_LOG("\nVulkan Device memory usage:")
-    DEBUG_LOG("MAX_SCENE_TEXTURES = " << MAX_SCENE_TEXTURES << ", " << (MAX_SCENE_TEXTURES * sizeof(Material) / 1024.0 / 1024.0) << "mb")
-    DEBUG_LOG("MAX_SCENE_MATERIALS = " << MAX_SCENE_MATERIALS << ", " << (MAX_SCENE_MATERIALS * sizeof(Material) / 1024.0 / 1024.0) << "mb")
     DEBUG_LOG("MAX_SCENE_VERTICES = " << MAX_SCENE_VERTICES << ", " << (MAX_SCENE_VERTICES * sizeof(Vertex) / 1024.0 / 1024.0) << "mb")
     DEBUG_LOG("MAX_SCENE_INDICES = " << MAX_SCENE_INDICES << ", " << (MAX_SCENE_INDICES * sizeof(u32) / 1024.0 / 1024.0) << "mb")
+    DEBUG_LOG("MAX_SCENE_TEXTURES = " << MAX_SCENE_TEXTURES << ", " << ((MAX_SCENE_TEXTURES * sizeof(VkDeviceSize) * 2) / 1024.0 / 1024.0) << "mb")
+    DEBUG_LOG("MAX_SCENE_MATERIALS = " << MAX_SCENE_MATERIALS << ", " << (MAX_SCENE_MATERIALS * sizeof(Material) / 1024.0 / 1024.0) << "mb")
+    DEBUG_LOG("MAX_SCENE_LODS = " << MAX_SCENE_LODS << ", " << (MAX_SCENE_LODS * sizeof(MeshLOD) / 1024.0 / 1024.0) << "mb")
+    DEBUG_LOG("MAX_SCENE_MESHES = " << MAX_SCENE_MESHES << ", " << (MAX_SCENE_MESHES * sizeof(Mesh) / 1024.0 / 1024.0) << "mb")
     DEBUG_LOG("MAX_SCENE_DRAWS = " << MAX_SCENE_DRAWS << ", " << (MAX_SCENE_DRAWS * sizeof(VkDrawIndexedIndirectCommand) / 1024.0 / 1024.0) << "mb")
+    DEBUG_LOG("MAX_SCENE_DRAW_INDICES = " << MAX_SCENE_DRAWS << ", " << (MAX_SCENE_DRAWS * sizeof(u32) / 1024.0 / 1024.0) << "mb")
     DEBUG_LOG("MAX_SCENE_OBJECTS = " << MAX_SCENE_OBJECTS << ", " << (MAX_SCENE_OBJECTS * sizeof(Object) / 1024.0 / 1024.0) << "mb")
     DEBUG_LOG("OVERALL_DEVICE_MEMORY_USAGE = " << OVERALL_DEVICE_MEMORY_USAGE / 1024.0 / 1024.0 << "mb")
 
-    VkDeviceSize overall_host_memory_usage{};
-    overall_host_memory_usage += PER_FRAME_UPLOAD_BUFFER_SIZE * frames_in_flight;
-
     DEBUG_LOG("\nVulkan Host memory usage:")
-    DEBUG_LOG("PER_FRAME_UPLOAD_BUFFER_SIZE * frames_in_flight = " << PER_FRAME_UPLOAD_BUFFER_SIZE * frames_in_flight / 1024.0 / 1024.0 << "mb")
-    DEBUG_LOG("OVERALL_HOST_MEMORY_USAGE = " << overall_host_memory_usage / 1024.0 / 1024.0 << "mb")
+    DEBUG_LOG("PER_FRAME_UPLOAD_BUFFER_SIZE * frames_in_flight = " << PER_FRAME_UPLOAD_BUFFER_SIZE * FRAMES_IN_FLIGHT / 1024.0 / 1024.0 << "mb")
+    DEBUG_LOG("OVERALL_HOST_MEMORY_USAGE = " << OVERALL_HOST_MEMORY_USAGE / 1024.0 / 1024.0 << "mb")
+}
+void RasterRenderPath::init_lod_assign_pipeline() {
+    lod_assign_descriptor = renderer.resource_manager->create_descriptor(DescriptorCreateInfo{
+        .bindings {
+            DescriptorBindingCreateInfo { VK_DESCRIPTOR_TYPE_STORAGE_BUFFER }, // MeshLOD Buffer
+            DescriptorBindingCreateInfo { VK_DESCRIPTOR_TYPE_STORAGE_BUFFER }, // Mesh Buffer
+            DescriptorBindingCreateInfo { VK_DESCRIPTOR_TYPE_STORAGE_BUFFER }, // Object Buffer
+            DescriptorBindingCreateInfo { VK_DESCRIPTOR_TYPE_STORAGE_BUFFER }, // Draw Commands
+            DescriptorBindingCreateInfo { VK_DESCRIPTOR_TYPE_STORAGE_BUFFER }, // Draw Commands Count
+            DescriptorBindingCreateInfo { VK_DESCRIPTOR_TYPE_STORAGE_BUFFER }, // Draw Commands Index
+            DescriptorBindingCreateInfo { VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER }, // Camera Buffer
+        }
+    });
+    renderer.resource_manager->update_descriptor(lod_assign_descriptor, DescriptorUpdateInfo{
+       .bindings{
+           DescriptorBindingUpdateInfo {
+               .binding_index = 0U,
+               .buffer_info {
+                   .buffer_handle = scene_lod_buffer
+               }
+           },
+           DescriptorBindingUpdateInfo {
+               .binding_index = 1U,
+               .buffer_info {
+                   .buffer_handle = scene_mesh_buffer
+               }
+           },
+           DescriptorBindingUpdateInfo {
+               .binding_index = 2U,
+               .buffer_info {
+                   .buffer_handle = scene_object_buffer
+               }
+           },
+           DescriptorBindingUpdateInfo {
+               .binding_index = 3U,
+               .buffer_info {
+                   .buffer_handle = scene_draw_buffer
+               }
+           },
+           DescriptorBindingUpdateInfo {
+               .binding_index = 4U,
+               .buffer_info {
+                   .buffer_handle = scene_draw_count_buffer
+               }
+           },
+           DescriptorBindingUpdateInfo {
+               .binding_index = 5U,
+               .buffer_info {
+                   .buffer_handle = scene_draw_index_buffer
+               }
+           },
+           DescriptorBindingUpdateInfo {
+               .binding_index = 6U,
+               .buffer_info {
+                   .buffer_handle = scene_camera_buffer
+               }
+           },
+       }
+    });
 
+    lod_assign_pipeline = renderer.pipeline_manager->create_compute_pipeline(ComputePipelineCreateInfo{
+        .shader_path = "res/shaders/lod_assign.comp.spv",
+        .push_constants_size = sizeof(u32) + sizeof(f32),
+        .descriptors { lod_assign_descriptor }
+    });
+}
+void RasterRenderPath::init_forward_pipeline(const Window& window) {
     forward_descriptor = renderer.resource_manager->create_descriptor(DescriptorCreateInfo{
         .bindings{
             DescriptorBindingCreateInfo{ VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER, static_cast<u32>(MAX_SCENE_TEXTURES) },
-            DescriptorBindingCreateInfo{ VK_DESCRIPTOR_TYPE_STORAGE_BUFFER },
-            DescriptorBindingCreateInfo{ VK_DESCRIPTOR_TYPE_STORAGE_BUFFER },
-            DescriptorBindingCreateInfo{ VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER },
+            DescriptorBindingCreateInfo{ VK_DESCRIPTOR_TYPE_STORAGE_BUFFER }, // Scene Object Buffer
+            DescriptorBindingCreateInfo{ VK_DESCRIPTOR_TYPE_STORAGE_BUFFER }, // Scene Material Buffer
+            DescriptorBindingCreateInfo{ VK_DESCRIPTOR_TYPE_STORAGE_BUFFER }, // Scene Draw Index Buffer
+            DescriptorBindingCreateInfo{ VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER }, // Scene Camera Buffer
         }
     });
     renderer.resource_manager->update_descriptor(forward_descriptor, DescriptorUpdateInfo{
@@ -78,32 +180,16 @@ RasterRenderPath::RasterRenderPath(Window& window, VSyncMode v_sync) : renderer(
             DescriptorBindingUpdateInfo{
                 .binding_index = 3U,
                 .buffer_info {
+                    .buffer_handle = scene_draw_index_buffer
+                }
+            },
+            DescriptorBindingUpdateInfo{
+                .binding_index = 4U,
+                .buffer_info {
                     .buffer_handle = scene_camera_buffer
                 }
             }
         }
-    });
-
-    u8 default_white_srgb_texture_data[] = { 255, 255, 255, 255 };
-    u8 default_grey_unorm_texture_data[] = { 127, 127, 127, 255 };
-
-    default_white_srgb_texture = create_u8_texture(TextureCreateInfo{
-        .pixel_data = default_white_srgb_texture_data,
-        .width = 1U,
-        .height = 1U,
-        .bytes_per_pixel = 4U,
-        .is_srgb = true,
-        .gen_mip_maps = false,
-        .linear_filter = false
-    });
-    default_grey_unorm_texture = create_u8_texture(TextureCreateInfo{
-        .pixel_data = default_grey_unorm_texture_data,
-        .width = 1U,
-        .height = 1U,
-        .bytes_per_pixel = 4U,
-        .is_srgb = false,
-        .gen_mip_maps = false,
-        .linear_filter = false
     });
 
     depth_image = renderer.resource_manager->create_image(ImageCreateInfo{
@@ -112,26 +198,6 @@ RasterRenderPath::RasterRenderPath(Window& window, VSyncMode v_sync) : renderer(
         .usage_flags = VK_IMAGE_USAGE_DEPTH_STENCIL_ATTACHMENT_BIT,
         .aspect_flags = VK_IMAGE_ASPECT_DEPTH_BIT
     });
-
-    std::vector<ImageBarrier> init_swapchain_barriers{};
-    for(u32 i{}; i < renderer.get_swapchain_index_count(); ++i){
-        init_swapchain_barriers.push_back(ImageBarrier{
-            .image_handle = renderer.get_swapchain_image_handle(i),
-            .dst_access_mask = VK_ACCESS_COLOR_ATTACHMENT_WRITE_BIT, // LoadOp = Clear
-            .new_layout = VK_IMAGE_LAYOUT_PRESENT_SRC_KHR,
-        });
-    }
-
-    auto init_cmd = renderer.command_manager->create_command_list(QueueFamily::Graphics);
-    renderer.begin_recording_commands(init_cmd);
-    renderer.image_barrier(init_cmd, VK_PIPELINE_STAGE_TOP_OF_PIPE_BIT, VK_PIPELINE_STAGE_COLOR_ATTACHMENT_OUTPUT_BIT , init_swapchain_barriers);
-    renderer.image_barrier(init_cmd, VK_PIPELINE_STAGE_TOP_OF_PIPE_BIT, VK_PIPELINE_STAGE_EARLY_FRAGMENT_TESTS_BIT, { ImageBarrier{
-        .image_handle = depth_image,
-        .dst_access_mask = VK_ACCESS_DEPTH_STENCIL_ATTACHMENT_WRITE_BIT, // LoadOp = Clear
-        .new_layout = VK_IMAGE_LAYOUT_DEPTH_STENCIL_ATTACHMENT_OPTIMAL
-    }});
-    renderer.end_recording_commands(init_cmd);
-    renderer.submit_commands_once(init_cmd);
 
     forward_pipeline = renderer.pipeline_manager->create_graphics_pipeline(GraphicsPipelineCreateInfo{
         .vertex_shader_path = "./res/shaders/forward.vert.spv",
@@ -157,7 +223,36 @@ RasterRenderPath::RasterRenderPath(Window& window, VSyncMode v_sync) : renderer(
         .enable_vertex_input = true,
     });
 
-    for(u32 i{}; i < frames_in_flight; ++i) {
+    for(u32 i{}; i < renderer.swapchain->get_images().size(); ++i) {
+        swapchain_targets.push_back(renderer.pipeline_manager->create_render_target(forward_pipeline, RenderTargetCreateInfo{
+            .color_target_handle = renderer.get_swapchain_image_handle(i),
+            .depth_target_handle = depth_image
+        }));
+    }
+
+    std::vector<ImageBarrier> init_swapchain_barriers{};
+    for(u32 i{}; i < renderer.get_swapchain_index_count(); ++i){
+        init_swapchain_barriers.push_back(ImageBarrier{
+            .image_handle = renderer.get_swapchain_image_handle(i),
+            .dst_access_mask = VK_ACCESS_COLOR_ATTACHMENT_WRITE_BIT, // LoadOp = Clear
+            .new_layout = VK_IMAGE_LAYOUT_PRESENT_SRC_KHR,
+        });
+    }
+
+    auto init_cmd = renderer.command_manager->create_command_list(QueueFamily::Graphics);
+    renderer.begin_recording_commands(init_cmd);
+    renderer.image_barrier(init_cmd, VK_PIPELINE_STAGE_TOP_OF_PIPE_BIT, VK_PIPELINE_STAGE_COLOR_ATTACHMENT_OUTPUT_BIT , init_swapchain_barriers);
+    renderer.image_barrier(init_cmd, VK_PIPELINE_STAGE_TOP_OF_PIPE_BIT, VK_PIPELINE_STAGE_EARLY_FRAGMENT_TESTS_BIT, { ImageBarrier{
+        .image_handle = depth_image,
+        .dst_access_mask = VK_ACCESS_DEPTH_STENCIL_ATTACHMENT_WRITE_BIT, // LoadOp = Clear
+        .new_layout = VK_IMAGE_LAYOUT_DEPTH_STENCIL_ATTACHMENT_OPTIMAL
+    }});
+    renderer.end_recording_commands(init_cmd);
+    renderer.submit_commands_once(init_cmd);
+    renderer.command_manager->destroy_command_list(init_cmd);
+}
+void RasterRenderPath::init_frames() {
+    for(u32 i{}; i < FRAMES_IN_FLIGHT; ++i) {
         Frame frame{
             .command_list = renderer.command_manager->create_command_list(QueueFamily::Graphics),
             .present_semaphore = renderer.command_manager->create_semaphore(),
@@ -174,21 +269,31 @@ RasterRenderPath::RasterRenderPath(Window& window, VSyncMode v_sync) : renderer(
 
         frames.push_back(frame);
     }
-
-    for(u32 i{}; i < renderer.swapchain->get_images().size(); ++i) {
-        swapchain_targets.push_back(renderer.pipeline_manager->create_render_target(forward_pipeline, RenderTargetCreateInfo{
-            .color_target_handle = renderer.get_swapchain_image_handle(i),
-            .depth_target_handle = depth_image
-        }));
-    }
 }
-RasterRenderPath::~RasterRenderPath() {
-    renderer.wait_for_device_idle();
+void RasterRenderPath::init_defaults() {
+    u8 default_white_srgb_texture_data[] = { 255, 255, 255, 255 };
+    u8 default_grey_unorm_texture_data[] = { 127, 127, 127, 255 };
 
-    for(const auto& frame : frames) {
-        renderer.resource_manager->unmap_buffer(frame.upload_buffer);
-    }
+    default_white_srgb_texture = create_u8_texture(TextureCreateInfo{
+        .pixel_data = default_white_srgb_texture_data,
+        .width = 1U,
+        .height = 1U,
+        .bytes_per_pixel = 4U,
+        .is_srgb = true,
+        .gen_mip_maps = false,
+        .linear_filter = false
+    });
+    default_grey_unorm_texture = create_u8_texture(TextureCreateInfo{
+        .pixel_data = default_grey_unorm_texture_data,
+        .width = 1U,
+        .height = 1U,
+        .bytes_per_pixel = 4U,
+        .is_srgb = false,
+        .gen_mip_maps = false,
+        .linear_filter = false
+    });
 }
+
 void RasterRenderPath::resize(const Window &window) {
     renderer.wait_for_device_idle();
 
@@ -201,27 +306,27 @@ void RasterRenderPath::resize(const Window &window) {
 
     renderer.resource_manager->destroy_image(depth_image);
     depth_image = renderer.resource_manager->create_image(ImageCreateInfo{
-            .format = VK_FORMAT_D32_SFLOAT,
-            .extent = VkExtent3D{ window.get_size().x, window.get_size().y },
-            .usage_flags = VK_IMAGE_USAGE_DEPTH_STENCIL_ATTACHMENT_BIT,
-            .aspect_flags = VK_IMAGE_ASPECT_DEPTH_BIT
+        .format = VK_FORMAT_D32_SFLOAT,
+        .extent = VkExtent3D{ window.get_size().x, window.get_size().y },
+        .usage_flags = VK_IMAGE_USAGE_DEPTH_STENCIL_ATTACHMENT_BIT,
+        .aspect_flags = VK_IMAGE_ASPECT_DEPTH_BIT
     });
 
     for(u32 i{}; i < swapchain_targets.size(); ++i) {
         renderer.pipeline_manager->destroy_render_target(swapchain_targets[i]);
 
         swapchain_targets[i] = renderer.pipeline_manager->create_render_target(forward_pipeline, RenderTargetCreateInfo{
-                .color_target_handle = renderer.get_swapchain_image_handle(i),
-                .depth_target_handle = depth_image
+            .color_target_handle = renderer.get_swapchain_image_handle(i),
+            .depth_target_handle = depth_image
         });
     }
 
     std::vector<ImageBarrier> init_swapchain_barriers{};
     for(u32 i{}; i < renderer.get_swapchain_index_count(); ++i){
         init_swapchain_barriers.push_back(ImageBarrier{
-                .image_handle = renderer.get_swapchain_image_handle(i),
-                .dst_access_mask = VK_ACCESS_COLOR_ATTACHMENT_WRITE_BIT, // LoadOp = Clear
-                .new_layout = VK_IMAGE_LAYOUT_PRESENT_SRC_KHR,
+            .image_handle = renderer.get_swapchain_image_handle(i),
+            .dst_access_mask = VK_ACCESS_COLOR_ATTACHMENT_WRITE_BIT, // LoadOp = Clear
+            .new_layout = VK_IMAGE_LAYOUT_PRESENT_SRC_KHR,
         });
     }
 
@@ -229,9 +334,9 @@ void RasterRenderPath::resize(const Window &window) {
     renderer.begin_recording_commands(init_cmd);
     renderer.image_barrier(init_cmd, VK_PIPELINE_STAGE_TOP_OF_PIPE_BIT, VK_PIPELINE_STAGE_COLOR_ATTACHMENT_OUTPUT_BIT , init_swapchain_barriers);
     renderer.image_barrier(init_cmd, VK_PIPELINE_STAGE_TOP_OF_PIPE_BIT, VK_PIPELINE_STAGE_EARLY_FRAGMENT_TESTS_BIT, { ImageBarrier{
-            .image_handle = depth_image,
-            .dst_access_mask = VK_ACCESS_DEPTH_STENCIL_ATTACHMENT_WRITE_BIT, // LoadOp = Clear
-            .new_layout = VK_IMAGE_LAYOUT_DEPTH_STENCIL_ATTACHMENT_OPTIMAL
+        .image_handle = depth_image,
+        .dst_access_mask = VK_ACCESS_DEPTH_STENCIL_ATTACHMENT_WRITE_BIT, // LoadOp = Clear
+        .new_layout = VK_IMAGE_LAYOUT_DEPTH_STENCIL_ATTACHMENT_OPTIMAL
     }});
     renderer.end_recording_commands(init_cmd);
     renderer.submit_commands_once(init_cmd);
@@ -241,9 +346,6 @@ void RasterRenderPath::render(World& world, Handle<Camera> camera) {
     update_world(world, camera);
     render_world(world, camera);
     end_recording_frame();
-}
-void RasterRenderPath::preload_world(World &world) {
-
 }
 
 void RasterRenderPath::begin_recording_frame() {
@@ -265,48 +367,15 @@ void RasterRenderPath::begin_recording_frame() {
 void RasterRenderPath::update_world(World& world, Handle<Camera> camera) {
     Frame& frame = frames[frame_in_flight_index];
 
-    std::vector<VkBufferCopy> draw_copy_regions{};
     std::vector<VkBufferCopy> object_copy_regions{};
     std::vector<VkBufferCopy> camera_copy_regions{};
 
-    draw_copy_regions.reserve(world.get_changed_object_handles().size());
     object_copy_regions.reserve(world.get_changed_object_handles().size());
     //camera_copy_regions.reserve(world.get_changed_camera_handles().size());
 
     usize upload_buffer_size = renderer.resource_manager->get_buffer_data(frame.upload_buffer).size;
 
     usize upload_offset{};
-
-    for(const auto& handle : world.get_changed_object_handles()) {
-        if(upload_offset + sizeof(VkDrawIndexedIndirectCommand) >= upload_buffer_size) {
-            DEBUG_PANIC("UPLOAD OVERFLOW (VkDrawIndexedIndirectCommand)")
-        }
-        if(handle >= MAX_SCENE_DRAWS) {
-            DEBUG_PANIC("BUFFER OVERFLOW (VkDrawIndexedIndirectCommand)")
-        }
-
-        const auto& object = world.get_object(handle);
-
-        VkDrawIndexedIndirectCommand draw_command{};
-        if(object.mesh != INVALID_HANDLE && object.visible) {
-            const auto& mesh = mesh_allocator.get_element(object.mesh);
-            draw_command.indexCount = mesh.index_count;
-            draw_command.instanceCount = 1U;
-            draw_command.firstIndex = mesh.first_index;
-            draw_command.vertexOffset = mesh.vertex_offset;
-        }
-
-        *frame.access_upload<VkDrawIndexedIndirectCommand>(upload_offset) = draw_command;
-
-        draw_copy_regions.push_back(VkBufferCopy{
-            .srcOffset = upload_offset,
-            .dstOffset = static_cast<VkDeviceSize>(handle) * sizeof(VkDrawIndexedIndirectCommand),
-            .size = sizeof(VkDrawIndexedIndirectCommand)
-        });
-
-        upload_offset += Utils::align(16, sizeof(VkDrawIndexedIndirectCommand));
-    }
-
     for(const auto& handle : world.get_changed_object_handles()) {
         if(upload_offset + sizeof(Object) >= upload_buffer_size) {
             DEBUG_PANIC("UPLOAD OVERFLOW (Object)")
@@ -334,9 +403,9 @@ void RasterRenderPath::update_world(World& world, Handle<Camera> camera) {
         *frame.access_upload<Camera>(upload_offset) = world.get_camera(camera);
 
         camera_copy_regions.push_back(VkBufferCopy{
-                .srcOffset = upload_offset,
-                .dstOffset = static_cast<VkDeviceSize>(camera) * sizeof(Camera),
-                .size = sizeof(Camera)
+            .srcOffset = upload_offset,
+            .dstOffset = static_cast<VkDeviceSize>(camera) * sizeof(Camera),
+            .size = sizeof(Camera)
         });
 
         upload_offset += sizeof(Camera);
@@ -347,13 +416,6 @@ void RasterRenderPath::update_world(World& world, Handle<Camera> camera) {
     world._clear_updates();
 
     // Ensure that other frames don't use these global buffers
-    renderer.buffer_barrier(frame.command_list, VK_PIPELINE_STAGE_DRAW_INDIRECT_BIT, VK_PIPELINE_STAGE_TRANSFER_BIT, {
-        BufferBarrier{
-            .buffer_handle = scene_draw_buffer,
-            .src_access_mask = VK_ACCESS_INDIRECT_COMMAND_READ_BIT,
-            .dst_access_mask = VK_ACCESS_TRANSFER_WRITE_BIT
-        }
-    });
     renderer.buffer_barrier(frame.command_list, VK_PIPELINE_STAGE_VERTEX_SHADER_BIT | VK_PIPELINE_STAGE_FRAGMENT_SHADER_BIT, VK_PIPELINE_STAGE_TRANSFER_BIT, {
         BufferBarrier{
             .buffer_handle = scene_object_buffer,
@@ -367,18 +429,10 @@ void RasterRenderPath::update_world(World& world, Handle<Camera> camera) {
         },
     });
 
-    renderer.copy_buffer_to_buffer(frame.command_list, frame.upload_buffer, scene_draw_buffer, draw_copy_regions);
     renderer.copy_buffer_to_buffer(frame.command_list, frame.upload_buffer, scene_object_buffer, object_copy_regions);
     renderer.copy_buffer_to_buffer(frame.command_list, frame.upload_buffer, scene_camera_buffer, camera_copy_regions);
 
-    renderer.buffer_barrier(frame.command_list, VK_PIPELINE_STAGE_TRANSFER_BIT, VK_PIPELINE_STAGE_DRAW_INDIRECT_BIT, {
-        BufferBarrier{
-            .buffer_handle = scene_draw_buffer,
-            .src_access_mask = VK_ACCESS_TRANSFER_WRITE_BIT,
-            .dst_access_mask = VK_ACCESS_INDIRECT_COMMAND_READ_BIT
-        }
-    });
-    renderer.buffer_barrier(frame.command_list, VK_PIPELINE_STAGE_TRANSFER_BIT, VK_PIPELINE_STAGE_VERTEX_SHADER_BIT | VK_PIPELINE_STAGE_FRAGMENT_SHADER_BIT, {
+    renderer.buffer_barrier(frame.command_list, VK_PIPELINE_STAGE_TRANSFER_BIT, VK_PIPELINE_STAGE_COMPUTE_SHADER_BIT | VK_PIPELINE_STAGE_VERTEX_SHADER_BIT | VK_PIPELINE_STAGE_FRAGMENT_SHADER_BIT, {
         BufferBarrier{
             .buffer_handle = scene_object_buffer,
             .src_access_mask = VK_ACCESS_TRANSFER_WRITE_BIT,
@@ -394,6 +448,45 @@ void RasterRenderPath::update_world(World& world, Handle<Camera> camera) {
 void RasterRenderPath::render_world(const World& world, Handle<Camera> camera) {
     const Frame& frame = frames[frame_in_flight_index];
 
+    renderer.fill_buffer(frame.command_list, scene_draw_count_buffer, 0U, sizeof(u32));
+
+    renderer.buffer_barrier(frame.command_list, VK_PIPELINE_STAGE_TRANSFER_BIT, VK_PIPELINE_STAGE_COMPUTE_SHADER_BIT, {
+        BufferBarrier{
+            .buffer_handle = scene_draw_count_buffer,
+            .src_access_mask = VK_ACCESS_TRANSFER_WRITE_BIT,
+            .dst_access_mask = VK_ACCESS_SHADER_READ_BIT | VK_ACCESS_SHADER_WRITE_BIT
+        }
+    });
+
+    u32 scene_draws_pre_cull = static_cast<u32>(world.get_objects().size());
+
+    renderer.begin_compute_pipeline(frame.command_list, lod_assign_pipeline);
+    renderer.bind_compute_descriptor(frame.command_list, lod_assign_pipeline, lod_assign_descriptor, 0U);
+    renderer.push_compute_constants(frame.command_list, lod_assign_pipeline, &scene_draws_pre_cull, sizeof(scene_draws_pre_cull));
+    renderer.push_compute_constants(frame.command_list, lod_assign_pipeline, &global_lod_bias, sizeof(global_lod_bias), sizeof(scene_draws_pre_cull));
+    renderer.dispatch_compute_pipeline(frame.command_list, glm::uvec3(Utils::div_ceil(scene_draws_pre_cull, 32U), 1U, 1U));
+
+    renderer.buffer_barrier(frame.command_list, VK_PIPELINE_STAGE_COMPUTE_SHADER_BIT, VK_PIPELINE_STAGE_DRAW_INDIRECT_BIT, {
+        BufferBarrier{
+            .buffer_handle = scene_draw_buffer,
+            .src_access_mask = VK_ACCESS_SHADER_WRITE_BIT,
+            .dst_access_mask = VK_ACCESS_INDIRECT_COMMAND_READ_BIT,
+        },
+        BufferBarrier{
+            .buffer_handle = scene_draw_count_buffer,
+            .src_access_mask = VK_ACCESS_SHADER_WRITE_BIT,
+            .dst_access_mask = VK_ACCESS_INDIRECT_COMMAND_READ_BIT,
+        },
+    });
+
+    renderer.buffer_barrier(frame.command_list, VK_PIPELINE_STAGE_COMPUTE_SHADER_BIT, VK_PIPELINE_STAGE_VERTEX_SHADER_BIT, {
+        BufferBarrier{
+            .buffer_handle = scene_draw_index_buffer,
+            .src_access_mask = VK_ACCESS_SHADER_WRITE_BIT,
+            .dst_access_mask = VK_ACCESS_SHADER_READ_BIT
+        }
+    });
+
     renderer.begin_graphics_pipeline(frame.command_list, forward_pipeline, swapchain_targets[swapchain_target_index], RenderTargetClear{
         .color {0.0f, 0.0f, 0.0f, 1.0f},
         .depth = 1.0f//.depth = 0.0f
@@ -402,7 +495,7 @@ void RasterRenderPath::render_world(const World& world, Handle<Camera> camera) {
     renderer.bind_graphics_descriptor(frame.command_list, forward_pipeline, forward_descriptor, 0U);
     renderer.bind_vertex_buffer(frame.command_list, scene_vertex_buffer);
     renderer.bind_index_buffer(frame.command_list, scene_index_buffer);
-    renderer.draw_indexed_indirect(frame.command_list,scene_draw_buffer, static_cast<u32>(world.get_objects().size()),sizeof(VkDrawIndexedIndirectCommand));
+    renderer.draw_indexed_indirect_count(frame.command_list,scene_draw_buffer, scene_draw_count_buffer,scene_draws_pre_cull, sizeof(VkDrawIndexedIndirectCommand));
 
     renderer.end_graphics_pipeline(frame.command_list, forward_pipeline);
 }
@@ -423,7 +516,7 @@ void RasterRenderPath::end_recording_frame() {
         DEBUG_PANIC("Failed to present swap chain image!")
     }
 
-    frame_in_flight_index = (frame_in_flight_index + 1) % frames_in_flight;
+    frame_in_flight_index = (frame_in_flight_index + 1) % FRAMES_IN_FLIGHT;
     frames_since_init += 1;
 }
 
@@ -436,29 +529,101 @@ Handle<Mesh> RasterRenderPath::create_mesh(const MeshCreateInfo& create_info) {
     // TEMPORARY TEMPORARY TEMPORARY TEMPORARY
 
     Mesh mesh{
-        .index_count = create_info.index_count,
-        .first_index = allocated_indices,
-        .vertex_offset = -static_cast<i32>(allocated_vertices)
+        .lod_bias = create_info.lod_bias,
+        .lod_count = static_cast<u32>(create_info.lods.size())
     };
 
+    if(mesh.lod_count == 0U) {
+        DEBUG_PANIC("Mesh must use more than 0 LODs!")
+    }
+    if(mesh.lod_count > 8U) {
+        DEBUG_PANIC("Mesh cannot use more than 8 LODs! lod_count = " << mesh.lod_count)
+    }
+
+    u32 lod_id{};
+    Handle<MeshLOD> last_lod_handle{};
+    for(; lod_id < mesh.lod_count; ++lod_id) {
+        const auto& lod = create_info.lods[lod_id];
+
+        MeshLOD mesh_lod{
+            .center = lod.center,
+            .radius = lod.radius,
+            .index_count = lod.index_count,
+            .first_index = allocated_indices,
+            .vertex_offset = static_cast<i32>(allocated_vertices)
+        };
+
+        last_lod_handle = lod_allocator.alloc(mesh_lod);
+
+        Handle<Buffer> staging_buffer = renderer.resource_manager->create_buffer(BufferCreateInfo{
+            .size = (lod.vertex_count * sizeof(Vertex)) + (lod.index_count * sizeof(u32)) + sizeof(MeshLOD),
+            .buffer_usage_flags = VK_BUFFER_USAGE_TRANSFER_SRC_BIT,
+            .memory_usage_flags = VMA_MEMORY_USAGE_CPU_TO_GPU
+        });
+
+        VkDeviceSize upload_offset{};
+
+        auto cmd = renderer.command_manager->create_command_list(QueueFamily::Graphics);
+        renderer.begin_recording_commands(cmd);
+
+        // Vertices
+        renderer.resource_manager->memcpy_to_buffer_once(staging_buffer, lod.vertex_data, lod.vertex_count * sizeof(Vertex), upload_offset);
+        renderer.copy_buffer_to_buffer(cmd, staging_buffer, scene_vertex_buffer, { VkBufferCopy{
+            .srcOffset = upload_offset,
+            .dstOffset = allocated_vertices * sizeof(Vertex),
+            .size = lod.vertex_count * sizeof(Vertex)
+        }});
+
+        upload_offset += lod.vertex_count * sizeof(Vertex);
+
+        // Indices
+        renderer.resource_manager->memcpy_to_buffer_once(staging_buffer, lod.index_data, lod.index_count * sizeof(u32), upload_offset);
+        renderer.copy_buffer_to_buffer(cmd, staging_buffer, scene_index_buffer, { VkBufferCopy{
+            .srcOffset = upload_offset,
+            .dstOffset = allocated_indices * sizeof(u32),
+            .size = lod.index_count * sizeof(u32)
+        }});
+
+        upload_offset += lod.index_count * sizeof(u32);
+
+        renderer.resource_manager->memcpy_to_buffer_once(staging_buffer, &mesh_lod, sizeof(mesh_lod), upload_offset);
+        renderer.copy_buffer_to_buffer(cmd, staging_buffer, scene_lod_buffer, { VkBufferCopy{
+            .srcOffset = upload_offset,
+            .dstOffset = last_lod_handle * sizeof(MeshLOD),
+            .size = sizeof(MeshLOD)
+        }});
+
+        renderer.end_recording_commands(cmd);
+        renderer.submit_commands_once(cmd);
+
+        renderer.command_manager->destroy_command_list(cmd);
+        renderer.resource_manager->destroy_buffer(staging_buffer);
+
+        mesh.lods[lod_id] = last_lod_handle;
+
+        allocated_vertices += lod.vertex_count;
+        allocated_indices += lod.index_count;
+    }
+
+    for(; lod_id < 8U; ++lod_id) {
+        mesh.lods[lod_id] = last_lod_handle;
+    }
+
     Handle<Buffer> staging_buffer = renderer.resource_manager->create_buffer(BufferCreateInfo{
-       .size = (create_info.vertex_count * sizeof(Vertex)) + (create_info.index_count * sizeof(u32)),
-       .buffer_usage_flags = VK_BUFFER_USAGE_TRANSFER_SRC_BIT,
-       .memory_usage_flags = VMA_MEMORY_USAGE_CPU_TO_GPU
+        .size = sizeof(Mesh),
+        .buffer_usage_flags = VK_BUFFER_USAGE_TRANSFER_SRC_BIT,
+        .memory_usage_flags = VMA_MEMORY_USAGE_CPU_TO_GPU
     });
 
-    renderer.resource_manager->memcpy_to_buffer_once(staging_buffer, create_info.vertex_data, create_info.vertex_count * sizeof(Vertex));
-    renderer.resource_manager->memcpy_to_buffer_once(staging_buffer, create_info.index_data, create_info.index_count * sizeof(u32), create_info.vertex_count * sizeof(Vertex));
+    renderer.resource_manager->memcpy_to_buffer_once(staging_buffer, &mesh, sizeof(Mesh));
+
+    Handle<Mesh> mesh_handle = mesh_allocator.alloc(mesh);
 
     auto cmd = renderer.command_manager->create_command_list(QueueFamily::Graphics);
     renderer.begin_recording_commands(cmd);
-    renderer.copy_buffer_to_buffer(cmd, staging_buffer,  scene_vertex_buffer, { VkBufferCopy{
-        .srcOffset = 0,
-        .size = create_info.vertex_count * sizeof(Vertex)
-    }});
-    renderer.copy_buffer_to_buffer(cmd, staging_buffer, scene_index_buffer, { VkBufferCopy{
-        .srcOffset = create_info.vertex_count * sizeof(Vertex),
-        .size = create_info.index_count * sizeof(u32)
+    renderer.copy_buffer_to_buffer(cmd, staging_buffer, scene_mesh_buffer, { VkBufferCopy{
+        .dstOffset = mesh_handle * sizeof(Mesh),
+        .size = sizeof(Mesh)
     }});
     renderer.end_recording_commands(cmd);
     renderer.submit_commands_once(cmd);
@@ -466,10 +631,7 @@ Handle<Mesh> RasterRenderPath::create_mesh(const MeshCreateInfo& create_info) {
     renderer.command_manager->destroy_command_list(cmd);
     renderer.resource_manager->destroy_buffer(staging_buffer);
 
-    allocated_vertices += create_info.vertex_count;
-    allocated_indices += create_info.index_count;
-
-    return mesh_allocator.alloc(mesh);
+    return mesh_handle;
 }
 void RasterRenderPath::destroy_mesh(Handle<Mesh> mesh_handle) {
     // TEMPORARY TEMPORARY TEMPORARY TEMPORARY
@@ -485,10 +647,9 @@ void RasterRenderPath::destroy_mesh(Handle<Mesh> mesh_handle) {
 
     const Mesh& mesh = mesh_allocator.get_element(mesh_handle);
 
-    // IMPL IMPL IMPL
-    // IMPL IMPL IMPL
-    // IMPL IMPL IMPL
-    // IMPL IMPL IMPL
+    for(const auto& handle : mesh.lods) {
+        lod_allocator.free(handle);
+    }
 
     mesh_allocator.free(mesh_handle);
 }

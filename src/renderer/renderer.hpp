@@ -116,6 +116,8 @@ public:
     void copy_buffer_to_buffer(Handle<CommandList> command_list, Handle<Buffer> src, Handle<Buffer> dst, const std::vector<VkBufferCopy>& regions) const;
     void copy_buffer_to_image(Handle<CommandList> command_list, Handle<Buffer> src, Handle<Image> dst, const std::vector<BufferToImageCopy>& regions) const;
 
+    void fill_buffer(Handle<CommandList> command_list, Handle<Buffer> handle, u32 data, VkDeviceSize size, VkDeviceSize offset = 0) const;
+
     void begin_graphics_pipeline(Handle<CommandList> command_list, Handle<GraphicsPipeline> pipeline, Handle<RenderTarget> render_target, const RenderTargetClear& clear) const;
     void end_graphics_pipeline(Handle<CommandList> command_list, Handle<GraphicsPipeline> pipeline) const;
 
@@ -134,6 +136,7 @@ public:
     void draw_count(Handle<CommandList> command_list, u32 vertex_count, u32 first_vertex = 0U, u32 instance_count = 1U) const;
     void draw_indexed(Handle<CommandList> command_list, u32 index_count, u32 first_index = 0U, i32 vertex_offset = 1U, u32 instance_count = 1U) const;
     void draw_indexed_indirect(Handle<CommandList> command_list, Handle<Buffer> indirect_buffer, u32 draw_count, u32 stride) const;
+    void draw_indexed_indirect_count(Handle<CommandList> command_list, Handle<Buffer> indirect_buffer, Handle<Buffer> count_buffer, u32 max_draws, u32 stride) const;
 
     const SwapchainConfig& get_swapchain_config() const { return swapchain_config; }
 

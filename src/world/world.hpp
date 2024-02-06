@@ -1,6 +1,7 @@
 #ifndef GEMINO_WORLD_HPP
 #define GEMINO_WORLD_HPP
 
+#include <array>
 #include <common/handle_allocator.hpp>
 #include <glm/glm.hpp>
 #include <glm/gtc/matrix_transform.hpp>
@@ -15,43 +16,54 @@ struct alignas(16) Camera {
 
     alignas(4) float pitch{};
     alignas(4) float yaw{};
-    alignas(4) float _padding0{};
-    alignas(4) float _padding1{};
-
     alignas(4) float near_plane = 0.02f;
-    alignas(4) float far_plane = 1000.0f;
-    alignas(4) glm::vec2 viewport_size = glm::vec2(1.0f);
+    alignas(4) float far_plane = 2000.0f;
+
+    alignas(8) glm::vec2 viewport_size = glm::vec2(1.0f);
 
     alignas(16) glm::vec3 forward = glm::vec3(0.0f, 0.0f, 1.0f);
     alignas(16) glm::vec3 right = glm::vec3(1.0f, 0.0f, 0.0f);
     alignas(16) glm::vec3 up = glm::vec3(0.0f, 1.0f, 0.0f);
 };
-struct alignas(16) Mesh {
-    alignas(4) u32 index_count{};
-    alignas(4) u32 first_index{};
-    alignas(4) i32 vertex_offset{};
+// std140
+struct alignas(16) MeshLOD {
+    glm::vec3 center{};
+    f32 radius{};
+
+    u32 index_count{};
+    u32 first_index{};
+    i32 vertex_offset{};
+};
+// std430
+struct Mesh {
+    f32 cull_distance = 1000.0f;
+    f32 lod_bias{};
+    u32 lod_count{};
+    std::array<Handle<MeshLOD>, 8> lods{};
 };
 struct alignas(16) Texture {
-    alignas(4) u32 width{};
-    alignas(4) u32 height{};
-    alignas(4) u32 bytes_per_pixel{};
-    alignas(4) u32 mip_level_count{};
-    alignas(4) u32 is_srgb{};
-    alignas(4) u32 use_linear_filter{};
-    alignas(4) Handle<u32> image{};
-    alignas(4) Handle<u32> sampler{};
+    u32 width{};
+    u32 height{};
+    u32 bytes_per_pixel{};
+    u32 mip_level_count{};
+    u32 is_srgb{};
+    u32 use_linear_filter{};
+    Handle<u32> image{};
+    Handle<u32> sampler{};
 };
+// std140
 struct alignas(16) Material {
-    alignas(4) Handle<Texture> albedo_texture = INVALID_HANDLE;
-    alignas(4) Handle<Texture> roughness_texture = INVALID_HANDLE;
-    alignas(4) Handle<Texture> metalness_texture = INVALID_HANDLE;
-    alignas(4) Handle<Texture> normal_texture = INVALID_HANDLE;
+    Handle<Texture> albedo_texture = INVALID_HANDLE;
+    Handle<Texture> roughness_texture = INVALID_HANDLE;
+    Handle<Texture> metalness_texture = INVALID_HANDLE;
+    Handle<Texture> normal_texture = INVALID_HANDLE;
     alignas(16) glm::vec3 color = glm::vec3(1.0f);
 };
+// std140
 struct alignas(16) Object {
-    alignas(4) Handle<Mesh> mesh = INVALID_HANDLE;
-    alignas(4) Handle<Material> material = INVALID_HANDLE;
-    alignas(4) u32 visible = 1U;
+    Handle<Mesh> mesh = INVALID_HANDLE;
+    Handle<Material> material = INVALID_HANDLE;
+    u32 visible = 1U;
 
     alignas(16) glm::mat4 matrix = glm::mat4(1.0f);
     alignas(16) glm::vec3 position{};
@@ -78,7 +90,7 @@ struct CameraCreateInfo{
     float fov = 60.0f;
 
     float near_plane = 0.02f;
-    float far_plane = 1000.0f;
+    float far_plane = 2000.0f;
 };
 
 class World {

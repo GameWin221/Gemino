@@ -48,6 +48,10 @@ public:
 
     // Marks a handle as free so that it can be reused in later allocations
     void free(Handle<T> handle) {
+        if(!is_handle_valid(handle)) {
+            return;
+        }
+
         valid_handles.erase(handle);
         free_handles.push_back(handle);
     }

@@ -465,6 +465,9 @@ ShaderData PipelineManager::create_shader_data(const std::string &path, VkShader
     ShaderData data{};
 
     std::vector<u8> spirv_code = Utils::read_file_bytes(path);
+    if(spirv_code.empty()) {
+        DEBUG_PANIC("Failed to read shader spir-v code from \"" << path << "\"")
+    }
 
     VkShaderModuleCreateInfo module_create_info{
         .sType = VK_STRUCTURE_TYPE_SHADER_MODULE_CREATE_INFO,

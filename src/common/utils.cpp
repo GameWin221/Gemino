@@ -46,6 +46,51 @@ std::vector<std::string> Utils::read_file_lines(const std::string& path) {
     return buffer;
 }
 
+void post_process_sub_mesh(Utils::SubMeshImportData& sub_mesh) {
+    glm::vec3 pos_min(std::numeric_limits<f32>::max());
+    glm::vec3 pos_max(std::numeric_limits<f32>::min());
+
+    for(const auto& vertex : sub_mesh.vertices) {
+        if(vertex.pos.x < pos_min.x) {
+            pos_min.x = vertex.pos.x;
+        }
+        if(vertex.pos.y < pos_min.y) {
+            pos_min.y = vertex.pos.y;
+        }
+        if(vertex.pos.z < pos_min.z) {
+            pos_min.z = vertex.pos.z;
+        }
+
+        if(vertex.pos.x > pos_max.x) {
+            pos_max.x = vertex.pos.x;
+        }
+        if(vertex.pos.y > pos_max.y) {
+            pos_max.y = vertex.pos.y;
+        }
+        if(vertex.pos.z > pos_max.z) {
+            pos_max.z = vertex.pos.z;
+        }
+    }
+
+    sub_mesh.center = (pos_min + pos_max) / 2.0f;
+
+    f32 max_dist{};
+    for(const auto& vertex : sub_mesh.vertices) {
+        f32 dist = glm::distance(sub_mesh.center, vertex.pos);
+
+        if(dist > max_dist) {
+            max_dist = dist;
+        }
+    }
+
+    sub_mesh.radius = max_dist;
+}
+void post_process_mesh(Utils::MeshImportData& mesh) {
+    for(auto& sub_mesh : mesh.sub_meshes) {
+        post_process_sub_mesh(sub_mesh);
+    }
+}
+
 Utils::MeshImportData Utils::load_obj(const std::string& path) {
     MeshImportData data{};
 
@@ -129,6 +174,8 @@ Utils::MeshImportData Utils::load_obj(const std::string& path) {
                 break;
         }
     }
+
+    post_process_mesh(data);
 
     DEBUG_LOG("Loaded meshes from \"" << path << "\"")
 

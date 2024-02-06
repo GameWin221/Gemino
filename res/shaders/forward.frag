@@ -13,13 +13,16 @@ layout(location = 0) out vec4 out_color;
 
 layout (set = 0, binding = 0) uniform sampler2D textures[];
 
-layout(std140, set = 0, binding = 1) readonly buffer ObjectBuffer{
+layout(set = 0, binding = 1) readonly buffer ObjectBuffer {
     Object objects[];
 };
-layout(std140, set = 0, binding = 2) readonly buffer MaterialBuffer{
+layout(set = 0, binding = 2) readonly buffer MaterialBuffer {
     Material materials[];
 };
-layout(set = 0, binding = 3) uniform CameraBuffer {
+layout(set = 0, binding = 3) readonly buffer DrawCommandIndexBuffer {
+    uint draw_command_indices[];
+};
+layout(set = 0, binding = 4) uniform CameraBuffer {
     Camera camera;
 };
 

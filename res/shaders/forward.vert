@@ -16,26 +16,31 @@ layout(location = 3) out flat uint f_draw_id;
 
 layout (set = 0, binding = 0) uniform sampler2D textures[];
 
-layout(std140, set = 0, binding = 1) readonly buffer ObjectBuffer{
+layout(set = 0, binding = 1) readonly buffer ObjectBuffer {
     Object objects[];
 };
-layout(std140, set = 0, binding = 2) readonly buffer MaterialBuffer{
+layout(set = 0, binding = 2) readonly buffer MaterialBuffer {
     Material materials[];
 };
-layout(set = 0, binding = 3) uniform CameraBuffer {
+layout(set = 0, binding = 3) readonly buffer DrawCommandIndexBuffer {
+    uint draw_command_indices[];
+};
+layout(set = 0, binding = 4) uniform CameraBuffer {
     Camera camera;
 };
 
 void main() {
-    vec4 v_world_space = objects[gl_DrawIDARB].matrix * vec4(v_position, 1.0);
+    uint object_id = draw_command_indices[gl_DrawIDARB];
+
+    vec4 v_world_space = objects[object_id].matrix * vec4(v_position, 1.0);
 
     gl_Position = camera.view_proj * v_world_space;
 
     f_position = v_world_space.xyz;
 
-    f_normal = normalize(mat3(objects[gl_DrawIDARB].matrix) * v_normal);
+    f_normal = normalize(mat3(objects[object_id].matrix) * v_normal);
 
     f_texcoord = v_texcoord;
 
-    f_draw_id = gl_DrawIDARB;
+    f_draw_id = object_id;
 }

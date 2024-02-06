@@ -20,6 +20,7 @@ static constexpr std::array<const char*, 3> REQUESTED_DEVICE_EXTENSION_NAMES {
 
 static constexpr VkPhysicalDeviceVulkan12Features REQUESTED_DEVICE_FEATURES_VK_1_2 {
     .sType = VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_VULKAN_1_2_FEATURES,
+    .drawIndirectCount = true,
     .descriptorIndexing = true,
     .shaderSampledImageArrayNonUniformIndexing = true,
     .descriptorBindingUniformBufferUpdateAfterBind = true,
@@ -31,7 +32,7 @@ static constexpr VkPhysicalDeviceVulkan12Features REQUESTED_DEVICE_FEATURES_VK_1
     .descriptorBindingUpdateUnusedWhilePending = true,
     .descriptorBindingPartiallyBound = true,
     //.descriptorBindingVariableDescriptorCount = true,
-    .runtimeDescriptorArray = true
+    .runtimeDescriptorArray = true,
 };
 
 static constexpr VkPhysicalDeviceVulkan11Features REQUESTED_DEVICE_FEATURES_VK_1_1 {
@@ -42,7 +43,7 @@ static constexpr VkPhysicalDeviceVulkan11Features REQUESTED_DEVICE_FEATURES_VK_1
 
 static constexpr VkPhysicalDeviceFeatures REQUESTED_DEVICE_FEATURES_VK_1_0 {
     .multiDrawIndirect = true,
-    .samplerAnisotropy = true
+    .samplerAnisotropy = true,
 };
 
 static VKAPI_ATTR VkBool32 VKAPI_CALL vk_debug_callback(VkDebugUtilsMessageSeverityFlagBitsEXT message_severity, VkDebugUtilsMessageTypeFlagsEXT message_type, const VkDebugUtilsMessengerCallbackDataEXT* p_callback_data, void* p_user_data) {
@@ -444,6 +445,10 @@ bool Instance::check_device_feature_support(VkPhysicalDevice device) {
     }
     if(!supported_features_vk_1_1.shaderDrawParameters) {
         DEBUG_WARNING("The physical device doesn't support Vulkan 1.1 feature: shaderDrawParameters")
+        return false;
+    }
+    if(!supported_features_vk_1_2.drawIndirectCount) {
+        DEBUG_WARNING("The physical device doesn't support Vulkan 1.2 feature: drawIndirectCount")
         return false;
     }
     if(!supported_features_vk_1_2.descriptorIndexing) {

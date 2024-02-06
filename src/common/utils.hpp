@@ -18,11 +18,23 @@ namespace Utils {
     struct SubMeshImportData {
         std::vector<Vertex> vertices{};
         std::vector<u32> indices{};
+
+        glm::vec3 center{};
+        f32 radius{};
+
+        void free() {
+            vertices = std::vector<Vertex>();
+            indices = std::vector<u32>();
+        }
     };
     struct MeshImportData {
         std::vector<SubMeshImportData> sub_meshes{};
 
         void free() {
+            for(auto& sub_mesh : sub_meshes) {
+                sub_mesh.free();
+            }
+
             sub_meshes = std::vector<SubMeshImportData>();
         }
     };
@@ -51,7 +63,10 @@ namespace Utils {
     ImageImportData<u8> load_u8_image(const std::string& path, u32 desired_channels);
 
     constexpr usize align(usize alignment, usize size) {
-        return (((size - 1) / alignment) + 1) * alignment;
+        return ((size - 1) / alignment + 1) * alignment;
+    }
+    constexpr usize div_ceil(usize a, usize b) {
+        return (a - 1) / b + 1;
     }
 }
 

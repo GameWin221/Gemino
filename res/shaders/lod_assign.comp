@@ -1,0 +1,67 @@
+#version 450
+
+#include "forward.glsl"
+
+layout(local_size_x = 8, local_size_y = 4, local_size_z = 1) in;
+
+layout(push_constant) uniform PushConstant {
+    uint draw_count_pre_cull;
+    float global_lod_bias;
+};
+
+layout(set = 0, binding = 0) readonly buffer MeshLODBuffer {
+    MeshLOD lods[];
+};
+layout(set = 0, binding = 1) readonly buffer MeshBuffer {
+    Mesh meshes[];
+};
+layout(set = 0, binding = 2) readonly buffer ObjectBuffer {
+    Object objects[];
+};
+layout(set = 0, binding = 3) writeonly buffer DrawCommandBuffer {
+    DrawCommand draw_commands[];
+};
+layout(set = 0, binding = 4) buffer DrawCommandCountBuffer {
+    uint draw_command_count;
+};
+layout(set = 0, binding = 5) writeonly buffer DrawCommandIndexBuffer {
+    uint draw_command_indices[];
+};
+layout(set = 0, binding = 6) uniform CameraBuffer {
+    Camera camera;
+};
+
+void main() {
+    uint object_id = (gl_WorkGroupID.x * gl_WorkGroupSize.x * gl_WorkGroupSize.y * gl_WorkGroupSize.z) + gl_LocalInvocationIndex;
+
+    if(object_id >= draw_count_pre_cull) {
+        return;
+    }
+
+    uint mesh_id = objects[object_id].mesh;
+    float cull_distance = meshes[mesh_id].cull_distance;
+
+    float dist = distance(camera.position, objects[object_id].position);
+    if(dist > cull_distance) {
+        return;
+    }
+
+    // https://www.desmos.com/calculator/igswt6rlwt
+    float lod_f = max(max(log2((1 << meshes[mesh_id].lod_count) * (dist / cull_distance) + (dist / 100.0)), 0.0) + global_lod_bias + meshes[mesh_id].lod_bias, 0.0);
+    uint lod_u = min(uint(lod_f), meshes[mesh_id].lod_count - 1);
+
+    MeshLOD lod = lods[meshes[mesh_id].lods[lod_u]];
+
+    uint is_visible = objects[object_id].visible;
+    uint current_command_id = atomicAdd(draw_command_count, is_visible);
+
+    if(is_visible != 0) {
+        draw_command_indices[current_command_id] = object_id;
+
+        draw_commands[current_command_id].index_count = lod.index_count;
+        draw_commands[current_command_id].instance_count = 1;
+        draw_commands[current_command_id].first_index = lod.first_index;
+        draw_commands[current_command_id].vertex_offset = lod.vertex_offset;
+        draw_commands[current_command_id].first_instance = 0;
+    }
+}
