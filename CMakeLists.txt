@@ -14,6 +14,7 @@ set(GLM_TEST_ENABLE OFF)
 find_package(OpenGL REQUIRED)
 find_package(Vulkan REQUIRED)
 
+add_subdirectory(external/tinygltf)
 add_subdirectory(external/glfw)
 add_subdirectory(external/glm)
 add_subdirectory(external/VulkanMemoryAllocator)
@@ -27,7 +28,7 @@ file(GLOB_RECURSE ENGINE_SRC_FILES CONFIGURE_DEPENDS
 
 add_executable(Gemino ${ENGINE_SRC_FILES})
 
-target_link_libraries(Gemino ${OPENGL_LIBRARIES} glfw Vulkan::Vulkan glm::glm VulkanMemoryAllocator)
+target_link_libraries(Gemino ${OPENGL_LIBRARIES} glfw Vulkan::Vulkan glm::glm VulkanMemoryAllocator tinygltf)
 
 file(GLOB_RECURSE SHADER_SRC_FILES
     "${CMAKE_CURRENT_LIST_DIR}/res/shaders/*.vert"

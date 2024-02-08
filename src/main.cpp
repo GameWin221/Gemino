@@ -46,10 +46,13 @@ int main(){
     texture.free();
     texture_monkey.free();
 
-    auto monkey_mesh = Utils::load_obj("res/monkey.obj");
-    auto mesh_handle = render_path.create_mesh(MeshCreateInfo::from_mesh_data(monkey_mesh, 1000.0f, 0.5f));
+    auto monkey_mesh = Utils::load_gltf("res/monkey.gltf");
+    auto sphere_mesh = Utils::load_gltf("res/sphere.gltf");
+    auto monkey_mesh_handle = render_path.create_mesh(MeshCreateInfo::from_mesh_data(monkey_mesh, 1000.0f, 0.5f));
+    auto sphere_mesh_handle = render_path.create_mesh(MeshCreateInfo::from_mesh_data(sphere_mesh, 1000.0f, 0.5f));
 
     monkey_mesh.free();
+    sphere_mesh.free();
 
     auto material_handle = render_path.create_material(MaterialCreateInfo{
         .albedo_texture = texture_handle,
@@ -63,11 +66,11 @@ int main(){
     std::srand(static_cast<u32>(std::time(nullptr)));
 
     World world{};
-    for(u32 x{}; x < 100U; ++x) {
+    for(u32 x{}; x < 10U; ++x) {
         for(u32 y{}; y < 1U; ++y) {
-            for(u32 z{}; z < 100U; ++z) {
+            for(u32 z{}; z < 10U; ++z) {
                 world.create_object(ObjectCreateInfo{
-                    .mesh = mesh_handle,
+                    .mesh = ((x + y + z) % 2 == 0) ? monkey_mesh_handle : sphere_mesh_handle,
                     .material = (((x + y + z) % 2 == 0) ? material_handle : material_monkey_handle),
                     .position = glm::vec3(x * 4U, y * 2U, z * 4U),
                     .rotation = glm::vec3((std::rand() % 3600) / 10.0f, (std::rand() % 3600) / 10.0f, (std::rand() % 3600) / 10.0f)

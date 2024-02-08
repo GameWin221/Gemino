@@ -6,8 +6,6 @@
 
 #include <renderer/vertex.hpp>
 
-#include <stb/stb_image.h>
-
 #include <vector>
 #include <string>
 #include <cstring>
@@ -47,7 +45,7 @@ namespace Utils {
         u32 bytes_per_pixel{};
 
         void free() {
-            stbi_image_free(pixels);
+            std::free(pixels);
             pixels = nullptr;
         }
     };
@@ -59,7 +57,7 @@ namespace Utils {
     std::vector<u8> read_file_bytes(const std::string& path);
     std::vector<std::string> read_file_lines(const std::string& path);
 
-    MeshImportData load_obj(const std::string& path);
+    MeshImportData load_gltf(const std::string& path);
     ImageImportData<u8> load_u8_image(const std::string& path, u32 desired_channels);
 
     constexpr usize align(usize alignment, usize size) {
