@@ -16,14 +16,21 @@ struct alignas(16) Camera {
 
     alignas(4) float pitch{};
     alignas(4) float yaw{};
-    alignas(4) float near_plane = 0.02f;
-    alignas(4) float far_plane = 2000.0f;
+    alignas(4) float near = 0.02f;
+    alignas(4) float far = 2000.0f;
 
     alignas(8) glm::vec2 viewport_size = glm::vec2(1.0f);
 
     alignas(16) glm::vec3 forward = glm::vec3(0.0f, 0.0f, 1.0f);
     alignas(16) glm::vec3 right = glm::vec3(1.0f, 0.0f, 0.0f);
     alignas(16) glm::vec3 up = glm::vec3(0.0f, 1.0f, 0.0f);
+
+    alignas(16) glm::vec3 left_plane{};
+    alignas(16) glm::vec3 right_plane{};
+    alignas(16) glm::vec3 top_plane{};
+    alignas(16) glm::vec3 bottom_plane{};
+    alignas(16) glm::vec4 _pad0{};
+    alignas(16) glm::vec4 _pad1{};
 };
 // std140
 struct alignas(16) MeshLOD {
@@ -69,6 +76,7 @@ struct alignas(16) Object {
     alignas(16) glm::vec3 position{};
     alignas(16) glm::vec3 rotation{};
     alignas(16) glm::vec3 scale = glm::vec3(1.0f);
+    f32 max_scale = 1.0f;
 };
 
 struct ObjectCreateInfo{
@@ -133,6 +141,7 @@ private:
     glm::mat4 calculate_view_matrix(const Camera& camera) const;
     glm::mat4 calculate_proj_matrix(const Camera& camera) const;
     void update_vectors(Camera& camera);
+    void update_frustum(Camera& camera);
 
     HandleAllocator<Object> objects{};
     HandleAllocator<Camera> cameras{};

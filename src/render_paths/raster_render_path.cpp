@@ -148,7 +148,7 @@ void RasterRenderPath::init_lod_assign_pipeline() {
     });
 
     lod_assign_pipeline = renderer.pipeline_manager->create_compute_pipeline(ComputePipelineCreateInfo{
-        .shader_path = "res/shaders/lod_assign.comp.spv",
+        .shader_path = "res/shaders/draw_call_gen.comp.spv",
         .push_constants_size = sizeof(u32) + sizeof(f32),
         .descriptors { lod_assign_descriptor }
     });
@@ -529,6 +529,7 @@ Handle<Mesh> RasterRenderPath::create_mesh(const MeshCreateInfo& create_info) {
     // TEMPORARY TEMPORARY TEMPORARY TEMPORARY
 
     Mesh mesh{
+        .cull_distance = create_info.cull_distance,
         .lod_bias = create_info.lod_bias,
         .lod_count = static_cast<u32>(create_info.lods.size())
     };

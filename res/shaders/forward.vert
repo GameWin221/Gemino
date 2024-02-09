@@ -14,8 +14,6 @@ layout(location = 1) out vec3 f_normal;
 layout(location = 2) out vec2 f_texcoord;
 layout(location = 3) out flat uint f_draw_id;
 
-layout (set = 0, binding = 0) uniform sampler2D textures[];
-
 layout(set = 0, binding = 1) readonly buffer ObjectBuffer {
     Object objects[];
 };

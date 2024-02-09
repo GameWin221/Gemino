@@ -45,11 +45,19 @@ file(GLOB_RECURSE SHADER_SRC_FILES
     "${CMAKE_CURRENT_LIST_DIR}/res/shaders/*.rcall"
 )
 
-foreach(file ${SHADER_SRC_FILES})
-    add_custom_command(TARGET Gemino PRE_BUILD
-        COMMAND $ENV{VULKAN_SDK}/bin/glslc ${file} -o ${file}.spv
-    )
-endforeach()
+if(CMAKE_BUILD_TYPE MATCHES "Debug" OR CMAKE_BUILD_TYPE MATCHES "RelWithDebInfo")
+    foreach(file ${SHADER_SRC_FILES})
+        add_custom_command(TARGET Gemino PRE_BUILD
+            COMMAND $ENV{VULKAN_SDK}/bin/glslc ${file} -o ${file}.spv -g
+        )
+    endforeach()
+else()
+    foreach(file ${SHADER_SRC_FILES})
+        add_custom_command(TARGET Gemino PRE_BUILD
+            COMMAND $ENV{VULKAN_SDK}/bin/glslc ${file} -o ${file}.spv
+        )
+    endforeach()
+endif()
 
 add_custom_command(TARGET Gemino POST_BUILD
     COMMAND ${CMAKE_COMMAND} -E copy_directory ${CMAKE_CURRENT_LIST_DIR}/res/ ${PROJECT_BINARY_DIR}/res/

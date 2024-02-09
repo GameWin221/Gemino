@@ -49,7 +49,7 @@ int main(){
     auto monkey_mesh = Utils::load_gltf("res/monkey.gltf");
     auto sphere_mesh = Utils::load_gltf("res/sphere.gltf");
     auto monkey_mesh_handle = render_path.create_mesh(MeshCreateInfo::from_mesh_data(monkey_mesh, 1000.0f, 0.5f));
-    auto sphere_mesh_handle = render_path.create_mesh(MeshCreateInfo::from_mesh_data(sphere_mesh, 1000.0f, 0.5f));
+    auto sphere_mesh_handle = render_path.create_mesh(MeshCreateInfo::from_mesh_data(sphere_mesh, 1000.0f, 0.8f));
 
     monkey_mesh.free();
     sphere_mesh.free();
@@ -66,9 +66,9 @@ int main(){
     std::srand(static_cast<u32>(std::time(nullptr)));
 
     World world{};
-    for(u32 x{}; x < 10U; ++x) {
-        for(u32 y{}; y < 1U; ++y) {
-            for(u32 z{}; z < 10U; ++z) {
+    for(u32 x{}; x < 100U; ++x) {
+        for(u32 y{}; y < 10U; ++y) {
+            for(u32 z{}; z < 100U; ++z) {
                 world.create_object(ObjectCreateInfo{
                     .mesh = ((x + y + z) % 2 == 0) ? monkey_mesh_handle : sphere_mesh_handle,
                     .material = (((x + y + z) % 2 == 0) ? material_handle : material_monkey_handle),

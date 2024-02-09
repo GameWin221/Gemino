@@ -38,30 +38,47 @@ void main() {
         return;
     }
 
+    if(objects[object_id].visible == 0) {
+        return;
+    }
+
     uint mesh_id = objects[object_id].mesh;
     float cull_distance = meshes[mesh_id].cull_distance;
 
+    // Make distance checks early on so warps that work on potentially neighboring objects will return early
     float dist = distance(camera.position, objects[object_id].position);
     if(dist > cull_distance) {
         return;
     }
 
+    // LOD Picking
     // https://www.desmos.com/calculator/igswt6rlwt
     float lod_f = max(max(log2((1 << meshes[mesh_id].lod_count) * (dist / cull_distance) + (dist / 100.0)), 0.0) + global_lod_bias + meshes[mesh_id].lod_bias, 0.0);
-    uint lod_u = min(uint(lod_f), meshes[mesh_id].lod_count - 1);
+    uint lod_id = min(uint(lod_f), meshes[mesh_id].lod_count - 1);
+    MeshLOD lod = lods[meshes[mesh_id].lods[lod_id]];
 
-    MeshLOD lod = lods[meshes[mesh_id].lods[lod_u]];
+    // Frustum Culling
+    vec4 lod_position = objects[object_id].matrix * vec4(lod.center, 1.0);
+    vec3 lod_pos_camera_diff = lod_position.xyz - camera.position;
+    float lod_radius = lod.radius * objects[object_id].max_scale;
 
-    uint is_visible = objects[object_id].visible;
-    uint current_command_id = atomicAdd(draw_command_count, is_visible);
+    bool in_frustum = true;
+    in_frustum = in_frustum && (dot(camera.right_plane, lod_pos_camera_diff) > -lod_radius);
+    in_frustum = in_frustum && (dot(camera.left_plane, lod_pos_camera_diff) > -lod_radius);
+    in_frustum = in_frustum && (dot(camera.bottom_plane, lod_pos_camera_diff) > -lod_radius);
+    in_frustum = in_frustum && (dot(camera.top_plane, lod_pos_camera_diff) > -lod_radius);
 
-    if(is_visible != 0) {
-        draw_command_indices[current_command_id] = object_id;
-
-        draw_commands[current_command_id].index_count = lod.index_count;
-        draw_commands[current_command_id].instance_count = 1;
-        draw_commands[current_command_id].first_index = lod.first_index;
-        draw_commands[current_command_id].vertex_offset = lod.vertex_offset;
-        draw_commands[current_command_id].first_instance = 0;
+    if(!in_frustum) {
+        return;
     }
+
+    uint current_command_id = atomicAdd(draw_command_count, 1);
+
+    draw_command_indices[current_command_id] = object_id;
+
+    draw_commands[current_command_id].index_count = lod.index_count;
+    draw_commands[current_command_id].instance_count = 1;
+    draw_commands[current_command_id].first_index = lod.first_index;
+    draw_commands[current_command_id].vertex_offset = lod.vertex_offset;
+    draw_commands[current_command_id].first_instance = 0;
 }

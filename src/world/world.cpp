@@ -7,7 +7,8 @@ Handle<Object> World::create_object(const ObjectCreateInfo& create_info) {
         .visible = static_cast<u32>(create_info.visible),
         .position = create_info.position,
         .rotation = create_info.rotation,
-        .scale = create_info.scale
+        .scale = create_info.scale,
+        .max_scale = glm::max(glm::max(create_info.scale.x, create_info.scale.y), create_info.scale.z)
     };
 
     object.matrix = calculate_model_matrix(object);
@@ -24,8 +25,8 @@ Handle<Camera> World::create_camera(const CameraCreateInfo& create_info) {
         .fov = create_info.fov,
         .pitch = create_info.pitch,
         .yaw = create_info.yaw,
-        .near_plane = create_info.near_plane,
-        .far_plane = create_info.far_plane,
+        .near = create_info.near_plane,
+        .far = create_info.far_plane,
         .viewport_size = create_info.viewport_size
     };
 
@@ -61,6 +62,7 @@ void World::set_scale(Handle<Object> object, glm::vec3 scale) {
     if(target.scale == scale) return;
 
     target.scale = scale;
+    target.max_scale = glm::max(glm::max(scale.x, scale.y), scale.z);
     target.matrix = calculate_model_matrix(target);
     changed_object_handles.insert(object);
 }
@@ -98,6 +100,7 @@ void World::set_camera_position(Handle<Camera> camera, glm::vec3 position) {
     target.position = position;
 
     update_vectors(target);
+    update_frustum(target);
     target.view = calculate_view_matrix(target);
     target.view_proj = target.proj * target.view;
 }
@@ -110,6 +113,7 @@ void World::set_camera_rotation(Handle<Camera> camera, float pitch, float yaw) {
     target.yaw = yaw;
 
     update_vectors(target);
+    update_frustum(target);
     target.view = calculate_view_matrix(target);
     target.view_proj = target.proj * target.view;
 }
@@ -119,6 +123,8 @@ void World::set_camera_fov(Handle<Camera> camera, float fov) {
     if(target.fov == fov) return;
 
     target.fov = fov;
+
+    update_frustum(target);
     target.proj = calculate_proj_matrix(target);
     target.view_proj = target.proj * target.view;
 }
@@ -128,7 +134,9 @@ void World::set_camera_viewport(Handle<Camera> camera, glm::vec2 viewport_size) 
     if(target.viewport_size == viewport_size) return;
 
     target.viewport_size = viewport_size;
-    target.proj = calculate_proj_matrix(target);(target);
+
+    update_frustum(target);
+    target.proj = calculate_proj_matrix(target);
     target.view_proj = target.proj * target.view;
 }
 
@@ -154,7 +162,7 @@ glm::mat4 World::calculate_view_matrix(const Camera& camera) const {
     return glm::lookAt(camera.position, camera.position + camera.forward, camera.up);;
 }
 glm::mat4 World::calculate_proj_matrix(const Camera& camera) const {
-    glm::mat4 proj = glm::perspective(glm::radians(camera.fov), camera.viewport_size.x / camera.viewport_size.y, camera.near_plane, camera.far_plane);
+    glm::mat4 proj = glm::perspective(glm::radians(camera.fov), camera.viewport_size.x / camera.viewport_size.y, camera.near, camera.far);
     proj[1][1] *= -1;
     return proj;
 }
@@ -171,7 +179,21 @@ void World::update_vectors(Camera& camera) {
     camera.right = glm::normalize(glm::cross(camera.forward, WORLD_UP));
     camera.up = glm::normalize(glm::cross(camera.right, camera.forward));
 }
+void World::update_frustum(Camera &camera) {
+    float aspect = camera.viewport_size.x / camera.viewport_size.y;
+    float half_y = camera.far * std::tan(glm::radians(camera.fov * 0.5f));
+    float half_x = half_y * aspect;
+
+    glm::vec3 far_plane = camera.far * camera.forward;
+
+    camera.right_plane = glm::normalize(glm::cross(camera.up, far_plane + camera.right * half_x));
+    camera.left_plane = glm::normalize(glm::cross(far_plane - (camera.right * half_x), camera.up));
+    camera.top_plane =  glm::normalize(glm::cross(far_plane + (camera.up * half_y), camera.right));
+    camera.bottom_plane = glm::normalize(glm::cross(camera.right, far_plane - (camera.up * half_y)));
+}
 
 void World::_clear_updates() {
     changed_object_handles.clear();
 }
+
+
