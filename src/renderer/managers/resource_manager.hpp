@@ -1,6 +1,7 @@
 #ifndef GEMINO_RESOURCE_MANAGER_HPP
 #define GEMINO_RESOURCE_MANAGER_HPP
 
+#define VMA_VULKAN_VERSION 1002000 // Vulkan 1.2
 #include <vk_mem_alloc.h>
 #include <common/types.hpp>
 #include <common/handle_allocator.hpp>

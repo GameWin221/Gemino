@@ -1,5 +1,5 @@
 #include "input_manager.hpp"
-
+#include <common/utils.hpp>
 #include <unordered_map>
 #include <GLFW/glfw3.h>
 
@@ -60,6 +60,9 @@ bool InputManager::get_key(Key key, InputState state) const {
             return !current_key_presses[key_id - first_key] && last_key_presses[key_id - first_key];
         case InputState::Down:
             return current_key_presses[key_id - first_key];
+        default:
+            DEBUG_PANIC("Invalid InputState state for get_key, state = " << static_cast<u32>(state))
+            break;
     }
 }
 bool InputManager::get_button(Button button, InputState state) const {
@@ -73,6 +76,9 @@ bool InputManager::get_button(Button button, InputState state) const {
             return !current_button_presses[button_id - first_button] && last_button_presses[button_id - first_button];
         case InputState::Down:
             return current_button_presses[button_id - first_button];
+        default:
+            DEBUG_PANIC("Invalid InputState state for get_key, state = " << static_cast<u32>(state))
+            break;
     }
 }
 

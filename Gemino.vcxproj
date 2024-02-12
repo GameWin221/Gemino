@@ -19,7 +19,6 @@
     </ProjectConfiguration>
   </ItemGroup>
   <ItemGroup>
-    <ClCompile Include="src\common\stb_impl.cpp" />
     <ClCompile Include="src\common\utils.cpp" />
     <ClCompile Include="src\main.cpp" />
     <ClCompile Include="src\renderer\instance.cpp" />
@@ -133,7 +132,7 @@
       <ConformanceMode>true</ConformanceMode>
       <LanguageStandard>stdcpp20</LanguageStandard>
       <LanguageStandard_C>stdc17</LanguageStandard_C>
-      <AdditionalIncludeDirectories>C:\Projekty\Programowanie\C++\Vulkan\Gemino\external\glfw_win64\include;C:\Projekty\Programowanie\C++\Vulkan\Gemino\src;C:\Projekty\Programowanie\C++\Vulkan\Gemino\external\glm;$(VULKAN_SDK)\Include;C:\Projekty\Programowanie\C++\Vulkan\Gemino\external\VulkanMemoryAllocator\include;C:\Projekty\Programowanie\C++\Vulkan\Gemino\external\stb;%(AdditionalIncludeDirectories)</AdditionalIncludeDirectories>
+      <AdditionalIncludeDirectories>$(SolutionDir)external\glfw_win64\include;$(SolutionDir)src;$(SolutionDir)external\glm;$(VULKAN_SDK)\Include;$(SolutionDir)external\VulkanMemoryAllocator\include;$(SolutionDir)external\stb;$(SolutionDir)external\tinygltf;%(AdditionalIncludeDirectories)</AdditionalIncludeDirectories>
       <MultiProcessorCompilation>true</MultiProcessorCompilation>
     </ClCompile>
     <Link>
@@ -143,7 +142,7 @@
       <AdditionalDependencies>vulkan-1.lib;glfw3.lib;%(AdditionalDependencies)</AdditionalDependencies>
     </Link>
     <PreBuildEvent>
-      <Command>cmd /c "$(ProjectDir)res\shaders\compile.bat"</Command>
+      <Command>cmd /c "$(ProjectDir)res\shaders\compile_debug.bat"</Command>
     </PreBuildEvent>
     <PostBuildEvent>
       <Command>if not exist "$(TargetDir)res" mkdir "$(TargetDir)res"
@@ -160,7 +159,7 @@ XCOPY "$(SolutionDir)res" "$(TargetDir)res" /S /Y /E</Command>
       <ConformanceMode>true</ConformanceMode>
       <LanguageStandard>stdcpp20</LanguageStandard>
       <LanguageStandard_C>stdc17</LanguageStandard_C>
-      <AdditionalIncludeDirectories>C:\Projekty\Programowanie\C++\Vulkan\Gemino\external\glfw_win64\include;C:\Projekty\Programowanie\C++\Vulkan\Gemino\src;C:\Projekty\Programowanie\C++\Vulkan\Gemino\external\glm;$(VULKAN_SDK)\Include;C:\Projekty\Programowanie\C++\Vulkan\Gemino\external\VulkanMemoryAllocator\include;C:\Projekty\Programowanie\C++\Vulkan\Gemino\external\stb;%(AdditionalIncludeDirectories)</AdditionalIncludeDirectories>
+      <AdditionalIncludeDirectories>$(SolutionDir)external\glfw_win64\include;$(SolutionDir)src;$(SolutionDir)external\glm;$(VULKAN_SDK)\Include;$(SolutionDir)external\VulkanMemoryAllocator\include;$(SolutionDir)external\stb;$(SolutionDir)external\tinygltf;%(AdditionalIncludeDirectories)</AdditionalIncludeDirectories>
       <MultiProcessorCompilation>true</MultiProcessorCompilation>
     </ClCompile>
     <Link>
@@ -187,7 +186,7 @@ XCOPY "$(SolutionDir)res" "$(TargetDir)res" /S /Y /E</Command>
       <ConformanceMode>true</ConformanceMode>
       <LanguageStandard>stdcpp20</LanguageStandard>
       <LanguageStandard_C>stdc17</LanguageStandard_C>
-      <AdditionalIncludeDirectories>C:\Projekty\Programowanie\C++\Vulkan\Gemino\external\glfw_win64\include;C:\Projekty\Programowanie\C++\Vulkan\Gemino\src;C:\Projekty\Programowanie\C++\Vulkan\Gemino\external\glm;$(VULKAN_SDK)\Include;C:\Projekty\Programowanie\C++\Vulkan\Gemino\external\VulkanMemoryAllocator\include;C:\Projekty\Programowanie\C++\Vulkan\Gemino\external\stb;%(AdditionalIncludeDirectories)</AdditionalIncludeDirectories>
+      <AdditionalIncludeDirectories>$(SolutionDir)external\glfw_win64\include;$(SolutionDir)src;$(SolutionDir)external\glm;$(VULKAN_SDK)\Include;$(SolutionDir)external\VulkanMemoryAllocator\include;$(SolutionDir)external\stb;$(SolutionDir)external\tinygltf;%(AdditionalIncludeDirectories)</AdditionalIncludeDirectories>
       <MultiProcessorCompilation>true</MultiProcessorCompilation>
     </ClCompile>
     <Link>
@@ -197,7 +196,7 @@ XCOPY "$(SolutionDir)res" "$(TargetDir)res" /S /Y /E</Command>
       <AdditionalDependencies>vulkan-1.lib;glfw3.lib;%(AdditionalDependencies)</AdditionalDependencies>
     </Link>
     <PreBuildEvent>
-      <Command>cmd /c "$(ProjectDir)res\shaders\compile.bat"</Command>
+      <Command>cmd /c "$(ProjectDir)res\shaders\compile_debug.bat"</Command>
     </PreBuildEvent>
     <PostBuildEvent>
       <Command>if not exist "$(TargetDir)res" mkdir "$(TargetDir)res"
@@ -214,7 +213,7 @@ XCOPY "$(SolutionDir)res" "$(TargetDir)res" /S /Y /E</Command>
       <ConformanceMode>true</ConformanceMode>
       <LanguageStandard>stdcpp20</LanguageStandard>
       <LanguageStandard_C>stdc17</LanguageStandard_C>
-      <AdditionalIncludeDirectories>C:\Projekty\Programowanie\C++\Vulkan\Gemino\external\glfw_win64\include;C:\Projekty\Programowanie\C++\Vulkan\Gemino\src;C:\Projekty\Programowanie\C++\Vulkan\Gemino\external\glm;$(VULKAN_SDK)\Include;C:\Projekty\Programowanie\C++\Vulkan\Gemino\external\VulkanMemoryAllocator\include;C:\Projekty\Programowanie\C++\Vulkan\Gemino\external\stb;%(AdditionalIncludeDirectories)</AdditionalIncludeDirectories>
+      <AdditionalIncludeDirectories>$(SolutionDir)external\glfw_win64\include;$(SolutionDir)src;$(SolutionDir)external\glm;$(VULKAN_SDK)\Include;$(SolutionDir)external\VulkanMemoryAllocator\include;$(SolutionDir)external\stb;$(SolutionDir)external\tinygltf;%(AdditionalIncludeDirectories)</AdditionalIncludeDirectories>
       <MultiProcessorCompilation>true</MultiProcessorCompilation>
     </ClCompile>
     <Link>

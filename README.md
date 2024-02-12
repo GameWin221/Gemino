@@ -1,33 +1,25 @@
 # Gemino
-TODO
-## Motivation
-TODO
+Designed to be a high performance gpu-driven rendering framework providing *just enough* customizability for the user.
+The underlying Gemino API provides a user-friendly interface to make custom **Render Paths**, manage **Worlds**, interact with the **Input Manager** and import resources. **Renderer** and its **Resource Managers** are abstractions over the Vulkan API that simplify it while still giving the freedom and control to the user if they need it.
+
+It is also my test bench for learning and experimenting with new graphics programming concepts.
+
 ## Goals
-TODO
-## Building Project
-### 1. Using CMake
-- `mkdir build`
-- `cd build`
-- `cmake -DCMAKE_BUILD_TYPE=Debug` or `cmake -DCMAKE_BUILD_TYPE=Release` (you can specify your own generator)
-- Use the specified generator (e.g. make, msbuild, nmake...)
+[Milanote Board](https://app.milanote.com/1ReR6Z14XbZ991?p=8MqaOe9BQos)
 
-### 2. Using Visual Studio
-There is a .sln file in the project root folder to make Visual Studio users' lives easier. It should work identically as the CMake project.
+- Fully "bindless" and GPU driven - Minimal CPU overhead
+- Dynamic scenes and resources with many updates per frame
+- Good performance for open worlds and indoor scenes
+- Support for most desktop devices
+- Friendly interface that also doesn't take away most of the control
 
-## Compiling Shaders
-Place all of your shaders in the `res/shaders` directory. **Only there** the shaders will get automatically compiled and copied correctly.
+## Major Features
+- Indirect draw with compute shader draw call generation (vkCmdDrawInstancedIndirectCount)
+- Compute shader frustum Culling (Sphere bounding volumes)
+- Compute shader LOD system
+- Handle based **Resource Managers**
+- Compatible with all Vulkan 1.2 devices
 
-### 1. Using CMake or Visual Studio
-- CMake will generate custom shader build commands everytime you reload or create the CMake project (`cmake` command).
+# Showcase
+Some cool visuals will be gradually added here...
 
-- Visual Studio simply runs the `compile.bat` script located in the `res/shaders` directory so the commands don't need to be regenerated.
-
-The shader build commands are executed always after a successful build.
-
-### 2. Manually
-Use GLSL to SPIR-V compiler like `glslangValidator` or `glslc` on each shader source file.
-
-On Windows you can run the `compile.bat` script located in the `res/shaders` directory.
-
-## Automatic `res/` directory copying
-The whole `res/` directory will get automatically copied to the build directory after a successful build. (Both using CMake and Visual Studio)
