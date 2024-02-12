@@ -1,4 +1,9 @@
 # Building Gemino
+## Prerequisites
+You have to get the Vulkan SDK from https://vulkan.lunarg.com/ and have it installed. CMake and Visual Studio will find it automatically only when the `VULKAN_SDK` environmental variable is set correctly.
+You will also need Vulkan drivers 1.2 or newer.
+
+## Build Tool
 ### 1. Using CMake
 - `mkdir build`
 - `cd build`
@@ -11,7 +16,7 @@ Open the project's directory, your IDE will handle it and configure CMake accord
 ### 3. Using Visual Studio
 There is a .sln file in the project root folder to make Visual Studio users' lives easier. It should work identically as the CMake project.
 
-## Compiling Shaders
+# Compiling Shaders
 Place all of your shaders in the `res/shaders` directory. **Only there** the shaders will get automatically compiled and copied correctly.
 
 ### 1. Using CMake or Visual Studio

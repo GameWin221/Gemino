@@ -20,6 +20,9 @@ It is also my test bench for learning and experimenting with new graphics progra
 - Handle based **Resource Managers**
 - Compatible with all Vulkan 1.2 devices
 
+# Build Instructions
+[See BUILD.md](BUILD.md)
+
 # Showcase
 Some cool visuals will be gradually added here...
 
