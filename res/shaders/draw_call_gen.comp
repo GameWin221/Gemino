@@ -27,7 +27,10 @@ layout(set = 0, binding = 4) buffer DrawCommandCountBuffer {
 layout(set = 0, binding = 5) writeonly buffer DrawCommandIndexBuffer {
     uint draw_command_indices[];
 };
-layout(set = 0, binding = 6) uniform CameraBuffer {
+layout(set = 0, binding = 6) writeonly buffer VisibilityBuffer {
+    uint visibility[];
+};
+layout(set = 0, binding = 7) uniform CameraBuffer {
     Camera camera;
 };
 
@@ -39,6 +42,7 @@ void main() {
     }
 
     if(objects[object_id].visible == 0) {
+        visibility[object_id] = 0;
         return;
     }
 
@@ -48,6 +52,7 @@ void main() {
     // Make distance checks early on so warps that work on potentially neighboring objects will return early
     float dist = distance(camera.position, objects[object_id].position);
     if(dist > cull_distance) {
+        visibility[object_id] = 0;
         return;
     }
 
@@ -69,8 +74,11 @@ void main() {
     in_frustum = in_frustum && (dot(camera.top_plane, lod_pos_camera_diff) > -lod_radius);
 
     if(!in_frustum) {
+        visibility[object_id] = 0;
         return;
     }
+
+    visibility[object_id] = 1;
 
     uint current_command_id = atomicAdd(draw_command_count, 1);
 

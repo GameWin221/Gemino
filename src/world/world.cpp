@@ -159,10 +159,11 @@ glm::mat4 World::calculate_model_matrix(const Object& object) {
 }
 
 glm::mat4 World::calculate_view_matrix(const Camera& camera) const {
-    return glm::lookAt(camera.position, camera.position + camera.forward, camera.up);;
+    return glm::lookAt(camera.position, camera.position + camera.forward, camera.up);
 }
 glm::mat4 World::calculate_proj_matrix(const Camera& camera) const {
-    glm::mat4 proj = glm::perspective(glm::radians(camera.fov), camera.viewport_size.x / camera.viewport_size.y, camera.near, camera.far);
+    // Swap Z near and far to achieve inverted depth
+    glm::mat4 proj = glm::perspective(glm::radians(camera.fov), camera.viewport_size.x / camera.viewport_size.y, camera.far, camera.near);
     proj[1][1] *= -1;
     return proj;
 }
@@ -180,11 +181,13 @@ void World::update_vectors(Camera& camera) {
     camera.up = glm::normalize(glm::cross(camera.right, camera.forward));
 }
 void World::update_frustum(Camera &camera) {
+    float real_far = std::max(camera.near, camera.far);
+
     float aspect = camera.viewport_size.x / camera.viewport_size.y;
-    float half_y = camera.far * std::tan(glm::radians(camera.fov * 0.5f));
+    float half_y = real_far * std::tan(glm::radians(camera.fov * 0.5f));
     float half_x = half_y * aspect;
 
-    glm::vec3 far_plane = camera.far * camera.forward;
+    glm::vec3 far_plane = real_far * camera.forward;
 
     camera.right_plane = glm::normalize(glm::cross(camera.up, far_plane + camera.right * half_x));
     camera.left_plane = glm::normalize(glm::cross(far_plane - (camera.right * half_x), camera.up));

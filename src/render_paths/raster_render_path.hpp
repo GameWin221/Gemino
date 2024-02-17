@@ -136,8 +136,9 @@ private:
 
     void init_scene_buffers();
     void init_debug_info();
-    void init_lod_assign_pipeline();
+    void init_lod_assign_pipeline(const Window& window);
     void init_forward_pipeline(const Window& window);
+    void init_offscreen_rt_to_swapchain_pipeline(const Window& window);
     void init_frames();
     void init_defaults();
 
@@ -167,7 +168,6 @@ private:
     u32 frames_since_init{};
 
     std::vector<Frame> frames{};
-    std::vector<Handle<RenderTarget>> swapchain_targets{};
 
     HandleAllocator<MeshLOD> lod_allocator{};
     HandleAllocator<Mesh> mesh_allocator{};
@@ -177,10 +177,20 @@ private:
     Handle<Descriptor> lod_assign_descriptor{};
     Handle<GraphicsPipeline> lod_assign_pipeline{};
 
+    Handle<RenderTarget> depth_hierarchy_targets{};
     Handle<Descriptor> forward_descriptor{};
     Handle<GraphicsPipeline> forward_pipeline{};
 
+    Handle<RenderTarget> offscreen_rt{};
+    Handle<Image> offscreen_rt_image{};
+    Handle<Sampler> offscreen_rt_sampler{};
+
+    std::vector<Handle<RenderTarget>> offscreen_rt_to_swapchain_targets{};
+    Handle<GraphicsPipeline> offscreen_rt_to_swapchain_pipeline{};
+    Handle<Descriptor> offscreen_rt_to_swapchain_descriptor{};
+
     Handle<Image> depth_image{};
+    Handle<Image> depth_hierarchy{};
 
     Handle<Texture> default_white_srgb_texture{};
     Handle<Texture> default_grey_unorm_texture{};
@@ -188,6 +198,7 @@ private:
     u32 allocated_vertices{};
     u32 allocated_indices{};
 
+    Handle<Buffer> scene_visibility_buffer{};
     Handle<Buffer> scene_vertex_buffer{};
     Handle<Buffer> scene_index_buffer{};
     Handle<Buffer> scene_lod_buffer{};

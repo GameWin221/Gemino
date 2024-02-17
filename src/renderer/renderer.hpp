@@ -17,7 +17,7 @@ union ClearColor {
 
 struct RenderTargetClear {
     ClearColor color{};
-    f32 depth = 1.0f;
+    f32 depth = 0.0f;
 };
 
 struct SubmitInfo {

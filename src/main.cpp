@@ -66,9 +66,9 @@ int main(){
     std::srand(static_cast<u32>(std::time(nullptr)));
 
     World world{};
-    for(u32 x{}; x < 100U; ++x) {
+    for(u32 x{}; x < 10U; ++x) {
         for(u32 y{}; y < 10U; ++y) {
-            for(u32 z{}; z < 100U; ++z) {
+            for(u32 z{}; z < 10U; ++z) {
                 world.create_object(ObjectCreateInfo{
                     .mesh = ((x + y + z) % 2 == 0) ? monkey_mesh_handle : sphere_mesh_handle,
                     .material = (((x + y + z) % 2 == 0) ? material_handle : material_monkey_handle),
@@ -82,7 +82,9 @@ int main(){
     auto main_camera = world.create_camera(CameraCreateInfo{
         .viewport_size = glm::vec2(window.get_size()),
         .position = glm::vec3(-2.0f, 10.0f, -2.0f),
-        .pitch = -25.0f
+        .pitch = -25.0f,
+        .near_plane = 0.1f,
+        .far_plane = 10000.0f
     });
 
     double dt = 1.0, time{};
@@ -132,12 +134,6 @@ int main(){
 
         world.set_camera_position(main_camera, main_camera_data.position + camera_movement * static_cast<f32>(dt) * camera_movement_speed);
         world.set_camera_rotation(main_camera, main_camera_data.pitch - mouse_vel.y * camera_rotate_speed, main_camera_data.yaw + mouse_vel.x * camera_rotate_speed);
-
-        //world.set_camera_position(main_camera, glm::vec3(2.0f, 1.0f, 2.0f) + glm::vec3(std::sin(static_cast<f32>(time)) * 5.0f, 0.0f, std::cos(static_cast<f32>(time)) * 5.0f));
-        //world.set_camera_rotation(main_camera, 0.0f, -static_cast<f32>(time) / glm::pi<f32>() * 180.0f - 90.0f);
-
-        //world.set_camera_position(main_camera, glm::vec3(2.0f + std::sinf(static_cast<f32>(time * 3.0f)) * 3.0f, 0.0f, -5.0f));
-        //world.set_camera_rotation(main_camera, 0.0f, 90.0f);
 
         //for(Handle<Object> handle{}; handle < static_cast<u32>(world.get_objects().size()); ++handle) {
         //    Handle<Transform> t = world.get_object(handle).transform;

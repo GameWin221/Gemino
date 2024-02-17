@@ -1,6 +1,8 @@
 #ifndef GEMINO_WORLD_HPP
 #define GEMINO_WORLD_HPP
 
+#define GLM_FORCE_DEPTH_ZERO_TO_ONE
+
 #include <array>
 #include <common/handle_allocator.hpp>
 #include <glm/glm.hpp>
