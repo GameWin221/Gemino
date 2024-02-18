@@ -23,7 +23,7 @@ ResourceManager::ResourceManager(VkDevice device, VmaAllocator allocator) : vk_d
 
     VkDescriptorPoolCreateInfo descriptor_pool_create_info{
         .sType = VK_STRUCTURE_TYPE_DESCRIPTOR_POOL_CREATE_INFO,
-        .flags = VK_DESCRIPTOR_POOL_CREATE_UPDATE_AFTER_BIND_BIT_EXT | VK_DESCRIPTOR_POOL_CREATE_FREE_DESCRIPTOR_SET_BIT,
+        .flags = VK_DESCRIPTOR_POOL_CREATE_UPDATE_AFTER_BIND_BIT | VK_DESCRIPTOR_POOL_CREATE_FREE_DESCRIPTOR_SET_BIT,
         .maxSets = max_sets,
         .poolSizeCount = static_cast<u32>(pool_sizes.size()),
         .pPoolSizes = pool_sizes.data()
@@ -131,6 +131,17 @@ Handle<Image> ResourceManager::create_image(const ImageCreateInfo& info) {
 
     DEBUG_ASSERT(vkCreateImageView(vk_device, &view_create_info, nullptr, &image.view) == VK_SUCCESS)
 
+    if(info.create_per_mip_views) {
+        image.per_mip_views.resize(static_cast<usize>(info.mip_level_count));
+
+        for(u32 i{}; i < info.mip_level_count; ++i) {
+            view_create_info.subresourceRange.levelCount = 1U;
+            view_create_info.subresourceRange.baseMipLevel = i;
+
+            DEBUG_ASSERT(vkCreateImageView(vk_device, &view_create_info, nullptr, &image.per_mip_views[i]) == VK_SUCCESS)
+        }
+    }
+
     return image_allocator.alloc(image);
 }
 Handle<Image> ResourceManager::create_image_borrowed(VkImage borrowed_image, VkImageView borrowed_view, const ImageCreateInfo &info) {
@@ -157,7 +168,7 @@ Handle<Image> ResourceManager::create_image_borrowed(VkImage borrowed_image, VkI
         .aspect_flags = info.aspect_flags,
         .create_flags = info.create_flags,
         .mip_level_count = info.mip_level_count,
-        .array_layer_count = info.array_layer_count,
+        .array_layer_count = info.array_layer_count
     };
 
     if(info.create_flags & VK_IMAGE_CREATE_2D_ARRAY_COMPATIBLE_BIT) {
@@ -220,11 +231,11 @@ Handle<Descriptor> ResourceManager::create_descriptor(const DescriptorCreateInfo
         });
     }
 
-    std::vector<VkDescriptorBindingFlags> binding_flags(bindings.size(), VK_DESCRIPTOR_BINDING_PARTIALLY_BOUND_BIT_EXT | VK_DESCRIPTOR_BINDING_UPDATE_AFTER_BIND_BIT_EXT);
+    std::vector<VkDescriptorBindingFlags> binding_flags(bindings.size(), VK_DESCRIPTOR_BINDING_PARTIALLY_BOUND_BIT | VK_DESCRIPTOR_BINDING_UPDATE_AFTER_BIND_BIT);
     // If needed for variable descriptor count
     //for (const auto& binding : bindings) {
     //    if (binding.descriptorType == VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER || binding.descriptorType == VK_DESCRIPTOR_TYPE_SAMPLED_IMAGE) {
-    //        binding_flags[binding.binding] |= VK_DESCRIPTOR_BINDING_VARIABLE_DESCRIPTOR_COUNT_BIT_EXT;
+    //        binding_flags[binding.binding] |= VK_DESCRIPTOR_BINDING_VARIABLE_DESCRIPTOR_COUNT_BIT;
     //    }
     //}
 
@@ -237,7 +248,7 @@ Handle<Descriptor> ResourceManager::create_descriptor(const DescriptorCreateInfo
     VkDescriptorSetLayoutCreateInfo descriptor_layout_create_info {
         .sType = VK_STRUCTURE_TYPE_DESCRIPTOR_SET_LAYOUT_CREATE_INFO,
         .pNext = &extended_create_info,
-        .flags = VK_DESCRIPTOR_SET_LAYOUT_CREATE_UPDATE_AFTER_BIND_POOL_BIT_EXT,
+        .flags = VK_DESCRIPTOR_SET_LAYOUT_CREATE_UPDATE_AFTER_BIND_POOL_BIT,
         .bindingCount = static_cast<u32>(bindings.size()),
         .pBindings = bindings.data(),
     };
@@ -258,8 +269,14 @@ Handle<Descriptor> ResourceManager::create_descriptor(const DescriptorCreateInfo
 Handle<Sampler> ResourceManager::create_sampler(const SamplerCreateInfo &info) {
     Sampler sampler{};
 
+    VkSamplerReductionModeCreateInfo sampler_reduction{
+        .sType = VK_STRUCTURE_TYPE_SAMPLER_REDUCTION_MODE_CREATE_INFO,
+        .reductionMode = info.reduction_mode
+    };
+
     VkSamplerCreateInfo create_info{
         .sType = VK_STRUCTURE_TYPE_SAMPLER_CREATE_INFO,
+        .pNext = (info.reduction_mode != VK_SAMPLER_REDUCTION_MODE_MAX_ENUM ? &sampler_reduction : nullptr),
         .magFilter = info.filter,
         .minFilter = info.filter,
         .mipmapMode = info.mipmap_mode,
@@ -394,9 +411,23 @@ void ResourceManager::update_descriptor(Handle<Descriptor> descriptor_handle, co
             });
         } else if(binding.buffer_info.buffer_handle == INVALID_HANDLE && binding.image_info.image_handle != INVALID_HANDLE) {
             descriptor_info_indices.push_back(static_cast<u32>(descriptor_images.size()));
+
+            const auto& image = get_image_data(binding.image_info.image_handle);
+
+            VkImageView image_view{};
+            if(image.per_mip_views.empty() || binding.image_info.image_mip == INVALID_HANDLE) {
+                image_view = image.view;
+            } else {
+                if(binding.image_info.image_mip > static_cast<u32>(image.per_mip_views.size())) {
+                    DEBUG_PANIC("Descriptor binding image target mip out of bounds! image_mip = " << binding.image_info.image_mip)
+                }
+
+                image_view = image.per_mip_views.at(binding.image_info.image_mip);
+            }
+
             descriptor_images.push_back(VkDescriptorImageInfo {
                 .sampler = get_sampler_data(binding.image_info.image_sampler).sampler,
-                .imageView = get_image_data(binding.image_info.image_handle).view,
+                .imageView = image_view,
                 .imageLayout = VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL
             });
         } else {
@@ -431,6 +462,10 @@ void ResourceManager::destroy_image(Handle<Image> image_handle) {
     // If it is a borrowed image
     if(image.allocation == nullptr) {
         return;
+    }
+
+    for(const auto& view : image.per_mip_views) {
+        vkDestroyImageView(vk_device, view, nullptr);
     }
 
     vkDestroyImageView(vk_device, image.view, nullptr);

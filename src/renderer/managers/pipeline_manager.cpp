@@ -247,17 +247,68 @@ Handle<GraphicsPipeline> PipelineManager::create_graphics_pipeline(const Graphic
 
     std::vector<VkPipelineShaderStageCreateInfo> shader_stages{};
     std::vector<VkShaderModule> shader_modules{};
+    std::vector<VkSpecializationInfo> shader_spec_infos{};
+    std::vector<std::vector<VkSpecializationMapEntry>> shader_spec_maps{};
 
+    // I know it looks ugly but that's the quick way to take care of dangling pointer problems in the shader structures...
     if(!info.vertex_shader_path.empty()) {
-        auto [module, stage_info] = create_shader_data(info.vertex_shader_path, VK_SHADER_STAGE_VERTEX_BIT);
-        shader_modules.push_back(module);
-        shader_stages.push_back(stage_info);
+        shader_modules.push_back(create_shader_module(info.vertex_shader_path));
+        shader_spec_maps.push_back(std::vector<VkSpecializationMapEntry>(info.vertex_constant_values.size()));
+
+        auto& shader_spec_map = shader_spec_maps.back();
+
+        for(u32 i{}; i < static_cast<u32>(shader_spec_map.size()); ++i) {
+            shader_spec_map[i] = VkSpecializationMapEntry{
+                .constantID = i,
+                .offset = i * static_cast<u32>(sizeof(u32)),
+                .size = sizeof(u32)
+            };
+        }
+
+        shader_spec_infos.push_back(VkSpecializationInfo{
+            .mapEntryCount = static_cast<u32>(shader_spec_map.size()),
+            .pMapEntries = shader_spec_map.data(),
+            .dataSize = static_cast<u32>(info.vertex_constant_values.size()) * sizeof(u32),
+            .pData = info.vertex_constant_values.data(),
+        });
+
+        shader_stages.push_back(VkPipelineShaderStageCreateInfo{
+            .sType = VK_STRUCTURE_TYPE_PIPELINE_SHADER_STAGE_CREATE_INFO,
+            .stage = VK_SHADER_STAGE_VERTEX_BIT,
+            .module = shader_modules.back(),
+            .pName = "main",
+            .pSpecializationInfo = (info.vertex_constant_values.size() > 0 ? &shader_spec_infos.back() : nullptr),
+        });
     }
 
     if(!info.fragment_shader_path.empty()) {
-        auto [module, stage_info] = create_shader_data(info.fragment_shader_path, VK_SHADER_STAGE_FRAGMENT_BIT);
-        shader_modules.push_back(module);
-        shader_stages.push_back(stage_info);
+        shader_modules.push_back(create_shader_module(info.fragment_shader_path));
+        shader_spec_maps.push_back(std::vector<VkSpecializationMapEntry>(info.fragment_constant_values.size()));
+
+        auto& shader_spec_map = shader_spec_maps.back();
+
+        for(u32 i{}; i < static_cast<u32>(shader_spec_map.size()); ++i) {
+            shader_spec_map[i] = VkSpecializationMapEntry{
+                .constantID = i,
+                .offset = i * static_cast<u32>(sizeof(u32)),
+                .size = sizeof(u32)
+            };
+        }
+
+        shader_spec_infos.push_back(VkSpecializationInfo{
+            .mapEntryCount = static_cast<u32>(shader_spec_map.size()),
+            .pMapEntries = shader_spec_map.data(),
+            .dataSize = static_cast<u32>(info.fragment_constant_values.size()) * sizeof(u32),
+            .pData = info.fragment_constant_values.data(),
+        });
+
+        shader_stages.push_back(VkPipelineShaderStageCreateInfo{
+            .sType = VK_STRUCTURE_TYPE_PIPELINE_SHADER_STAGE_CREATE_INFO,
+            .stage = VK_SHADER_STAGE_FRAGMENT_BIT,
+            .module = shader_modules.back(),
+            .pName = "main",
+            .pSpecializationInfo = (info.fragment_constant_values.size() > 0 ? &shader_spec_infos.back() : nullptr),
+        });
     }
 
     DEBUG_ASSERT(!shader_stages.empty())
@@ -279,6 +330,8 @@ Handle<GraphicsPipeline> PipelineManager::create_graphics_pipeline(const Graphic
 
         .layout = pipeline.layout,
         .renderPass = pipeline.render_pass,
+
+        .basePipelineIndex = -1
     };
 
     DEBUG_ASSERT(vkCreateGraphicsPipelines(vk_device, nullptr, 1U, &pipeline_create_info, nullptr, &pipeline.pipeline) == VK_SUCCESS)
@@ -289,7 +342,7 @@ Handle<GraphicsPipeline> PipelineManager::create_graphics_pipeline(const Graphic
 
     return graphics_pipeline_allocator.alloc(pipeline);
 }
-Handle<ComputePipeline> PipelineManager::create_compute_pipeline(const ComputePipelineCreateInfo &info) {
+Handle<ComputePipeline> PipelineManager::create_compute_pipeline(const ComputePipelineCreateInfo& info) {
     ComputePipeline pipeline{
         .create_info = info
     };
@@ -321,23 +374,39 @@ Handle<ComputePipeline> PipelineManager::create_compute_pipeline(const ComputePi
 
     DEBUG_ASSERT(vkCreatePipelineLayout(vk_device, &layout_create_info, nullptr, &pipeline.layout) == VK_SUCCESS)
 
-    ShaderData shader = create_shader_data(info.shader_path, VK_SHADER_STAGE_COMPUTE_BIT);
+    VkShaderModule shader_module = create_shader_module(info.shader_path);
+
+    std::vector<VkSpecializationMapEntry> spec_map_entries(info.shader_constant_values.size());
+    for(u32 i{}; i < static_cast<u32>(spec_map_entries.size()); ++i) {
+        spec_map_entries[i] = VkSpecializationMapEntry{
+            .constantID = i,
+            .offset = i * static_cast<u32>(sizeof(u32)),
+            .size = sizeof(u32)
+        };
+    }
+
+    VkSpecializationInfo spec_info{
+        .mapEntryCount = static_cast<u32>(spec_map_entries.size()),
+        .pMapEntries = spec_map_entries.data(),
+        .dataSize = static_cast<u32>(info.shader_constant_values.size()) * sizeof(u32),
+        .pData = info.shader_constant_values.data(),
+    };
 
     VkComputePipelineCreateInfo pipeline_create_info{
         .sType = VK_STRUCTURE_TYPE_COMPUTE_PIPELINE_CREATE_INFO,
         .stage {
             .sType = VK_STRUCTURE_TYPE_PIPELINE_SHADER_STAGE_CREATE_INFO,
             .stage = VK_SHADER_STAGE_COMPUTE_BIT,
-            .module = shader.module,
-
+            .module = shader_module,
             .pName = "main",
+            .pSpecializationInfo = &spec_info//((spec_info.mapEntryCount > 0U) ? &spec_info : nullptr),
         },
         .layout = pipeline.layout
     };
 
     DEBUG_ASSERT(vkCreateComputePipelines(vk_device, nullptr, 1U, &pipeline_create_info, nullptr, &pipeline.pipeline) == VK_SUCCESS)
 
-    vkDestroyShaderModule(vk_device, shader.module, nullptr);
+    vkDestroyShaderModule(vk_device, shader_module, nullptr);
 
     return compute_pipeline_allocator.alloc(pipeline);
 }
@@ -348,14 +417,37 @@ Handle<RenderTarget> PipelineManager::create_render_target(Handle<GraphicsPipeli
     };
 
     if(info.color_target_handle != INVALID_HANDLE) {
-        rt.color_view = resource_manager->get_image_data(info.color_target_handle).view;
+        const auto& image = resource_manager->get_image_data(info.color_target_handle);
+
+        if(image.per_mip_views.empty()) {
+            rt.color_view = image.view;
+        } else {
+            if(info.color_target_mip > static_cast<u32>(image.per_mip_views.size())) {
+                DEBUG_PANIC("RenderTarget color target mip out of bounds! color_target_mip = " << info.color_target_mip)
+            }
+
+            rt.color_view = image.per_mip_views.at(info.color_target_mip);
+        }
 
         VkExtent3D image_extent = resource_manager->get_image_data(info.color_target_handle).extent;
-        rt.extent = VkExtent2D{ image_extent.width, image_extent.height };
+        rt.extent = VkExtent2D{
+            std::max(image_extent.width / (1U << info.color_target_mip), 1U),
+            std::max(image_extent.height / (1U << info.color_target_mip), 1U)
+        };
     }
 
     if(info.depth_target_handle != INVALID_HANDLE) {
-        rt.depth_view = resource_manager->get_image_data(info.depth_target_handle).view;
+        const auto& image = resource_manager->get_image_data(info.depth_target_handle);
+
+        if(image.per_mip_views.empty()) {
+            rt.depth_view = image.view;
+        } else {
+            if(info.depth_target_mip > static_cast<u32>(image.per_mip_views.size())) {
+                DEBUG_PANIC("RenderTarget depth target mip out of bounds! depth_target_mip = " << info.depth_target_mip)
+            }
+
+            rt.depth_view = image.per_mip_views.at(info.depth_target_mip);
+        }
 
         VkExtent3D image_extent = resource_manager->get_image_data(info.depth_target_handle).extent;
         if(info.color_target_handle != INVALID_HANDLE) {
@@ -364,7 +456,10 @@ Handle<RenderTarget> PipelineManager::create_render_target(Handle<GraphicsPipeli
             }
         }
 
-        rt.extent = VkExtent2D{ image_extent.width, image_extent.height };
+        rt.extent = VkExtent2D{
+            std::max(image_extent.width / (1U << info.depth_target_mip), 1U),
+            std::max(image_extent.height / (1U << info.depth_target_mip), 1U)
+        };
     }
 
     if(rt.color_view == nullptr && rt.depth_view == nullptr) {
@@ -461,8 +556,8 @@ const RenderTarget& PipelineManager::get_render_target_data(Handle<RenderTarget>
     return render_target_allocator.get_element(rt_handle);
 }
 
-ShaderData PipelineManager::create_shader_data(const std::string &path, VkShaderStageFlagBits stage) {
-    ShaderData data{};
+VkShaderModule PipelineManager::create_shader_module(const std::string& path) {
+    VkShaderModule shader_module{};
 
     std::vector<u8> spirv_code = Utils::read_file_bytes(path);
     if(spirv_code.empty()) {
@@ -475,16 +570,31 @@ ShaderData PipelineManager::create_shader_data(const std::string &path, VkShader
         .pCode = reinterpret_cast<const u32*>(spirv_code.data()),
     };
 
-    DEBUG_ASSERT(vkCreateShaderModule(vk_device, &module_create_info, nullptr, &data.module) == VK_SUCCESS)
+    DEBUG_ASSERT(vkCreateShaderModule(vk_device, &module_create_info, nullptr, &shader_module) == VK_SUCCESS)
 
-    VkPipelineShaderStageCreateInfo stage_create_info{
-        .sType = VK_STRUCTURE_TYPE_PIPELINE_SHADER_STAGE_CREATE_INFO,
-        .stage = stage,
-        .module = data.module,
-        .pName = "main"
-    };
+    //data.spec_map_entries.resize(constant_count);
+    //for(u32 i{}; i < constant_count; ++i) {
+    //    data.spec_map_entries[i] = VkSpecializationMapEntry{
+    //        .constantID = i,
+    //        .offset = i * static_cast<u32>(sizeof(u32)),
+    //        .size = sizeof(u32)
+    //    };
+    //}
+//
+    //data.spec_info = VkSpecializationInfo{
+    //    .mapEntryCount = static_cast<u32>(data.spec_map_entries.size()),
+    //    .pMapEntries = data.spec_map_entries.data(),
+    //    .dataSize = static_cast<u32>(data.spec_map_entries.size()) * sizeof(u32),
+    //    .pData = constant_data,
+    //};
+//
+    //data.stage_info = VkPipelineShaderStageCreateInfo {
+    //    .sType = VK_STRUCTURE_TYPE_PIPELINE_SHADER_STAGE_CREATE_INFO,
+    //    .stage = stage,
+    //    .module = data.module,
+    //    .pName = "main",
+    //    .pSpecializationInfo = (constant_count > 0U ? &data.spec_info : nullptr)
+    //};
 
-    data.stage_info = stage_create_info;
-
-    return data;
+    return shader_module;
 }

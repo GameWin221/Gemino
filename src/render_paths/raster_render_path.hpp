@@ -79,6 +79,13 @@ struct MeshCreateInfo {
     }
 };
 
+struct DrawCallGenPC {
+    u32 draw_count_pre_cull{};
+    f32 global_lod_bias{};
+    f32 depth_hierarchy_width{};
+    f32 depth_hierarchy_height{};
+};
+
 class RasterRenderPath {
 public:
     RasterRenderPath(Window& window, VSyncMode v_sync);
@@ -112,7 +119,7 @@ public:
     const VkDeviceSize MAX_SCENE_DRAWS = 1 * 1024 * 1024; // (device memory)
     const VkDeviceSize MAX_SCENE_OBJECTS = MAX_SCENE_DRAWS; // (device memory)
 
-    const VkDeviceSize PER_FRAME_UPLOAD_BUFFER_SIZE = 16 * 1024 * 1024; // (host memory)
+    const VkDeviceSize PER_FRAME_UPLOAD_BUFFER_SIZE = 160 * 1024 * 1024; // (host memory)
 
     const VkDeviceSize OVERALL_DEVICE_MEMORY_USAGE =
         (MAX_SCENE_VERTICES * sizeof(Vertex)) +
@@ -135,10 +142,12 @@ private:
     void end_recording_frame();
 
     void init_scene_buffers();
+    void init_scene_images(const Window& window);
     void init_debug_info();
-    void init_lod_assign_pipeline(const Window& window);
-    void init_forward_pipeline(const Window& window);
-    void init_offscreen_rt_to_swapchain_pipeline(const Window& window);
+    void init_draw_call_gen_pipeline();
+    void init_forward_pipeline();
+    void init_offscreen_rt_to_swapchain_pipeline();
+    void init_depth_downscale_pipeline();
     void init_frames();
     void init_defaults();
 
@@ -174,23 +183,29 @@ private:
     HandleAllocator<Texture> texture_allocator{};
     HandleAllocator<Material> material_allocator{};
 
-    Handle<Descriptor> lod_assign_descriptor{};
-    Handle<GraphicsPipeline> lod_assign_pipeline{};
-
-    Handle<RenderTarget> depth_hierarchy_targets{};
-    Handle<Descriptor> forward_descriptor{};
-    Handle<GraphicsPipeline> forward_pipeline{};
+    Handle<Descriptor> draw_call_gen_descriptor{};
+    Handle<ComputePipeline> first_draw_call_gen_pipeline{};
+    Handle<ComputePipeline> second_draw_call_gen_pipeline{};
 
     Handle<RenderTarget> offscreen_rt{};
     Handle<Image> offscreen_rt_image{};
     Handle<Sampler> offscreen_rt_sampler{};
 
+    Handle<Descriptor> forward_descriptor{};
+    Handle<GraphicsPipeline> forward_pipeline{};
+
     std::vector<Handle<RenderTarget>> offscreen_rt_to_swapchain_targets{};
-    Handle<GraphicsPipeline> offscreen_rt_to_swapchain_pipeline{};
     Handle<Descriptor> offscreen_rt_to_swapchain_descriptor{};
+    Handle<GraphicsPipeline> offscreen_rt_to_swapchain_pipeline{};
 
     Handle<Image> depth_image{};
+    Handle<Image> depth_image_sampler{};
     Handle<Image> depth_hierarchy{};
+    Handle<Sampler> depth_hierarchy_sampler{};
+    Handle<Descriptor> depth_image_descriptor{};
+    std::vector<Handle<Descriptor>> depth_hierarchy_descriptors{};
+    std::vector<Handle<RenderTarget>> depth_hierarchy_rts{};
+    Handle<GraphicsPipeline> depth_downscale_pipeline{};
 
     Handle<Texture> default_white_srgb_texture{};
     Handle<Texture> default_grey_unorm_texture{};

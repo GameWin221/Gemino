@@ -163,7 +163,7 @@ glm::mat4 World::calculate_view_matrix(const Camera& camera) const {
 }
 glm::mat4 World::calculate_proj_matrix(const Camera& camera) const {
     // Swap Z near and far to achieve inverted depth
-    glm::mat4 proj = glm::perspective(glm::radians(camera.fov), camera.viewport_size.x / camera.viewport_size.y, camera.far, camera.near);
+    glm::mat4 proj = glm::perspectiveRH_ZO(glm::radians(camera.fov), camera.viewport_size.x / camera.viewport_size.y, camera.far, camera.near);
     proj[1][1] *= -1;
     return proj;
 }

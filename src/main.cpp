@@ -48,8 +48,8 @@ int main(){
 
     auto monkey_mesh = Utils::load_gltf("res/monkey.gltf");
     auto sphere_mesh = Utils::load_gltf("res/sphere.gltf");
-    auto monkey_mesh_handle = render_path.create_mesh(MeshCreateInfo::from_mesh_data(monkey_mesh, 1000.0f, 0.5f));
-    auto sphere_mesh_handle = render_path.create_mesh(MeshCreateInfo::from_mesh_data(sphere_mesh, 1000.0f, 0.8f));
+    auto monkey_mesh_handle = render_path.create_mesh(MeshCreateInfo::from_mesh_data(monkey_mesh, 4000.0f, 1.0f));
+    auto sphere_mesh_handle = render_path.create_mesh(MeshCreateInfo::from_mesh_data(sphere_mesh, 4000.0f, 1.0f));
 
     monkey_mesh.free();
     sphere_mesh.free();
@@ -66,25 +66,32 @@ int main(){
     std::srand(static_cast<u32>(std::time(nullptr)));
 
     World world{};
-    for(u32 x{}; x < 10U; ++x) {
-        for(u32 y{}; y < 10U; ++y) {
-            for(u32 z{}; z < 10U; ++z) {
+    for(u32 x{}; x < 20U; ++x) {
+        for(u32 y{}; y < 20U; ++y) {
+            for(u32 z{}; z < 20U; ++z) {
                 world.create_object(ObjectCreateInfo{
                     .mesh = ((x + y + z) % 2 == 0) ? monkey_mesh_handle : sphere_mesh_handle,
-                    .material = (((x + y + z) % 2 == 0) ? material_handle : material_monkey_handle),
-                    .position = glm::vec3(x * 4U, y * 2U, z * 4U),
+                    .material = (((x + y + z) % 2 == 0) ? material_monkey_handle : material_handle),
+                    .position = glm::vec3(x * 3U, y * 2U, z * 3U),
                     .rotation = glm::vec3((std::rand() % 3600) / 10.0f, (std::rand() % 3600) / 10.0f, (std::rand() % 3600) / 10.0f)
                 });
             }
         }
     }
 
+    world.create_object(ObjectCreateInfo{
+        .mesh = sphere_mesh_handle,
+        .material = material_handle,
+        .position = glm::vec3(-10.0f, 0.0f, 0.0f),
+        .scale = glm::vec3(5.0f)
+    });
+
     auto main_camera = world.create_camera(CameraCreateInfo{
         .viewport_size = glm::vec2(window.get_size()),
         .position = glm::vec3(-2.0f, 10.0f, -2.0f),
         .pitch = -25.0f,
-        .near_plane = 0.1f,
-        .far_plane = 10000.0f
+        .near_plane = 0.2f,
+        .far_plane = 2000.0f
     });
 
     double dt = 1.0, time{};

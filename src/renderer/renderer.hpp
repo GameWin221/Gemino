@@ -106,6 +106,7 @@ public:
     void end_recording_commands(Handle<CommandList> handle) const;
     void submit_commands(Handle<CommandList> handle, const SubmitInfo& info) const;
     void submit_commands_once(Handle<CommandList> handle) const;
+    void record_and_submit_once(std::function<void(Handle<CommandList>)>&& lambda) const;
 
     void image_barrier(Handle<CommandList> command_list, VkPipelineStageFlags src_stage, VkPipelineStageFlags dst_stage, const std::vector<ImageBarrier>& barriers) const;
     void buffer_barrier(Handle<CommandList> command_list, VkPipelineStageFlags src_stage, VkPipelineStageFlags dst_stage, const std::vector<BufferBarrier>& barriers) const;
@@ -132,6 +133,11 @@ public:
 
     void bind_vertex_buffer(Handle<CommandList> command_list, Handle<Buffer> buffer, u32 index = 0U, VkDeviceSize offset = 0) const;
     void bind_index_buffer(Handle<CommandList> command_list, Handle<Buffer> buffer, VkDeviceSize offset = 0) const;
+
+    void clear_color_attachment(Handle<CommandList> command_list, Handle<GraphicsPipeline> pipeline, Handle<RenderTarget> rt, const RenderTargetClear& clear) const;
+    void clear_depth_attachment(Handle<CommandList> command_list, Handle<GraphicsPipeline> pipeline, Handle<RenderTarget> rt, const RenderTargetClear& clear) const;
+    void clear_color_image(Handle<CommandList> command_list, Handle<Image> target, VkImageLayout layout, const RenderTargetClear& clear) const;
+    void clear_depth_image(Handle<CommandList> command_list, Handle<Image> target, VkImageLayout layout, const RenderTargetClear& clear) const;
 
     void draw_count(Handle<CommandList> command_list, u32 vertex_count, u32 first_vertex = 0U, u32 instance_count = 1U) const;
     void draw_indexed(Handle<CommandList> command_list, u32 index_count, u32 first_index = 0U, i32 vertex_offset = 1U, u32 instance_count = 1U) const;

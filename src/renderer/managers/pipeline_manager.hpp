@@ -8,14 +8,12 @@
 #include <common/handle_allocator.hpp>
 #include <common/types.hpp>
 
-struct ShaderData {
-    VkShaderModule module{};
-    VkPipelineShaderStageCreateInfo stage_info{};
-};
-
 struct RenderTargetCreateInfo {
     Handle<Image> color_target_handle = INVALID_HANDLE;
+    u32 color_target_mip = 0U;
+
     Handle<Image> depth_target_handle = INVALID_HANDLE;
+    u32 depth_target_mip = 0U;
 };
 struct RenderTarget {
     VkFramebuffer framebuffer{};
@@ -38,6 +36,9 @@ struct RenderTargetCommonInfo {
 struct GraphicsPipelineCreateInfo {
     std::string vertex_shader_path{};
     std::string fragment_shader_path{};
+
+    std::vector<u32> vertex_constant_values{};
+    std::vector<u32> fragment_constant_values{};
 
     u8 push_constants_size{};
 
@@ -68,6 +69,7 @@ struct GraphicsPipeline {
 
 struct ComputePipelineCreateInfo {
     std::string shader_path{};
+    std::vector<u32> shader_constant_values{};
 
     u8 push_constants_size{};
 
@@ -101,7 +103,7 @@ public:
     const RenderTarget& get_render_target_data(Handle<RenderTarget> rt_handle) const;
 
 private:
-    ShaderData create_shader_data(const std::string& path, VkShaderStageFlagBits stage);
+    VkShaderModule create_shader_module(const std::string& path);
 
     const VkDevice vk_device;
     const ResourceManager* resource_manager; // ResourceManager is guaranteed to live as long as PipelineManager

@@ -1,8 +1,8 @@
 # Gemino
-Designed to be a high performance gpu-driven rendering framework providing *just enough* customizability for the user.
-The underlying Gemino API provides an interface to make custom **Render Paths**, manage **Worlds**, interact with the **Input Manager** and import resources. **Renderer** and its **Resource Managers** are thin abstractions over the Vulkan API that simplify it while still giving the freedom and control to the user if they need it.
+Designed to be a high performance gpu-driven rendering framework with real-world applications in mind (e.g. games).
+The underlying Gemino API provides an interface to make custom **Render Paths**, manage **Worlds**, interact with the **Input Manager** and import resources. **Renderer** and its **Resource Managers** are abstractions over the Vulkan API that simplify it while still giving the freedom and control to the user if they need it.
 
-It is also my test bench for learning and experimenting with new graphics programming concepts.
+It's also my test bench for learning and experimenting with new graphics programming concepts.
 
 ## Goals
 [Milanote Board](https://app.milanote.com/1ReR6Z14XbZ991?p=8MqaOe9BQos)
@@ -15,7 +15,8 @@ It is also my test bench for learning and experimenting with new graphics progra
 
 ## Major Features
 - Indirect draw with compute shader draw call generation (vkCmdDrawInstancedIndirectCount)
-- Compute shader frustum Culling (Sphere bounding volumes)
+- Two-pass occlusion culling
+- Compute shader frustum culling
 - Compute shader LOD system
 - Handle based **Resource Managers**
 - Compatible with all Vulkan 1.2 devices

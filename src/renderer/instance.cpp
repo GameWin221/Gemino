@@ -12,10 +12,8 @@ static constexpr std::array<const char*, 1> REQUESTED_VALIDATION_LAYER_NAMES {
     "VK_LAYER_KHRONOS_validation"
 };
 
-static constexpr std::array<const char*, 3> REQUESTED_DEVICE_EXTENSION_NAMES {
-    VK_KHR_SWAPCHAIN_EXTENSION_NAME,
-    VK_EXT_DESCRIPTOR_INDEXING_EXTENSION_NAME,
-    VK_KHR_SHADER_DRAW_PARAMETERS_EXTENSION_NAME
+static constexpr std::array<const char*, 1> REQUESTED_DEVICE_EXTENSION_NAMES {
+    VK_KHR_SWAPCHAIN_EXTENSION_NAME
 };
 
 static constexpr VkPhysicalDeviceVulkan12Features REQUESTED_DEVICE_FEATURES_VK_1_2 {
@@ -33,6 +31,7 @@ static constexpr VkPhysicalDeviceVulkan12Features REQUESTED_DEVICE_FEATURES_VK_1
     .descriptorBindingPartiallyBound = true,
     //.descriptorBindingVariableDescriptorCount = true,
     .runtimeDescriptorArray = true,
+    .samplerFilterMinmax = true
 };
 
 static constexpr VkPhysicalDeviceVulkan11Features REQUESTED_DEVICE_FEATURES_VK_1_1 {
@@ -43,7 +42,7 @@ static constexpr VkPhysicalDeviceVulkan11Features REQUESTED_DEVICE_FEATURES_VK_1
 
 static constexpr VkPhysicalDeviceFeatures REQUESTED_DEVICE_FEATURES_VK_1_0 {
     .multiDrawIndirect = true,
-    .samplerAnisotropy = true,
+    .samplerAnisotropy = true
 };
 
 static VKAPI_ATTR VkBool32 VKAPI_CALL vk_debug_callback(VkDebugUtilsMessageSeverityFlagBitsEXT message_severity, VkDebugUtilsMessageTypeFlagsEXT message_type, const VkDebugUtilsMessengerCallbackDataEXT* p_callback_data, void* p_user_data) {
@@ -489,6 +488,10 @@ bool Instance::check_device_feature_support(VkPhysicalDevice device) {
     }
     if(!supported_features_vk_1_2.descriptorBindingUpdateUnusedWhilePending) {
         DEBUG_WARNING("The physical device doesn't support Vulkan 1.2 feature: descriptorBindingUpdateUnusedWhilePending")
+        return false;
+    }
+    if(!supported_features_vk_1_2.samplerFilterMinmax) {
+        DEBUG_WARNING("The physical device doesn't support Vulkan 1.2 feature: samplerFilterMinmax")
         return false;
     }
 

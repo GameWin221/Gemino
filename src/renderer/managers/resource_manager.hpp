@@ -37,6 +37,8 @@ struct Image {
     u32 mip_level_count{};
     u32 array_layer_count{};
 
+    std::vector<VkImageView> per_mip_views{};
+
     VmaAllocation allocation{};
 };
 struct ImageCreateInfo {
@@ -49,11 +51,14 @@ struct ImageCreateInfo {
 
     u32 mip_level_count = 1U;
     u32 array_layer_count = 1U;
+
+    bool create_per_mip_views = false;
 };
 
 struct SamplerCreateInfo {
     VkFilter filter = VK_FILTER_LINEAR;
     VkSamplerMipmapMode mipmap_mode = VK_SAMPLER_MIPMAP_MODE_LINEAR;
+    VkSamplerReductionMode reduction_mode = VK_SAMPLER_REDUCTION_MODE_MAX_ENUM;
 
     float max_mipmap = VK_LOD_CLAMP_NONE;
     float mipmap_bias{};
@@ -70,6 +75,7 @@ struct DescriptorBindingUpdateInfo{
     struct {
         Handle<Image> image_handle = INVALID_HANDLE;
         Handle<Sampler> image_sampler = INVALID_HANDLE;
+        u32 image_mip = INVALID_HANDLE;
     } image_info;
 
     struct {

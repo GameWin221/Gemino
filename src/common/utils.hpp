@@ -50,6 +50,8 @@ namespace Utils {
         }
     };
 
+    u32 nearest_pot_floor(u32 x);
+
     u32 calculate_mipmap_levels_x(u32 width);
     u32 calculate_mipmap_levels_xy(u32 width, u32 height);
     u32 calculate_mipmap_levels_xyz(u32 width, u32 height, u32 depth);

@@ -4,9 +4,13 @@
 
 layout(local_size_x = 8, local_size_y = 4, local_size_z = 1) in;
 
+layout (constant_id = 0) const uint CULL_SECOND_PASS = 0;
+
 layout(push_constant) uniform PushConstant {
     uint draw_count_pre_cull;
     float global_lod_bias;
+    float depth_hierarchy_width;
+    float depth_hierarchy_height;
 };
 
 layout(set = 0, binding = 0) readonly buffer MeshLODBuffer {
@@ -27,12 +31,14 @@ layout(set = 0, binding = 4) buffer DrawCommandCountBuffer {
 layout(set = 0, binding = 5) writeonly buffer DrawCommandIndexBuffer {
     uint draw_command_indices[];
 };
-layout(set = 0, binding = 6) writeonly buffer VisibilityBuffer {
-    uint visibility[];
+layout(set = 0, binding = 6) buffer VisibilityBuffer {
+    uint visibility_buffer[];
 };
 layout(set = 0, binding = 7) uniform CameraBuffer {
     Camera camera;
 };
+
+layout(set = 0, binding = 8) uniform sampler2D depth_hierarchy;
 
 void main() {
     uint object_id = (gl_WorkGroupID.x * gl_WorkGroupSize.x * gl_WorkGroupSize.y * gl_WorkGroupSize.z) + gl_LocalInvocationIndex;
@@ -40,10 +46,16 @@ void main() {
     if(object_id >= draw_count_pre_cull) {
         return;
     }
-
+    
     if(objects[object_id].visible == 0) {
-        visibility[object_id] = 0;
         return;
+    }
+    
+    if(CULL_SECOND_PASS == 0) {
+        // Skip if wasn't visible last frame - Draw only objects that were visible last frame
+        if(visibility_buffer[object_id] == 0) {
+            return;
+        }
     }
 
     uint mesh_id = objects[object_id].mesh;
@@ -52,13 +64,13 @@ void main() {
     // Make distance checks early on so warps that work on potentially neighboring objects will return early
     float dist = distance(camera.position, objects[object_id].position);
     if(dist > cull_distance) {
-        visibility[object_id] = 0;
+        visibility_buffer[object_id] = 0;
         return;
     }
 
     // LOD Picking
     // https://www.desmos.com/calculator/igswt6rlwt
-    float lod_f = max(max(log2((1 << meshes[mesh_id].lod_count) * (dist / cull_distance) + (dist / 100.0)), 0.0) + global_lod_bias + meshes[mesh_id].lod_bias, 0.0);
+    float lod_f = max(max(log2((1 << meshes[mesh_id].lod_count) * (dist / cull_distance) + (dist / LOD_DIV_CONSTANT)), 0.0) + global_lod_bias + meshes[mesh_id].lod_bias, 0.0);
     uint lod_id = min(uint(lod_f), meshes[mesh_id].lod_count - 1);
     MeshLOD lod = lods[meshes[mesh_id].lods[lod_id]];
 
@@ -74,11 +86,42 @@ void main() {
     in_frustum = in_frustum && (dot(camera.top_plane, lod_pos_camera_diff) > -lod_radius);
 
     if(!in_frustum) {
-        visibility[object_id] = 0;
+        visibility_buffer[object_id] = 0;
         return;
     }
 
-    visibility[object_id] = 1;
+    if(CULL_SECOND_PASS == 1) {
+        // Occlusion Culling
+        vec4 lod_pos_view = camera.view * vec4(lod_position.xyz, 1.0);
+        lod_pos_view.y *= -1;
+        lod_pos_view.z *= -1;
+
+        float lod_radius_view = lod_radius * 1.05;
+
+        vec4 aabb;
+        if (project_sphere(lod_pos_view.xyz, lod_radius_view, camera.near, camera.proj[0][0], camera.proj[1][1], aabb)) {
+            float width = (aabb.z - aabb.x) * depth_hierarchy_width;
+            float height = (aabb.w - aabb.y) * depth_hierarchy_height;
+
+            float level = floor(log2(max(width, height)));
+
+            float depth = textureLod(depth_hierarchy, (aabb.xy + aabb.zw) * 0.5, level).x;
+            float depth_sphere = camera.near / (lod_pos_view.z - lod_radius_view);
+
+            if(depth_sphere < depth) {
+                visibility_buffer[object_id] = 0;
+                return;
+            }
+        }
+
+        // Skip if wasn't visible last frame - Draw only objects that weren't visible last frame
+        // The first pass already took care of drawing those objects
+        if(visibility_buffer[object_id] == 1) {
+            return;
+        }
+
+        visibility_buffer[object_id] = 1;
+    }
 
     uint current_command_id = atomicAdd(draw_command_count, 1);
 

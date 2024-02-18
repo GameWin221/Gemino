@@ -12,6 +12,10 @@
 #define STB_IMAGE_IMPLEMENTATION
 #include <stb/stb_image.h>
 
+u32 Utils::nearest_pot_floor(u32 x) {
+    return (1U << static_cast<uint32_t>(std::floor(std::log2(x))));
+}
+
 u32 Utils::calculate_mipmap_levels_x(u32 width) {
     return static_cast<u32>(std::floor(std::log2(width))) + 1U;
 }
