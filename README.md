@@ -24,5 +24,9 @@ It's also my passion project for learning and experimenting with new graphics pr
 [See BUILD.md](BUILD.md)
 
 # Showcase
+First GPU Occlusion Culling Implementation
+![EarlyGPUOcclusionCullingTests](https://github.com/GameWin221/Gemino/assets/72656547/4c6ca538-9987-4b50-a3dd-cff9f9aab1b6)
+About 70fps when all monkeys are visible, about 170fps when looking from close up.
+
 Some cool visuals will be gradually added here...
 
