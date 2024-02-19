@@ -1,8 +1,7 @@
 # Gemino
 Designed to be a high performance gpu-driven rendering framework with real-world applications in mind (e.g. games).
-The underlying Gemino API provides an interface to make custom **Render Paths**, manage **Worlds**, interact with the **Input Manager** and import resources. **Renderer** and its **Resource Managers** are abstractions over the Vulkan API that simplify it while still giving the freedom and control to the user if they need it.
 
-It's also my test bench for learning and experimenting with new graphics programming concepts.
+It's also my passion project for learning and experimenting with new graphics programming concepts.
 
 ## Goals
 [Milanote Board](https://app.milanote.com/1ReR6Z14XbZ991?p=8MqaOe9BQos)

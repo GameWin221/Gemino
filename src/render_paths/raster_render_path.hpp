@@ -110,16 +110,16 @@ public:
 
     const u32 FRAMES_IN_FLIGHT = 2U;
 
-    const VkDeviceSize MAX_SCENE_TEXTURES = 2048; // (device memory)
-    const VkDeviceSize MAX_SCENE_MATERIALS = 65535; // (device memory)
-    const VkDeviceSize MAX_SCENE_VERTICES = (16 * 1024 * 1024) / sizeof(Vertex); // (device memory)
-    const VkDeviceSize MAX_SCENE_INDICES = (64 * 1024 * 1024) / sizeof(u32); // (device memory)
-    const VkDeviceSize MAX_SCENE_LODS = 8192; // (device memory)
-    const VkDeviceSize MAX_SCENE_MESHES = 2048; // (device memory)
-    const VkDeviceSize MAX_SCENE_DRAWS = 1 * 1024 * 1024; // (device memory)
+    const VkDeviceSize MAX_SCENE_TEXTURES = 2048ull; // (device memory)
+    const VkDeviceSize MAX_SCENE_MATERIALS = 65535ull; // (device memory)
+    const VkDeviceSize MAX_SCENE_VERTICES = (16ull * 1024ull * 1024ull) / sizeof(Vertex); // (device memory)
+    const VkDeviceSize MAX_SCENE_INDICES = (64ull * 1024ull * 1024ull) / sizeof(u32); // (device memory)
+    const VkDeviceSize MAX_SCENE_LODS = 8192ull; // (device memory)
+    const VkDeviceSize MAX_SCENE_MESHES = 2048ull; // (device memory)
+    const VkDeviceSize MAX_SCENE_DRAWS = 1ull * 1024ull * 1024ull; // (device memory)
     const VkDeviceSize MAX_SCENE_OBJECTS = MAX_SCENE_DRAWS; // (device memory)
 
-    const VkDeviceSize PER_FRAME_UPLOAD_BUFFER_SIZE = 160 * 1024 * 1024; // (host memory)
+    const VkDeviceSize PER_FRAME_UPLOAD_BUFFER_SIZE = 16ull * 1024ull * 1024ull; // (host memory)
 
     const VkDeviceSize OVERALL_DEVICE_MEMORY_USAGE =
         (MAX_SCENE_VERTICES * sizeof(Vertex)) +
@@ -130,7 +130,7 @@ public:
         (MAX_SCENE_DRAWS * sizeof(u32)) +
         (MAX_SCENE_OBJECTS * sizeof(Object)) +
         (MAX_SCENE_MATERIALS * sizeof(Material)) +
-        (MAX_SCENE_TEXTURES * sizeof(VkDeviceSize) * 2);
+        (MAX_SCENE_TEXTURES * sizeof(VkDeviceSize) * 2ull);
 
     const VkDeviceSize OVERALL_HOST_MEMORY_USAGE =
         (PER_FRAME_UPLOAD_BUFFER_SIZE * FRAMES_IN_FLIGHT);

@@ -207,7 +207,7 @@ Utils::MeshImportData Utils::load_gltf(const std::string& path) {
     std::string err{}, warn{};
 
     if (!loader.LoadASCIIFromFile(&model, &err, &warn, path)) {
-        DEBUG_PANIC("Failed to read gltf data from \"" << path << "\"")
+
     }
 
     if (!warn.empty()) {
@@ -215,7 +215,7 @@ Utils::MeshImportData Utils::load_gltf(const std::string& path) {
     }
 
     if (!err.empty()) {
-        DEBUG_PANIC("GLTF Import error from \"" << path << " \" warning: " << warn)
+        DEBUG_PANIC("GLTF Import error from \"" << path << " \": " << err)
     }
 
     DEBUG_LOG("Loading meshes from \"" << path << "\"")
