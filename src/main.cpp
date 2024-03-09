@@ -66,8 +66,8 @@ int main(){
     std::srand(static_cast<u32>(std::time(nullptr)));
 
     World world{};
-    for(u32 x{}; x < 20U; ++x) {
-        for(u32 y{}; y < 20U; ++y) {
+    for(u32 x{}; x < 2U; ++x) {
+        for(u32 y{}; y < 2U; ++y) {
             for(u32 z{}; z < 20U; ++z) {
                 world.create_object(ObjectCreateInfo{
                     .mesh = ((x + y + z) % 2 == 0) ? monkey_mesh_handle : sphere_mesh_handle,

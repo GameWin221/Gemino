@@ -142,14 +142,21 @@ private:
     void end_recording_frame();
 
     void init_scene_buffers();
-    void init_scene_images(const Window& window);
+    void init_screen_images(const Window& window);
     void init_debug_info();
-    void init_draw_call_gen_pipeline();
-    void init_forward_pipeline();
-    void init_offscreen_rt_to_swapchain_pipeline();
-    void init_depth_downscale_pipeline();
+    void init_descriptors(bool create_new);
+    void init_pipelines();
+    void init_render_targets();
     void init_frames();
     void init_defaults();
+
+    void destroy_defaults();
+    void destroy_frames();
+    void destroy_render_targets();
+    void destroy_pipelines();
+    void destroy_descriptors(bool create_new);
+    void destroy_screen_images();
+    void destroy_scene_buffers();
 
     Renderer renderer;
 
@@ -199,9 +206,9 @@ private:
     Handle<GraphicsPipeline> offscreen_rt_to_swapchain_pipeline{};
 
     Handle<Image> depth_image{};
-    Handle<Image> depth_image_sampler{};
+    Handle<Sampler> depth_image_min_sampler{};
     Handle<Image> depth_hierarchy{};
-    Handle<Sampler> depth_hierarchy_sampler{};
+    Handle<Sampler> depth_hierarchy_min_sampler{};
     Handle<Descriptor> depth_image_descriptor{};
     std::vector<Handle<Descriptor>> depth_hierarchy_descriptors{};
     std::vector<Handle<RenderTarget>> depth_hierarchy_rts{};

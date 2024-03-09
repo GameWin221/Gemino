@@ -530,7 +530,7 @@ void PipelineManager::destroy_render_target(Handle<RenderTarget> rt_handle) {
 
 const GraphicsPipeline& PipelineManager::get_graphics_pipeline_data(Handle<GraphicsPipeline> pipeline_handle) const {
 #if DEBUG_MODE // Remove hot-path checks in release mode
-    if (!render_target_allocator.is_handle_valid(pipeline_handle)) {
+    if (!graphics_pipeline_allocator.is_handle_valid(pipeline_handle)) {
         DEBUG_PANIC("Cannot get graphics pipeline - Pipeline with a handle id: = " << pipeline_handle << ", does not exist!")
     }
 #endif

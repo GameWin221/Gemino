@@ -4,24 +4,44 @@ RasterRenderPath::RasterRenderPath(Window& window, VSyncMode v_sync) : renderer(
     .v_sync = v_sync,
     .usage = VK_IMAGE_USAGE_COLOR_ATTACHMENT_BIT
 }) {
-    init_scene_buffers();
-    init_scene_images(window);
     init_debug_info();
-    init_draw_call_gen_pipeline();
-    init_forward_pipeline();
-    init_offscreen_rt_to_swapchain_pipeline();
-    init_depth_downscale_pipeline();
+    init_scene_buffers();
+    init_screen_images(window);
+    init_descriptors(true);
+    init_pipelines();
+    init_render_targets();
     init_frames();
     init_defaults();
 }
 RasterRenderPath::~RasterRenderPath() {
     renderer.wait_for_device_idle();
 
-    for(const auto& frame : frames) {
-        renderer.resource_manager->unmap_buffer(frame.upload_buffer);
-    }
+    destroy_defaults();
+    destroy_frames();
+    destroy_render_targets();
+    destroy_pipelines();
+    destroy_descriptors(true);
+    destroy_screen_images();
+    destroy_scene_buffers();
 }
 
+void RasterRenderPath::init_debug_info() {
+    DEBUG_LOG("\nVulkan Device memory usage:")
+    DEBUG_LOG("MAX_SCENE_VERTICES = " << MAX_SCENE_VERTICES << ", " << (MAX_SCENE_VERTICES * sizeof(Vertex) / 1024.0 / 1024.0) << "mb")
+    DEBUG_LOG("MAX_SCENE_INDICES = " << MAX_SCENE_INDICES << ", " << (MAX_SCENE_INDICES * sizeof(u32) / 1024.0 / 1024.0) << "mb")
+    DEBUG_LOG("MAX_SCENE_TEXTURES = " << MAX_SCENE_TEXTURES << ", " << ((MAX_SCENE_TEXTURES * sizeof(VkDeviceSize) * 2) / 1024.0 / 1024.0) << "mb")
+    DEBUG_LOG("MAX_SCENE_MATERIALS = " << MAX_SCENE_MATERIALS << ", " << (MAX_SCENE_MATERIALS * sizeof(Material) / 1024.0 / 1024.0) << "mb")
+    DEBUG_LOG("MAX_SCENE_LODS = " << MAX_SCENE_LODS << ", " << (MAX_SCENE_LODS * sizeof(MeshLOD) / 1024.0 / 1024.0) << "mb")
+    DEBUG_LOG("MAX_SCENE_MESHES = " << MAX_SCENE_MESHES << ", " << (MAX_SCENE_MESHES * sizeof(Mesh) / 1024.0 / 1024.0) << "mb")
+    DEBUG_LOG("MAX_SCENE_DRAWS = " << MAX_SCENE_DRAWS << ", " << (MAX_SCENE_DRAWS * sizeof(VkDrawIndexedIndirectCommand) / 1024.0 / 1024.0) << "mb")
+    DEBUG_LOG("MAX_SCENE_DRAW_INDICES = " << MAX_SCENE_DRAWS << ", " << (MAX_SCENE_DRAWS * sizeof(u32) / 1024.0 / 1024.0) << "mb")
+    DEBUG_LOG("MAX_SCENE_OBJECTS = " << MAX_SCENE_OBJECTS << ", " << (MAX_SCENE_OBJECTS * sizeof(Object) / 1024.0 / 1024.0) << "mb")
+    DEBUG_LOG("OVERALL_DEVICE_MEMORY_USAGE = " << OVERALL_DEVICE_MEMORY_USAGE / 1024.0 / 1024.0 << "mb")
+
+    DEBUG_LOG("\nVulkan Host memory usage:")
+    DEBUG_LOG("PER_FRAME_UPLOAD_BUFFER_SIZE * frames_in_flight = " << PER_FRAME_UPLOAD_BUFFER_SIZE * FRAMES_IN_FLIGHT / 1024.0 / 1024.0 << "mb")
+    DEBUG_LOG("OVERALL_HOST_MEMORY_USAGE = " << OVERALL_HOST_MEMORY_USAGE / 1024.0 / 1024.0 << "mb")
+}
 void RasterRenderPath::init_scene_buffers() {
     scene_visibility_buffer = renderer.resource_manager->create_buffer(BufferCreateInfo{
        .size = sizeof(u32) * MAX_SCENE_DRAWS,
@@ -83,7 +103,7 @@ void RasterRenderPath::init_scene_buffers() {
         renderer.fill_buffer(cmd, scene_visibility_buffer, 0U, sizeof(u32));
     });
 }
-void RasterRenderPath::init_scene_images(const Window& window) {
+void RasterRenderPath::init_screen_images(const Window& window) {
     VkExtent3D screen_size = VkExtent3D{ window.get_size().x, window.get_size().y };
 
     offscreen_rt_image = renderer.resource_manager->create_image(ImageCreateInfo{
@@ -102,8 +122,10 @@ void RasterRenderPath::init_scene_images(const Window& window) {
         .usage_flags = VK_IMAGE_USAGE_DEPTH_STENCIL_ATTACHMENT_BIT | VK_IMAGE_USAGE_SAMPLED_BIT,
         .aspect_flags = VK_IMAGE_ASPECT_DEPTH_BIT
     });
-    depth_image_sampler = renderer.resource_manager->create_sampler(SamplerCreateInfo{
-        .filter = VK_FILTER_NEAREST
+    depth_image_min_sampler = renderer.resource_manager->create_sampler(SamplerCreateInfo{
+        .filter = VK_FILTER_LINEAR,
+        .mipmap_mode = VK_SAMPLER_MIPMAP_MODE_NEAREST,
+        .reduction_mode = VK_SAMPLER_REDUCTION_MODE_MIN
     });
 
     u32 hierarchy_width = Utils::nearest_pot_floor(window.get_size().x);
@@ -119,127 +141,102 @@ void RasterRenderPath::init_scene_images(const Window& window) {
         .create_per_mip_views = true
     });
 
-    depth_hierarchy_sampler = renderer.resource_manager->create_sampler(SamplerCreateInfo{
+    depth_hierarchy_min_sampler = renderer.resource_manager->create_sampler(SamplerCreateInfo{
         .filter = VK_FILTER_LINEAR,
         .mipmap_mode = VK_SAMPLER_MIPMAP_MODE_NEAREST,
         .reduction_mode = VK_SAMPLER_REDUCTION_MODE_MIN,
         .max_mipmap = static_cast<f32>(renderer.resource_manager->get_image_data(depth_hierarchy).mip_level_count),
     });
 }
-void RasterRenderPath::init_debug_info() {
-    DEBUG_LOG("\nVulkan Device memory usage:")
-    DEBUG_LOG("MAX_SCENE_VERTICES = " << MAX_SCENE_VERTICES << ", " << (MAX_SCENE_VERTICES * sizeof(Vertex) / 1024.0 / 1024.0) << "mb")
-    DEBUG_LOG("MAX_SCENE_INDICES = " << MAX_SCENE_INDICES << ", " << (MAX_SCENE_INDICES * sizeof(u32) / 1024.0 / 1024.0) << "mb")
-    DEBUG_LOG("MAX_SCENE_TEXTURES = " << MAX_SCENE_TEXTURES << ", " << ((MAX_SCENE_TEXTURES * sizeof(VkDeviceSize) * 2) / 1024.0 / 1024.0) << "mb")
-    DEBUG_LOG("MAX_SCENE_MATERIALS = " << MAX_SCENE_MATERIALS << ", " << (MAX_SCENE_MATERIALS * sizeof(Material) / 1024.0 / 1024.0) << "mb")
-    DEBUG_LOG("MAX_SCENE_LODS = " << MAX_SCENE_LODS << ", " << (MAX_SCENE_LODS * sizeof(MeshLOD) / 1024.0 / 1024.0) << "mb")
-    DEBUG_LOG("MAX_SCENE_MESHES = " << MAX_SCENE_MESHES << ", " << (MAX_SCENE_MESHES * sizeof(Mesh) / 1024.0 / 1024.0) << "mb")
-    DEBUG_LOG("MAX_SCENE_DRAWS = " << MAX_SCENE_DRAWS << ", " << (MAX_SCENE_DRAWS * sizeof(VkDrawIndexedIndirectCommand) / 1024.0 / 1024.0) << "mb")
-    DEBUG_LOG("MAX_SCENE_DRAW_INDICES = " << MAX_SCENE_DRAWS << ", " << (MAX_SCENE_DRAWS * sizeof(u32) / 1024.0 / 1024.0) << "mb")
-    DEBUG_LOG("MAX_SCENE_OBJECTS = " << MAX_SCENE_OBJECTS << ", " << (MAX_SCENE_OBJECTS * sizeof(Object) / 1024.0 / 1024.0) << "mb")
-    DEBUG_LOG("OVERALL_DEVICE_MEMORY_USAGE = " << OVERALL_DEVICE_MEMORY_USAGE / 1024.0 / 1024.0 << "mb")
+void RasterRenderPath::init_descriptors(bool create_new) {
+    if (create_new) {
+        draw_call_gen_descriptor = renderer.resource_manager->create_descriptor(DescriptorCreateInfo{
+            .bindings {
+                DescriptorBindingCreateInfo{VK_DESCRIPTOR_TYPE_STORAGE_BUFFER}, // MeshLOD Buffer
+                DescriptorBindingCreateInfo{VK_DESCRIPTOR_TYPE_STORAGE_BUFFER}, // Mesh Buffer
+                DescriptorBindingCreateInfo{VK_DESCRIPTOR_TYPE_STORAGE_BUFFER}, // Object Buffer
+                DescriptorBindingCreateInfo{VK_DESCRIPTOR_TYPE_STORAGE_BUFFER}, // Draw Commands
+                DescriptorBindingCreateInfo{VK_DESCRIPTOR_TYPE_STORAGE_BUFFER}, // Draw Commands Count
+                DescriptorBindingCreateInfo{VK_DESCRIPTOR_TYPE_STORAGE_BUFFER}, // Draw Commands Index
+                DescriptorBindingCreateInfo{VK_DESCRIPTOR_TYPE_STORAGE_BUFFER}, // Visibility Buffer
+                DescriptorBindingCreateInfo{VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER}, // Camera Buffer
+                DescriptorBindingCreateInfo{VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER}, // Depth Hierachy
+            }
+        });
+    }
 
-    DEBUG_LOG("\nVulkan Host memory usage:")
-    DEBUG_LOG("PER_FRAME_UPLOAD_BUFFER_SIZE * frames_in_flight = " << PER_FRAME_UPLOAD_BUFFER_SIZE * FRAMES_IN_FLIGHT / 1024.0 / 1024.0 << "mb")
-    DEBUG_LOG("OVERALL_HOST_MEMORY_USAGE = " << OVERALL_HOST_MEMORY_USAGE / 1024.0 / 1024.0 << "mb")
-}
-void RasterRenderPath::init_draw_call_gen_pipeline() {
-    draw_call_gen_descriptor = renderer.resource_manager->create_descriptor(DescriptorCreateInfo{
-        .bindings {
-            DescriptorBindingCreateInfo { VK_DESCRIPTOR_TYPE_STORAGE_BUFFER }, // MeshLOD Buffer
-            DescriptorBindingCreateInfo { VK_DESCRIPTOR_TYPE_STORAGE_BUFFER }, // Mesh Buffer
-            DescriptorBindingCreateInfo { VK_DESCRIPTOR_TYPE_STORAGE_BUFFER }, // Object Buffer
-            DescriptorBindingCreateInfo { VK_DESCRIPTOR_TYPE_STORAGE_BUFFER }, // Draw Commands
-            DescriptorBindingCreateInfo { VK_DESCRIPTOR_TYPE_STORAGE_BUFFER }, // Draw Commands Count
-            DescriptorBindingCreateInfo { VK_DESCRIPTOR_TYPE_STORAGE_BUFFER }, // Draw Commands Index
-            DescriptorBindingCreateInfo { VK_DESCRIPTOR_TYPE_STORAGE_BUFFER }, // Visibility Buffer
-            DescriptorBindingCreateInfo { VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER }, // Camera Buffer
-            DescriptorBindingCreateInfo { VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER }, // Depth Hierachy
-        }
-    });
     renderer.resource_manager->update_descriptor(draw_call_gen_descriptor, DescriptorUpdateInfo{
-       .bindings{
-           DescriptorBindingUpdateInfo{
-               .binding_index = 0U,
-               .buffer_info {
-                   .buffer_handle = scene_lod_buffer
-               }
-           },
-           DescriptorBindingUpdateInfo{
-               .binding_index = 1U,
-               .buffer_info {
-                   .buffer_handle = scene_mesh_buffer
-               }
-           },
-           DescriptorBindingUpdateInfo{
-               .binding_index = 2U,
-               .buffer_info {
-                   .buffer_handle = scene_object_buffer
-               }
-           },
-           DescriptorBindingUpdateInfo{
-               .binding_index = 3U,
-               .buffer_info {
-                   .buffer_handle = scene_draw_buffer
-               }
-           },
-           DescriptorBindingUpdateInfo{
-               .binding_index = 4U,
-               .buffer_info {
-                   .buffer_handle = scene_draw_count_buffer
-               }
-           },
-           DescriptorBindingUpdateInfo{
-               .binding_index = 5U,
-               .buffer_info {
-                   .buffer_handle = scene_draw_index_buffer
-               }
-           },
-           DescriptorBindingUpdateInfo{
-               .binding_index = 6U,
-               .buffer_info {
-                   .buffer_handle = scene_visibility_buffer
-               }
-           },
-           DescriptorBindingUpdateInfo{
-               .binding_index = 7U,
-               .buffer_info {
-                   .buffer_handle = scene_camera_buffer
-               },
-           },
-           DescriptorBindingUpdateInfo{
-               .binding_index = 8U,
-               .image_info {
-                   .image_handle = depth_hierarchy,
-                   .image_sampler = depth_hierarchy_sampler
-               }
-           }
-       }
-    });
-
-    first_draw_call_gen_pipeline = renderer.pipeline_manager->create_compute_pipeline(ComputePipelineCreateInfo{
-        .shader_path = "res/shaders/draw_call_gen.comp.spv",
-        .shader_constant_values { 0U },
-        .push_constants_size = sizeof(DrawCallGenPC),
-        .descriptors { draw_call_gen_descriptor }
-    });
-    second_draw_call_gen_pipeline = renderer.pipeline_manager->create_compute_pipeline(ComputePipelineCreateInfo{
-        .shader_path = "res/shaders/draw_call_gen.comp.spv",
-        .shader_constant_values { 1U },
-        .push_constants_size = sizeof(DrawCallGenPC),
-        .descriptors { draw_call_gen_descriptor }
-    });
-}
-void RasterRenderPath::init_forward_pipeline() {
-    forward_descriptor = renderer.resource_manager->create_descriptor(DescriptorCreateInfo{
         .bindings{
-            DescriptorBindingCreateInfo{ VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER, static_cast<u32>(MAX_SCENE_TEXTURES) },
-            DescriptorBindingCreateInfo{ VK_DESCRIPTOR_TYPE_STORAGE_BUFFER }, // Scene Object Buffer
-            DescriptorBindingCreateInfo{ VK_DESCRIPTOR_TYPE_STORAGE_BUFFER }, // Scene Material Buffer
-            DescriptorBindingCreateInfo{ VK_DESCRIPTOR_TYPE_STORAGE_BUFFER }, // Scene Draw Index Buffer
-            DescriptorBindingCreateInfo{ VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER }, // Scene Camera Buffer
+            DescriptorBindingUpdateInfo{
+                .binding_index = 0U,
+                .buffer_info {
+                    .buffer_handle = scene_lod_buffer
+                }
+            },
+            DescriptorBindingUpdateInfo{
+                .binding_index = 1U,
+                .buffer_info {
+                    .buffer_handle = scene_mesh_buffer
+                }
+            },
+            DescriptorBindingUpdateInfo{
+                .binding_index = 2U,
+                .buffer_info {
+                    .buffer_handle = scene_object_buffer
+                }
+            },
+            DescriptorBindingUpdateInfo{
+                .binding_index = 3U,
+                .buffer_info {
+                    .buffer_handle = scene_draw_buffer
+                }
+            },
+            DescriptorBindingUpdateInfo{
+                .binding_index = 4U,
+                .buffer_info {
+                    .buffer_handle = scene_draw_count_buffer
+                }
+            },
+            DescriptorBindingUpdateInfo{
+                .binding_index = 5U,
+                .buffer_info {
+                    .buffer_handle = scene_draw_index_buffer
+                }
+            },
+            DescriptorBindingUpdateInfo{
+                .binding_index = 6U,
+                .buffer_info {
+                    .buffer_handle = scene_visibility_buffer
+                }
+            },
+            DescriptorBindingUpdateInfo{
+                .binding_index = 7U,
+                .buffer_info {
+                    .buffer_handle = scene_camera_buffer
+                },
+            },
+            DescriptorBindingUpdateInfo{
+                .binding_index = 8U,
+                .image_info {
+                    .image_handle = depth_hierarchy,
+                    .image_sampler = depth_hierarchy_min_sampler
+                }
+            }
         }
     });
+
+    if (create_new) {
+        forward_descriptor = renderer.resource_manager->create_descriptor(DescriptorCreateInfo{
+            .bindings{
+                DescriptorBindingCreateInfo{VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER,
+                                            static_cast<u32>(MAX_SCENE_TEXTURES)},
+                DescriptorBindingCreateInfo{VK_DESCRIPTOR_TYPE_STORAGE_BUFFER}, // Scene Object Buffer
+                DescriptorBindingCreateInfo{VK_DESCRIPTOR_TYPE_STORAGE_BUFFER}, // Scene Material Buffer
+                DescriptorBindingCreateInfo{VK_DESCRIPTOR_TYPE_STORAGE_BUFFER}, // Scene Draw Index Buffer
+                DescriptorBindingCreateInfo{VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER}, // Scene Camera Buffer
+            }
+        });
+    }
     renderer.resource_manager->update_descriptor(forward_descriptor, DescriptorUpdateInfo{
         .bindings{
             DescriptorBindingUpdateInfo{
@@ -269,6 +266,80 @@ void RasterRenderPath::init_forward_pipeline() {
         }
     });
 
+    if (create_new) {
+        offscreen_rt_to_swapchain_descriptor = renderer.resource_manager->create_descriptor(DescriptorCreateInfo{
+            .bindings {
+                DescriptorBindingCreateInfo{VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER}
+            }
+        });
+    }
+    renderer.resource_manager->update_descriptor(offscreen_rt_to_swapchain_descriptor, DescriptorUpdateInfo{
+        .bindings {
+            DescriptorBindingUpdateInfo {
+                .image_info {
+                    .image_handle = offscreen_rt_image,
+                    .image_sampler = offscreen_rt_sampler
+                }
+            }
+        }
+    });
+
+    if (create_new) {
+        depth_image_descriptor = renderer.resource_manager->create_descriptor(DescriptorCreateInfo{
+            .bindings {
+                DescriptorBindingCreateInfo{VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER}
+            }
+        });
+    }
+    renderer.resource_manager->update_descriptor(depth_image_descriptor, DescriptorUpdateInfo {
+        .bindings {
+            DescriptorBindingUpdateInfo {
+                .image_info {
+                    .image_handle = depth_image,
+                    .image_sampler = depth_image_min_sampler
+                }
+            }
+        }
+    });
+
+    const auto& hierarchy_image_info = renderer.resource_manager->get_image_data(depth_hierarchy);
+
+    depth_hierarchy_descriptors.resize(static_cast<usize>(hierarchy_image_info.mip_level_count));
+
+    for(u32 i{}; i < hierarchy_image_info.mip_level_count; ++i) {
+        depth_hierarchy_descriptors[i] = renderer.resource_manager->create_descriptor(DescriptorCreateInfo{
+            .bindings {
+                DescriptorBindingCreateInfo{VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER}
+            }
+        });
+
+        renderer.resource_manager->update_descriptor(depth_hierarchy_descriptors[i], DescriptorUpdateInfo {
+            .bindings {
+                DescriptorBindingUpdateInfo {
+                    .image_info {
+                        .image_handle = depth_hierarchy,
+                        .image_sampler = depth_hierarchy_min_sampler,
+                        .image_mip = i
+                    }
+                }
+            }
+        });
+    }
+}
+void RasterRenderPath::init_pipelines() {
+    first_draw_call_gen_pipeline = renderer.pipeline_manager->create_compute_pipeline(ComputePipelineCreateInfo{
+        .shader_path = "res/shaders/draw_call_gen.comp.spv",
+        .shader_constant_values { 0U },
+        .push_constants_size = sizeof(DrawCallGenPC),
+        .descriptors { draw_call_gen_descriptor }
+    });
+    second_draw_call_gen_pipeline = renderer.pipeline_manager->create_compute_pipeline(ComputePipelineCreateInfo{
+        .shader_path = "res/shaders/draw_call_gen.comp.spv",
+        .shader_constant_values { 1U },
+        .push_constants_size = sizeof(DrawCallGenPC),
+        .descriptors { draw_call_gen_descriptor }
+    });
+
     forward_pipeline = renderer.pipeline_manager->create_graphics_pipeline(GraphicsPipelineCreateInfo{
         .vertex_shader_path = "./res/shaders/forward.vert.spv",
         .fragment_shader_path = "./res/shaders/forward.frag.spv",
@@ -295,10 +366,52 @@ void RasterRenderPath::init_forward_pipeline() {
         .enable_vertex_input = true,
     });
 
+    offscreen_rt_to_swapchain_pipeline = renderer.pipeline_manager->create_graphics_pipeline(GraphicsPipelineCreateInfo{
+        .vertex_shader_path = "res/shaders/fullscreen_tri.vert.spv",
+        .fragment_shader_path = "res/shaders/fullscreen_tri.frag.spv",
+        .descriptors = { offscreen_rt_to_swapchain_descriptor } ,
+        .color_target {
+            .format = renderer.resource_manager->get_image_data(offscreen_rt).format,
+            .layout = VK_IMAGE_LAYOUT_PRESENT_SRC_KHR
+        },
+        .cull_mode = VK_CULL_MODE_NONE,
+    });
+
+    depth_downscale_pipeline = renderer.pipeline_manager->create_graphics_pipeline(GraphicsPipelineCreateInfo{
+        .vertex_shader_path = "res/shaders/fullscreen_tri.vert.spv",
+        .fragment_shader_path = "res/shaders/depth_downscale.frag.spv",
+
+        .descriptors { depth_hierarchy_descriptors.at(0) },
+
+        .color_target {
+            .format = renderer.resource_manager->get_image_data(depth_hierarchy).format,
+            .layout = VK_IMAGE_LAYOUT_COLOR_ATTACHMENT_OPTIMAL
+        },
+
+        .cull_mode = VK_CULL_MODE_NONE,
+    });
+}
+void RasterRenderPath::init_render_targets() {
     offscreen_rt = renderer.pipeline_manager->create_render_target(forward_pipeline, RenderTargetCreateInfo{
         .color_target_handle = offscreen_rt_image,
         .depth_target_handle = depth_image
     });
+
+    offscreen_rt_to_swapchain_targets.resize(renderer.get_swapchain_index_count());
+    for(u32 i{}; i < renderer.get_swapchain_index_count(); ++i){
+        offscreen_rt_to_swapchain_targets[i] = renderer.pipeline_manager->create_render_target(offscreen_rt_to_swapchain_pipeline, RenderTargetCreateInfo{
+            .color_target_handle = renderer.get_swapchain_image_handle(i)
+        });
+    }
+
+    const auto& hierarchy_image_info = renderer.resource_manager->get_image_data(depth_hierarchy);
+    depth_hierarchy_rts.resize(static_cast<usize>(hierarchy_image_info.mip_level_count));
+    for(u32 i{}; i < hierarchy_image_info.mip_level_count; ++i) {
+        depth_hierarchy_rts[i] = renderer.pipeline_manager->create_render_target(depth_downscale_pipeline, RenderTargetCreateInfo{
+            .color_target_handle = depth_hierarchy,
+            .color_target_mip = i
+        });
+    }
 
     std::vector<ImageBarrier> init_swapchain_barriers{};
     for(u32 i{}; i < renderer.get_swapchain_index_count(); ++i){
@@ -321,104 +434,6 @@ void RasterRenderPath::init_forward_pipeline() {
             .dst_access_mask = VK_ACCESS_SHADER_READ_BIT,
             .new_layout = VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL,
         }});
-    });
-}
-void RasterRenderPath::init_offscreen_rt_to_swapchain_pipeline() {
-    offscreen_rt_to_swapchain_descriptor = renderer.resource_manager->create_descriptor(DescriptorCreateInfo{
-       .bindings {
-           DescriptorBindingCreateInfo { VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER }
-       }
-    });
-    renderer.resource_manager->update_descriptor(offscreen_rt_to_swapchain_descriptor, DescriptorUpdateInfo{
-        .bindings {
-            DescriptorBindingUpdateInfo {
-                .image_info {
-                    .image_handle = offscreen_rt_image,
-                    .image_sampler = offscreen_rt_sampler
-                }
-            }
-        }
-    });
-
-    offscreen_rt_to_swapchain_pipeline = renderer.pipeline_manager->create_graphics_pipeline(GraphicsPipelineCreateInfo{
-        .vertex_shader_path = "res/shaders/fullscreen_tri.vert.spv",
-        .fragment_shader_path = "res/shaders/fullscreen_tri.frag.spv",
-        .descriptors = { offscreen_rt_to_swapchain_descriptor } ,
-        .color_target {
-            .format = renderer.resource_manager->get_image_data(offscreen_rt).format,
-            .layout = VK_IMAGE_LAYOUT_PRESENT_SRC_KHR
-        },
-        .cull_mode = VK_CULL_MODE_NONE,
-    });
-
-    for(u32 i{}; i < renderer.get_swapchain_index_count(); ++i){
-        offscreen_rt_to_swapchain_targets.push_back(renderer.pipeline_manager->create_render_target(offscreen_rt_to_swapchain_pipeline, RenderTargetCreateInfo{
-            .color_target_handle = renderer.get_swapchain_image_handle(i)
-        }));
-    }
-}
-void RasterRenderPath::init_depth_downscale_pipeline() {
-    depth_image_descriptor = renderer.resource_manager->create_descriptor(DescriptorCreateInfo{
-       .bindings {
-           DescriptorBindingCreateInfo { VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER }
-       }
-    });
-    renderer.resource_manager->update_descriptor(depth_image_descriptor, DescriptorUpdateInfo {
-       .bindings {
-           DescriptorBindingUpdateInfo {
-               .image_info {
-                   .image_handle = depth_image,
-                   .image_sampler = depth_image_sampler
-               }
-           }
-       }
-    });
-
-    const auto& hierarchy_image_info = renderer.resource_manager->get_image_data(depth_hierarchy);
-
-    depth_hierarchy_descriptors.resize(static_cast<usize>(hierarchy_image_info.mip_level_count));
-    for(u32 i{}; i < hierarchy_image_info.mip_level_count; ++i) {
-        depth_hierarchy_descriptors[i] = renderer.resource_manager->create_descriptor(DescriptorCreateInfo{
-            .bindings {
-                DescriptorBindingCreateInfo { VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER }
-            }
-        });
-        renderer.resource_manager->update_descriptor(depth_hierarchy_descriptors[i], DescriptorUpdateInfo {
-            .bindings {
-                DescriptorBindingUpdateInfo {
-                    .image_info {
-                        .image_handle = depth_hierarchy,
-                        .image_sampler = depth_hierarchy_sampler,
-                        .image_mip = i
-                    }
-                }
-            }
-        });
-    }
-
-    depth_downscale_pipeline = renderer.pipeline_manager->create_graphics_pipeline(GraphicsPipelineCreateInfo{
-        .vertex_shader_path = "res/shaders/fullscreen_tri.vert.spv",
-        .fragment_shader_path = "res/shaders/depth_downscale.frag.spv",
-
-        .descriptors { depth_hierarchy_descriptors.at(0) },
-
-        .color_target {
-            .format = renderer.resource_manager->get_image_data(depth_hierarchy).format,
-            .layout = VK_IMAGE_LAYOUT_COLOR_ATTACHMENT_OPTIMAL
-        },
-
-        .cull_mode = VK_CULL_MODE_NONE,
-    });
-
-    depth_hierarchy_rts.resize(static_cast<usize>(hierarchy_image_info.mip_level_count));
-    for(u32 i{}; i < hierarchy_image_info.mip_level_count; ++i) {
-        depth_hierarchy_rts[i] = renderer.pipeline_manager->create_render_target(depth_downscale_pipeline, RenderTargetCreateInfo{
-            .color_target_handle = depth_hierarchy,
-            .color_target_mip = i
-        });
-    }
-
-    renderer.record_and_submit_once([this](Handle<CommandList> cmd){
         renderer.image_barrier(cmd, VK_PIPELINE_STAGE_TOP_OF_PIPE_BIT, VK_PIPELINE_STAGE_COMPUTE_SHADER_BIT, { ImageBarrier{
             .image_handle = depth_hierarchy,
             .dst_access_mask = VK_ACCESS_SHADER_READ_BIT, // LoadOp = Load
@@ -427,8 +442,10 @@ void RasterRenderPath::init_depth_downscale_pipeline() {
     });
 }
 void RasterRenderPath::init_frames() {
+    frames.resize(FRAMES_IN_FLIGHT);
+
     for(u32 i{}; i < FRAMES_IN_FLIGHT; ++i) {
-        Frame frame{
+        frames[i] = Frame{
             .command_list = renderer.command_manager->create_command_list(QueueFamily::Graphics),
             .present_semaphore = renderer.command_manager->create_semaphore(),
             .render_semaphore = renderer.command_manager->create_semaphore(),
@@ -440,9 +457,7 @@ void RasterRenderPath::init_frames() {
             })
         };
 
-        frame.upload_ptr = renderer.resource_manager->map_buffer(frame.upload_buffer);
-
-        frames.push_back(frame);
+        frames[i].upload_ptr = renderer.resource_manager->map_buffer(frames[i].upload_buffer);
     }
 }
 void RasterRenderPath::init_defaults() {
@@ -469,20 +484,100 @@ void RasterRenderPath::init_defaults() {
     });
 }
 
+void RasterRenderPath::destroy_scene_buffers() {
+    renderer.resource_manager->destroy_buffer(scene_visibility_buffer);
+    renderer.resource_manager->destroy_buffer(scene_material_buffer);
+    renderer.resource_manager->destroy_buffer(scene_draw_buffer);
+    renderer.resource_manager->destroy_buffer(scene_draw_index_buffer);
+    renderer.resource_manager->destroy_buffer(scene_draw_count_buffer);
+    renderer.resource_manager->destroy_buffer(scene_lod_buffer);
+    renderer.resource_manager->destroy_buffer(scene_mesh_buffer);
+    renderer.resource_manager->destroy_buffer(scene_object_buffer);
+    renderer.resource_manager->destroy_buffer(scene_camera_buffer);
+    renderer.resource_manager->destroy_buffer(scene_vertex_buffer);
+    renderer.resource_manager->destroy_buffer(scene_index_buffer);
+}
+void RasterRenderPath::destroy_screen_images() {
+    renderer.resource_manager->destroy_image(offscreen_rt_image);
+    renderer.resource_manager->destroy_image(depth_image);
+    renderer.resource_manager->destroy_image(depth_hierarchy);
+
+    renderer.resource_manager->destroy_sampler(depth_hierarchy_min_sampler);
+    renderer.resource_manager->destroy_sampler(depth_image_min_sampler);
+    renderer.resource_manager->destroy_sampler(offscreen_rt_sampler);
+}
+void RasterRenderPath::destroy_descriptors(bool create_new) {
+    if(create_new) {
+        renderer.resource_manager->destroy_descriptor(draw_call_gen_descriptor);
+        renderer.resource_manager->destroy_descriptor(forward_descriptor);
+        renderer.resource_manager->destroy_descriptor(offscreen_rt_to_swapchain_descriptor);
+        renderer.resource_manager->destroy_descriptor(depth_image_descriptor);
+    }
+
+    for(const auto& handle : depth_hierarchy_descriptors) {
+        renderer.resource_manager->destroy_descriptor(handle);
+    }
+}
+void RasterRenderPath::destroy_pipelines() {
+    renderer.pipeline_manager->destroy_compute_pipeline(first_draw_call_gen_pipeline);
+    renderer.pipeline_manager->destroy_compute_pipeline(second_draw_call_gen_pipeline);
+
+    renderer.pipeline_manager->destroy_graphics_pipeline(forward_pipeline);
+    renderer.pipeline_manager->destroy_graphics_pipeline(offscreen_rt_to_swapchain_pipeline);
+    renderer.pipeline_manager->destroy_graphics_pipeline(depth_downscale_pipeline);
+}
+void RasterRenderPath::destroy_render_targets() {
+    renderer.pipeline_manager->destroy_render_target(offscreen_rt);
+
+    for(const auto& handle : offscreen_rt_to_swapchain_targets) {
+        renderer.pipeline_manager->destroy_render_target(handle);
+    }
+
+    offscreen_rt_to_swapchain_targets.clear();
+
+    for(const auto& handle : depth_hierarchy_rts) {
+        renderer.pipeline_manager->destroy_render_target(handle);
+    }
+
+    depth_hierarchy_rts.clear();
+}
+void RasterRenderPath::destroy_frames() {
+    for(const auto& frame : frames) {
+        renderer.command_manager->destroy_command_list(frame.command_list);
+        renderer.command_manager->destroy_semaphore(frame.present_semaphore);
+        renderer.command_manager->destroy_semaphore(frame.render_semaphore);
+        renderer.command_manager->destroy_fence(frame.fence);
+        renderer.resource_manager->unmap_buffer(frame.upload_buffer);
+        renderer.resource_manager->destroy_buffer(frame.upload_buffer);
+    }
+
+    frames.clear();
+}
+void RasterRenderPath::destroy_defaults() {
+    renderer.resource_manager->destroy_image(default_white_srgb_texture);
+    renderer.resource_manager->destroy_image(default_grey_unorm_texture);
+}
+
 void RasterRenderPath::resize(const Window &window) {
     renderer.wait_for_device_idle();
 
     frames_since_init = 0;
 
-    DEBUG_PANIC("resize depth hierarchy and forward rt here")
-    /*
-    renderer.recreate_swapchain(window.get_size(), renderer.get_swapchain_config());
     for(const auto& frame : frames) {
         renderer.reset_commands(frame.command_list);
     }
 
+    destroy_render_targets();
+    destroy_descriptors(false);
+    destroy_screen_images();
 
-     */
+    renderer.recreate_swapchain(window.get_size(), renderer.get_swapchain_config());
+
+    init_screen_images(window);
+    init_descriptors(false);
+    init_render_targets();
+
+    renderer.wait_for_device_idle();
 }
 void RasterRenderPath::render(World& world, Handle<Camera> camera) {
     begin_recording_frame();

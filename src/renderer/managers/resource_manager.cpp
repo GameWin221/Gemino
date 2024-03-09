@@ -494,7 +494,7 @@ void ResourceManager::destroy_descriptor(Handle<Descriptor> descriptor_handle) {
     vkFreeDescriptorSets(vk_device, vk_descriptor_pool, 1U, &descriptor.set);
     vkDestroyDescriptorSetLayout(vk_device, descriptor.layout, nullptr);
 
-    buffer_allocator.free(descriptor_handle);
+    descriptor_allocator.free(descriptor_handle);
 }
 void ResourceManager::destroy_sampler(Handle<Sampler> sampler_handle) {
     if (!sampler_allocator.is_handle_valid(sampler_handle)) {
