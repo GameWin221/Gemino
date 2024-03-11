@@ -30,7 +30,7 @@ struct MeshLODCreateInfo {
     const u32* index_data{};
     u32 index_count{};
 
-    glm::vec3 center{};
+    glm::vec3 center_offset{};
     f32 radius{};
 
     static MeshLODCreateInfo from_sub_mesh_data(const Utils::SubMeshImportData& data) {
@@ -39,7 +39,7 @@ struct MeshLODCreateInfo {
             .vertex_count = static_cast<u32>(data.vertices.size()),
             .index_data = data.indices.data(),
             .index_count = static_cast<u32>(data.indices.size()),
-            .center = data.center,
+            .center_offset = data.center_offset,
             .radius = data.radius
         };
     }
@@ -141,6 +141,13 @@ private:
     void render_world(const World& world, Handle<Camera> camera);
     void end_recording_frame();
 
+    void render_pass_first_draw_call_gen(u32 scene_objects_count, const DrawCallGenPC &draw_call_gen_pc);
+    void render_pass_first_geometry(u32 scene_objects_count);
+    void render_pass_depth_hierarchy();
+    void render_pass_second_draw_call_gen(u32 scene_objects_count, const DrawCallGenPC &draw_call_gen_pc);
+    void render_pass_second_geometry(u32 scene_objects_count);
+    void render_pass_offscreen_rt_to_swapchain();
+
     void init_scene_buffers();
     void init_screen_images(const Window& window);
     void init_debug_info();
@@ -206,9 +213,8 @@ private:
     Handle<GraphicsPipeline> offscreen_rt_to_swapchain_pipeline{};
 
     Handle<Image> depth_image{};
-    Handle<Sampler> depth_image_min_sampler{};
     Handle<Image> depth_hierarchy{};
-    Handle<Sampler> depth_hierarchy_min_sampler{};
+    Handle<Sampler> depth_min_sampler{};
     Handle<Descriptor> depth_image_descriptor{};
     std::vector<Handle<Descriptor>> depth_hierarchy_descriptors{};
     std::vector<Handle<RenderTarget>> depth_hierarchy_rts{};

@@ -36,7 +36,7 @@ struct alignas(16) Camera {
 };
 // std140
 struct alignas(16) MeshLOD {
-    glm::vec3 center{};
+    glm::vec3 center_offset{};
     f32 radius{};
 
     u32 index_count{};

@@ -17,7 +17,7 @@ namespace Utils {
         std::vector<Vertex> vertices{};
         std::vector<u32> indices{};
 
-        glm::vec3 center{};
+        glm::vec3 center_offset{};
         f32 radius{};
 
         void free() {

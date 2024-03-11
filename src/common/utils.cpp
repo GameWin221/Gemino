@@ -13,17 +13,17 @@
 #include <stb/stb_image.h>
 
 u32 Utils::nearest_pot_floor(u32 x) {
-    return (1U << static_cast<uint32_t>(std::floor(std::log2(x))));
+    return (1U << static_cast<u32>(std::floor(std::log2(x))));
 }
 
 u32 Utils::calculate_mipmap_levels_x(u32 width) {
     return static_cast<u32>(std::floor(std::log2(width))) + 1U;
 }
 u32 Utils::calculate_mipmap_levels_xy(u32 width, u32 height) {
-    return static_cast<uint32_t>(std::floor(std::log2(std::max(width, height)))) + 1U;
+    return static_cast<u32>(std::floor(std::log2(std::max(width, height)))) + 1U;
 }
 u32 Utils::calculate_mipmap_levels_xyz(u32 width, u32 height, u32 depth) {
-    return static_cast<uint32_t>(std::floor(std::log2(std::max(std::max(width, height), depth)))) + 1U;
+    return static_cast<u32>(std::floor(std::log2(std::max(std::max(width, height), depth)))) + 1U;
 }
 
 std::vector<u8> Utils::read_file_bytes(const std::string& path) {
@@ -88,11 +88,11 @@ static void post_process_sub_mesh(Utils::SubMeshImportData& sub_mesh) {
         }
     }
 
-    sub_mesh.center = (pos_min + pos_max) / 2.0f;
+    sub_mesh.center_offset = (pos_min + pos_max) / 2.0f;
 
     f32 max_dist{};
     for(const auto& vertex : sub_mesh.vertices) {
-        f32 dist = glm::distance(sub_mesh.center, vertex.pos);
+        f32 dist = glm::distance(sub_mesh.center_offset, vertex.pos);
 
         if(dist > max_dist) {
             max_dist = dist;

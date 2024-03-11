@@ -122,11 +122,6 @@ void RasterRenderPath::init_screen_images(const Window& window) {
         .usage_flags = VK_IMAGE_USAGE_DEPTH_STENCIL_ATTACHMENT_BIT | VK_IMAGE_USAGE_SAMPLED_BIT,
         .aspect_flags = VK_IMAGE_ASPECT_DEPTH_BIT
     });
-    depth_image_min_sampler = renderer.resource_manager->create_sampler(SamplerCreateInfo{
-        .filter = VK_FILTER_LINEAR,
-        .mipmap_mode = VK_SAMPLER_MIPMAP_MODE_NEAREST,
-        .reduction_mode = VK_SAMPLER_REDUCTION_MODE_MIN
-    });
 
     u32 hierarchy_width = Utils::nearest_pot_floor(window.get_size().x);
     u32 hierarchy_height = Utils::nearest_pot_floor(window.get_size().y);
@@ -141,11 +136,10 @@ void RasterRenderPath::init_screen_images(const Window& window) {
         .create_per_mip_views = true
     });
 
-    depth_hierarchy_min_sampler = renderer.resource_manager->create_sampler(SamplerCreateInfo{
+    depth_min_sampler = renderer.resource_manager->create_sampler(SamplerCreateInfo{
         .filter = VK_FILTER_LINEAR,
         .mipmap_mode = VK_SAMPLER_MIPMAP_MODE_NEAREST,
-        .reduction_mode = VK_SAMPLER_REDUCTION_MODE_MIN,
-        .max_mipmap = static_cast<f32>(renderer.resource_manager->get_image_data(depth_hierarchy).mip_level_count),
+        .reduction_mode = VK_SAMPLER_REDUCTION_MODE_MIN
     });
 }
 void RasterRenderPath::init_descriptors(bool create_new) {
@@ -219,7 +213,7 @@ void RasterRenderPath::init_descriptors(bool create_new) {
                 .binding_index = 8U,
                 .image_info {
                     .image_handle = depth_hierarchy,
-                    .image_sampler = depth_hierarchy_min_sampler
+                    .image_sampler = depth_min_sampler
                 }
             }
         }
@@ -296,7 +290,7 @@ void RasterRenderPath::init_descriptors(bool create_new) {
             DescriptorBindingUpdateInfo {
                 .image_info {
                     .image_handle = depth_image,
-                    .image_sampler = depth_image_min_sampler
+                    .image_sampler = depth_min_sampler
                 }
             }
         }
@@ -318,7 +312,7 @@ void RasterRenderPath::init_descriptors(bool create_new) {
                 DescriptorBindingUpdateInfo {
                     .image_info {
                         .image_handle = depth_hierarchy,
-                        .image_sampler = depth_hierarchy_min_sampler,
+                        .image_sampler = depth_min_sampler,
                         .image_mip = i
                     }
                 }
@@ -502,8 +496,7 @@ void RasterRenderPath::destroy_screen_images() {
     renderer.resource_manager->destroy_image(depth_image);
     renderer.resource_manager->destroy_image(depth_hierarchy);
 
-    renderer.resource_manager->destroy_sampler(depth_hierarchy_min_sampler);
-    renderer.resource_manager->destroy_sampler(depth_image_min_sampler);
+    renderer.resource_manager->destroy_sampler(depth_min_sampler);
     renderer.resource_manager->destroy_sampler(offscreen_rt_sampler);
 }
 void RasterRenderPath::destroy_descriptors(bool create_new) {
@@ -698,7 +691,37 @@ void RasterRenderPath::render_world(const World& world, Handle<Camera> camera) {
         .depth_hierarchy_height = static_cast<f32>(depth_hierarchy_image_info.extent.height)
     };
 
-    // First pass
+    render_pass_first_draw_call_gen(scene_objects_count, draw_call_gen_pc);
+    render_pass_first_geometry(scene_objects_count);
+    render_pass_depth_hierarchy();
+    render_pass_second_draw_call_gen(scene_objects_count, draw_call_gen_pc);
+    render_pass_second_geometry(scene_objects_count);
+    render_pass_offscreen_rt_to_swapchain();
+}
+void RasterRenderPath::end_recording_frame() {
+    const Frame& frame = frames[frame_in_flight_index];
+
+    SubmitInfo submit{
+        .fence = frame.fence,
+        .wait_semaphores = { frame.present_semaphore },
+        .signal_semaphores{ frame.render_semaphore },
+        .signal_stages{ VK_PIPELINE_STAGE_COLOR_ATTACHMENT_OUTPUT_BIT }
+    };
+
+    renderer.end_recording_commands(frame.command_list);
+    renderer.submit_commands(frame.command_list, submit);
+
+    if (renderer.present_swapchain(frame.render_semaphore, swapchain_target_index) != VK_SUCCESS) {
+        DEBUG_PANIC("Failed to present swap chain image!")
+    }
+
+    frame_in_flight_index = (frame_in_flight_index + 1) % FRAMES_IN_FLIGHT;
+    frames_since_init += 1;
+}
+
+void RasterRenderPath::render_pass_first_draw_call_gen(u32 scene_objects_count, const DrawCallGenPC &draw_call_gen_pc) {
+    const Frame& frame = frames[frame_in_flight_index];
+
     renderer.fill_buffer(frame.command_list, scene_draw_count_buffer, 0U, sizeof(u32));
 
     renderer.buffer_barrier(frame.command_list, VK_PIPELINE_STAGE_TRANSFER_BIT, VK_PIPELINE_STAGE_COMPUTE_SHADER_BIT, {
@@ -726,6 +749,9 @@ void RasterRenderPath::render_world(const World& world, Handle<Camera> camera) {
             .dst_access_mask = VK_ACCESS_INDIRECT_COMMAND_READ_BIT,
         },
     });
+}
+void RasterRenderPath::render_pass_first_geometry(u32 scene_objects_count) {
+    const Frame& frame = frames[frame_in_flight_index];
 
     renderer.image_barrier(frame.command_list, VK_PIPELINE_STAGE_FRAGMENT_SHADER_BIT, VK_PIPELINE_STAGE_COLOR_ATTACHMENT_OUTPUT_BIT, {
         ImageBarrier{
@@ -760,6 +786,9 @@ void RasterRenderPath::render_world(const World& world, Handle<Camera> camera) {
     renderer.draw_indexed_indirect_count(frame.command_list,scene_draw_buffer, scene_draw_count_buffer,scene_objects_count, sizeof(VkDrawIndexedIndirectCommand));
 
     renderer.end_graphics_pipeline(frame.command_list, forward_pipeline);
+}
+void RasterRenderPath::render_pass_depth_hierarchy() {
+    const Frame& frame = frames[frame_in_flight_index];
 
     renderer.image_barrier(frame.command_list, VK_PIPELINE_STAGE_LATE_FRAGMENT_TESTS_BIT, VK_PIPELINE_STAGE_FRAGMENT_SHADER_BIT, { ImageBarrier{
         .image_handle = depth_image,
@@ -818,26 +847,9 @@ void RasterRenderPath::render_world(const World& world, Handle<Camera> camera) {
         .old_layout = VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL,
         .new_layout = VK_IMAGE_LAYOUT_DEPTH_STENCIL_ATTACHMENT_OPTIMAL
     }});
-
-    // Second pass
-    renderer.image_barrier(frame.command_list, VK_PIPELINE_STAGE_COLOR_ATTACHMENT_OUTPUT_BIT, VK_PIPELINE_STAGE_COLOR_ATTACHMENT_OUTPUT_BIT, {
-        ImageBarrier{
-            .image_handle = offscreen_rt_image,
-            .src_access_mask = VK_ACCESS_COLOR_ATTACHMENT_WRITE_BIT,
-            .dst_access_mask = VK_ACCESS_COLOR_ATTACHMENT_READ_BIT,
-            .old_layout = VK_IMAGE_LAYOUT_COLOR_ATTACHMENT_OPTIMAL,
-            .new_layout = VK_IMAGE_LAYOUT_COLOR_ATTACHMENT_OPTIMAL
-        }
-    });
-    renderer.image_barrier(frame.command_list, VK_PIPELINE_STAGE_LATE_FRAGMENT_TESTS_BIT, VK_PIPELINE_STAGE_EARLY_FRAGMENT_TESTS_BIT, {
-        ImageBarrier{
-            .image_handle = depth_image,
-            .src_access_mask = VK_ACCESS_DEPTH_STENCIL_ATTACHMENT_WRITE_BIT,
-            .dst_access_mask = VK_ACCESS_DEPTH_STENCIL_ATTACHMENT_READ_BIT,
-            .old_layout = VK_IMAGE_LAYOUT_DEPTH_STENCIL_ATTACHMENT_OPTIMAL,
-            .new_layout = VK_IMAGE_LAYOUT_DEPTH_STENCIL_ATTACHMENT_OPTIMAL
-        }
-    });
+}
+void RasterRenderPath::render_pass_second_draw_call_gen(u32 scene_objects_count, const DrawCallGenPC &draw_call_gen_pc) {
+    const Frame& frame = frames[frame_in_flight_index];
 
     renderer.buffer_barrier(frame.command_list, VK_PIPELINE_STAGE_DRAW_INDIRECT_BIT, VK_PIPELINE_STAGE_TRANSFER_BIT, {
         BufferBarrier{
@@ -881,6 +893,19 @@ void RasterRenderPath::render_world(const World& world, Handle<Camera> camera) {
             .dst_access_mask = VK_ACCESS_INDIRECT_COMMAND_READ_BIT,
         },
     });
+}
+void RasterRenderPath::render_pass_second_geometry(u32 scene_objects_count) {
+    const Frame& frame = frames[frame_in_flight_index];
+
+    renderer.image_barrier(frame.command_list, VK_PIPELINE_STAGE_COLOR_ATTACHMENT_OUTPUT_BIT, VK_PIPELINE_STAGE_COLOR_ATTACHMENT_OUTPUT_BIT, {
+        ImageBarrier{
+            .image_handle = offscreen_rt_image,
+            .src_access_mask = VK_ACCESS_COLOR_ATTACHMENT_WRITE_BIT,
+            .dst_access_mask = VK_ACCESS_COLOR_ATTACHMENT_READ_BIT,
+            .old_layout = VK_IMAGE_LAYOUT_COLOR_ATTACHMENT_OPTIMAL,
+            .new_layout = VK_IMAGE_LAYOUT_COLOR_ATTACHMENT_OPTIMAL
+        }
+    });
 
     renderer.buffer_barrier(frame.command_list, VK_PIPELINE_STAGE_COMPUTE_SHADER_BIT, VK_PIPELINE_STAGE_VERTEX_SHADER_BIT, {
         BufferBarrier{
@@ -901,6 +926,9 @@ void RasterRenderPath::render_world(const World& world, Handle<Camera> camera) {
     renderer.draw_indexed_indirect_count(frame.command_list,scene_draw_buffer, scene_draw_count_buffer,scene_objects_count, sizeof(VkDrawIndexedIndirectCommand));
 
     renderer.end_graphics_pipeline(frame.command_list, forward_pipeline);
+}
+void RasterRenderPath::render_pass_offscreen_rt_to_swapchain() {
+    const Frame& frame = frames[frame_in_flight_index];
 
     renderer.image_barrier(frame.command_list, VK_PIPELINE_STAGE_COLOR_ATTACHMENT_OUTPUT_BIT, VK_PIPELINE_STAGE_FRAGMENT_SHADER_BIT, { ImageBarrier{
         .image_handle = offscreen_rt_image,
@@ -914,26 +942,6 @@ void RasterRenderPath::render_world(const World& world, Handle<Camera> camera) {
     renderer.bind_graphics_descriptor(frame.command_list, offscreen_rt_to_swapchain_pipeline, offscreen_rt_to_swapchain_descriptor, 0U);
     renderer.draw_count(frame.command_list, 3U),
     renderer.end_graphics_pipeline(frame.command_list, offscreen_rt_to_swapchain_pipeline);
-}
-void RasterRenderPath::end_recording_frame() {
-    const Frame& frame = frames[frame_in_flight_index];
-
-    SubmitInfo submit{
-        .fence = frame.fence,
-        .wait_semaphores = { frame.present_semaphore },
-        .signal_semaphores{ frame.render_semaphore },
-        .signal_stages{ VK_PIPELINE_STAGE_COLOR_ATTACHMENT_OUTPUT_BIT }
-    };
-
-    renderer.end_recording_commands(frame.command_list);
-    renderer.submit_commands(frame.command_list, submit);
-
-    if (renderer.present_swapchain(frame.render_semaphore, swapchain_target_index) != VK_SUCCESS) {
-        DEBUG_PANIC("Failed to present swap chain image!")
-    }
-
-    frame_in_flight_index = (frame_in_flight_index + 1) % FRAMES_IN_FLIGHT;
-    frames_since_init += 1;
 }
 
 Handle<Mesh> RasterRenderPath::create_mesh(const MeshCreateInfo& create_info) {
@@ -963,7 +971,7 @@ Handle<Mesh> RasterRenderPath::create_mesh(const MeshCreateInfo& create_info) {
         const auto& lod = create_info.lods[lod_id];
 
         MeshLOD mesh_lod{
-            .center = lod.center,
+            .center_offset = lod.center_offset,
             .radius = lod.radius,
             .index_count = lod.index_count,
             .first_index = allocated_indices,

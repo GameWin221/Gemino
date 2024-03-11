@@ -16,7 +16,7 @@ int main(){
     Window window(WindowConfig{
         .title = "Gemino Engine Example",
         .fullscreen = false,
-        .resizable = true
+        .resizable = true,
     });
 
     InputManager input(window);
@@ -66,9 +66,9 @@ int main(){
     std::srand(static_cast<u32>(std::time(nullptr)));
 
     World world{};
-    for(u32 x{}; x < 2U; ++x) {
-        for(u32 y{}; y < 2U; ++y) {
-            for(u32 z{}; z < 20U; ++z) {
+    for(u32 x{}; x < 6u; ++x) {
+        for(u32 y{}; y < 6u; ++y) {
+            for(u32 z{}; z < 6u; ++z) {
                 world.create_object(ObjectCreateInfo{
                     .mesh = ((x + y + z) % 2 == 0) ? monkey_mesh_handle : sphere_mesh_handle,
                     .material = (((x + y + z) % 2 == 0) ? material_monkey_handle : material_handle),
@@ -139,8 +139,16 @@ int main(){
             input.set_cursor_mode(CursorMode::Locked);
         }
 
-        world.set_camera_position(main_camera, main_camera_data.position + camera_movement * static_cast<f32>(dt) * camera_movement_speed);
-        world.set_camera_rotation(main_camera, main_camera_data.pitch - mouse_vel.y * camera_rotate_speed, main_camera_data.yaw + mouse_vel.x * camera_rotate_speed);
+        //world.set_camera_position(main_camera, main_camera_data.position + camera_movement * static_cast<f32>(dt) * camera_movement_speed);
+        //world.set_camera_rotation(main_camera, main_camera_data.pitch - mouse_vel.y * camera_rotate_speed, main_camera_data.yaw + mouse_vel.x * camera_rotate_speed);
+
+        world.set_camera_position(main_camera, glm::vec3(-2.5056f, 0.944033f, -4.88014f));
+        world.set_camera_rotation(main_camera, -1.39994f + std::sin(static_cast<f32>(time)) * 10.0f, 55.7997f+ std::cos(static_cast<f32>(time)) * 10.0f);
+
+        if(input.get_key(Key::G, InputState::Pressed)) {
+            DEBUG_LOG("Position: " << main_camera_data.position.x << "f, " << main_camera_data.position.y << "f, " << main_camera_data.position.z << "f")
+            DEBUG_LOG("Rotation: " << main_camera_data.pitch << "f, " << main_camera_data.yaw << "f")
+        }
 
         //for(Handle<Object> handle{}; handle < static_cast<u32>(world.get_objects().size()); ++handle) {
         //    Handle<Transform> t = world.get_object(handle).transform;
