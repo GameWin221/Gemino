@@ -59,6 +59,7 @@ struct SamplerCreateInfo {
     VkFilter filter = VK_FILTER_LINEAR;
     VkSamplerMipmapMode mipmap_mode = VK_SAMPLER_MIPMAP_MODE_LINEAR;
     VkSamplerReductionMode reduction_mode = VK_SAMPLER_REDUCTION_MODE_MAX_ENUM;
+    VkSamplerAddressMode address_mode = VK_SAMPLER_ADDRESS_MODE_REPEAT;
 
     float max_mipmap = VK_LOD_CLAMP_NONE;
     float mipmap_bias{};

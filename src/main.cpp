@@ -15,9 +15,11 @@
 int main(){
     Window window(WindowConfig{
         .title = "Gemino Engine Example",
+        .windowed_size = glm::uvec2(1920u, 1080u),
         .fullscreen = false,
-        .resizable = true,
+        .resizable = true
     });
+
 
     InputManager input(window);
 
@@ -63,12 +65,13 @@ int main(){
         .color = glm::vec3(1.0f, 0.2f, 1.0f)
     });
 
-    std::srand(static_cast<u32>(std::time(nullptr)));
+    //std::srand(static_cast<u32>(std::time(nullptr)));
+    std::srand(0xDEADBEEF);
 
     World world{};
-    for(u32 x{}; x < 6u; ++x) {
-        for(u32 y{}; y < 6u; ++y) {
-            for(u32 z{}; z < 6u; ++z) {
+    for(u32 x{}; x < 40u; ++x) {
+        for(u32 y{}; y < 80u; ++y) {
+            for(u32 z{}; z < 40u; ++z) {
                 world.create_object(ObjectCreateInfo{
                     .mesh = ((x + y + z) % 2 == 0) ? monkey_mesh_handle : sphere_mesh_handle,
                     .material = (((x + y + z) % 2 == 0) ? material_monkey_handle : material_handle),
@@ -86,11 +89,13 @@ int main(){
         .scale = glm::vec3(5.0f)
     });
 
+
     auto main_camera = world.create_camera(CameraCreateInfo{
         .viewport_size = glm::vec2(window.get_size()),
         .position = glm::vec3(-2.0f, 10.0f, -2.0f),
         .pitch = -25.0f,
-        .near_plane = 0.2f,
+        .fov = 60.0f,
+        .near_plane = 0.01f,
         .far_plane = 2000.0f
     });
 
@@ -139,15 +144,32 @@ int main(){
             input.set_cursor_mode(CursorMode::Locked);
         }
 
-        //world.set_camera_position(main_camera, main_camera_data.position + camera_movement * static_cast<f32>(dt) * camera_movement_speed);
-        //world.set_camera_rotation(main_camera, main_camera_data.pitch - mouse_vel.y * camera_rotate_speed, main_camera_data.yaw + mouse_vel.x * camera_rotate_speed);
+        world.set_camera_position(main_camera, main_camera_data.position + camera_movement * static_cast<f32>(dt) * camera_movement_speed);
+        world.set_camera_rotation(main_camera, main_camera_data.pitch - mouse_vel.y * camera_rotate_speed, main_camera_data.yaw + mouse_vel.x * camera_rotate_speed);
 
-        world.set_camera_position(main_camera, glm::vec3(-2.5056f, 0.944033f, -4.88014f));
-        world.set_camera_rotation(main_camera, -1.39994f + std::sin(static_cast<f32>(time)) * 10.0f, 55.7997f+ std::cos(static_cast<f32>(time)) * 10.0f);
+        f32 f_time = static_cast<f32>(time);
+
+
+        //world.set_camera_position(main_camera, glm::vec3(40.4874f, 7.70619f, 29.7653f));
+        //world.set_camera_rotation(main_camera,glm::mix(19.1001f, 20.1001f, sinf(f_time)),glm::mix(-84.5997f, -85.5997f, sinf(f_time)));
+
+        //std::this_thread::sleep_for(std::chrono::milliseconds(50));
 
         if(input.get_key(Key::G, InputState::Pressed)) {
             DEBUG_LOG("Position: " << main_camera_data.position.x << "f, " << main_camera_data.position.y << "f, " << main_camera_data.position.z << "f")
             DEBUG_LOG("Rotation: " << main_camera_data.pitch << "f, " << main_camera_data.yaw << "f")
+        }
+
+        if(input.get_key(Key::H, InputState::Pressed)) {
+            render_path._use_compute_DEBUG = !render_path._use_compute_DEBUG;
+            DEBUG_LOG("render_path._use_compute_DEBUG is now: " << render_path._use_compute_DEBUG << "\n")
+            render_path.resize(window);
+        }
+
+        if(input.get_key(Key::J, InputState::Pressed)) {
+            render_path._use_spheres_DEBUG = !render_path._use_spheres_DEBUG;
+            DEBUG_LOG("render_path._use_spheres_DEBUG is now: " << render_path._use_spheres_DEBUG << "\n")
+            render_path.resize(window);
         }
 
         //for(Handle<Object> handle{}; handle < static_cast<u32>(world.get_objects().size()); ++handle) {
@@ -175,7 +197,7 @@ int main(){
         dt = DEBUG_TIME_DIFF(last_frame, now);
         last_frame = now;
 
-        if(render_path.get_frames_since_init() % 128 == 0) {
+        if(render_path.get_frames_since_init() % 512u == 0u) {
             DEBUG_LOG(1.0 / dt << "fps")
         }
 

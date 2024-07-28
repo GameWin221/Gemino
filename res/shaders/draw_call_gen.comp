@@ -2,9 +2,9 @@
 
 #include "forward.glsl"
 
-layout(local_size_x = 8, local_size_y = 4, local_size_z = 1) in;
+layout(local_size_x = 32, local_size_y = 1, local_size_z = 1) in;
 
-layout (constant_id = 0) const uint CULL_SECOND_PASS = 0;
+layout (constant_id = 0) const uint CULL_SECOND_PASS = 0u;
 
 layout(push_constant) uniform PushConstant {
     uint draw_count_pre_cull;
@@ -37,10 +37,17 @@ layout(set = 0, binding = 6) buffer VisibilityBuffer {
 layout(set = 0, binding = 7) uniform CameraBuffer {
     Camera camera;
 };
+layout(set = 0, binding = 9) writeonly buffer AABBBuffer {
+    vec4 debug_aabb[];
+};
 
 layout(set = 0, binding = 8) uniform sampler2D depth_hierarchy;
 
-// Niagara, Arseny Kapoulkine
+// Occlussion culling is broken, there are weird visible flickers of objects.
+// Some appear and disappear when a small part of them is visible at a certain camera angle.
+// For now I'll focus on different things, probably mesh shading since GPU Occlusion Culling is
+// not efficient for big meshes. It works fine only for things that already fit well in a sphere AABB.
+
 // 2D Polyhedral Bounds of a Clipped, Perspective-Projected 3D Sphere. Michael Mara, Morgan McGuire. 2013
 bool project_sphere(vec3 c, float r, float znear, float P00, float P11, out vec4 aabb) {
     if (c.z < r + znear) {
@@ -61,23 +68,49 @@ bool project_sphere(vec3 c, float r, float znear, float P00, float P11, out vec4
     aabb = vec4(minx * P00, miny * P11, maxx * P00, maxy * P11);
     aabb = aabb.xwzy * vec4(0.5f, -0.5f, 0.5f, -0.5f) + vec4(0.5f); // clip space -> uv space
 
+    // Milkru, Vulkanizer
+    //https://github.com/milkru/vulkanizer/blob/main/src/shaders/generate_draws.comp
+
+    /*
+    if (-c.z < r + znear) {
+        return false;
+    }
+
+    vec2 centerXZ = -c.xz;
+    vec2 vX = vec2(sqrt(dot(centerXZ, centerXZ) - r * r), r);
+    vec2 minX = mat2(vX.x, vX.y, -vX.y, vX.x) * centerXZ;
+    vec2 maxX = mat2(vX.x, -vX.y, vX.y, vX.x) * centerXZ;
+
+    vec2 centerYZ = -c.yz;
+    vec2 vY = vec2(sqrt(dot(centerYZ, centerYZ) - r * r), r);
+    vec2 minY = mat2(vY.x, vY.y, -vY.y, vY.x) * centerYZ;
+    vec2 maxY = mat2(vY.x, -vY.y, vY.y, vY.x) * centerYZ;
+
+    aabb = 0.5 - 0.5 * vec4(
+        minX.x / minX.y * P00, minY.x / minY.y * P11,
+        maxX.x / maxX.y * P00, maxY.x / maxY.y * P11
+    );
+    */
     return true;
 }
 
 void main() {
-    uint object_id = (gl_WorkGroupID.x * gl_WorkGroupSize.x * gl_WorkGroupSize.y * gl_WorkGroupSize.z) + gl_LocalInvocationIndex;
+    uint object_id = gl_GlobalInvocationID.x; //(gl_WorkGroupID.x * gl_WorkGroupSize.x * gl_WorkGroupSize.y * gl_WorkGroupSize.z) + gl_LocalInvocationIndex;
 
-    if(object_id >= draw_count_pre_cull) {
+    if (object_id >= draw_count_pre_cull) {
         return;
     }
-    
-    if(objects[object_id].visible == 0) {
+
+    if (objects[object_id].visible == 0u) {
+        //if (CULL_SECOND_PASS == 1u) {
+            visibility_buffer[object_id] = 0u;
+        //}
         return;
     }
-    
-    if(CULL_SECOND_PASS == 0) {
+
+    if (CULL_SECOND_PASS == 0u) {
         // Skip if wasn't visible last frame - Draw only objects that were visible last frame
-        if(visibility_buffer[object_id] == 0) {
+        if (visibility_buffer[object_id] == 0u) {
             return;
         }
     }
@@ -87,15 +120,18 @@ void main() {
 
     // Make distance checks early on so warps that work on potentially neighboring objects will return early
     float dist = distance(camera.position, objects[object_id].position);
+
     if(dist > cull_distance) {
-        visibility_buffer[object_id] = 0;
+        if (CULL_SECOND_PASS == 1u) {
+            visibility_buffer[object_id] = 0u;
+        }
         return;
     }
 
     // LOD Picking
     // https://www.desmos.com/calculator/igswt6rlwt
     float lod_f = max(max(log2((1 << meshes[mesh_id].lod_count) * (dist / cull_distance) + (dist / LOD_DIV_CONSTANT)), 0.0) + global_lod_bias + meshes[mesh_id].lod_bias, 0.0);
-    uint lod_id = min(uint(lod_f), meshes[mesh_id].lod_count - 1);
+    uint lod_id = min(uint(lod_f), meshes[mesh_id].lod_count - 1u);
     MeshLOD lod = lods[meshes[mesh_id].lods[lod_id]];
 
     // Frustum Culling
@@ -110,50 +146,55 @@ void main() {
     in_frustum = in_frustum && (dot(camera.top_plane, lod_pos_camera_diff) > -lod_radius);
 
     if(!in_frustum) {
-        visibility_buffer[object_id] = 0;
+        if (CULL_SECOND_PASS == 1u) {
+            visibility_buffer[object_id] = 0u;
+        }
         return;
     }
 
     if(CULL_SECOND_PASS == 1) {
         // Occlusion Culling
         vec4 lod_pos_view = camera.view * vec4(lod_position, 1.0);
+        float P00 = camera.proj[0][0];
+        float P11 = camera.proj[1][1];
+
         lod_pos_view.y *= -1;
         lod_pos_view.z *= -1; // I'm not sure why z is inverted
 
-        float lod_radius_view = lod_radius;// * 1.05;
-
         vec4 aabb;
-        if (project_sphere(lod_pos_view.xyz, lod_radius_view, camera.near, camera.proj[0][0], camera.proj[1][1], aabb)) {
+        if (project_sphere(lod_pos_view.xyz, lod_radius, camera.near, P00, P11, aabb)) {
             float width = (aabb.z - aabb.x) * depth_hierarchy_width;
             float height = (aabb.w - aabb.y) * depth_hierarchy_height;
 
-            float level = floor(log2(max(width, height)));
+            float level = ceil(log2(max(width, height)));
 
-            float depth = textureLod(depth_hierarchy, (aabb.xy + aabb.zw) * 0.5, level).x;
-            float depth_sphere = camera.near / (lod_pos_view.z - lod_radius_view);
+            float depth = textureLod(depth_hierarchy, 0.5 * (aabb.xy + aabb.zw), level).x;
+            float depth_sphere = camera.near / (lod_pos_view.z - lod_radius);
 
             if(depth_sphere < depth) {
-                visibility_buffer[object_id] = 0;
+                visibility_buffer[object_id] = 0u;
                 return;
             }
         }
 
-        // Skip if wasn't visible last frame - Draw only objects that weren't visible last frame
+        debug_aabb[object_id] = aabb;
+
+        // Skip if was visible last frame - Draw only objects that weren't visible last frame
         // The first pass already took care of drawing those objects
-        if(visibility_buffer[object_id] == 1) {
+        if(visibility_buffer[object_id] == 1u) {
             return;
         }
 
-        visibility_buffer[object_id] = 1;
+        visibility_buffer[object_id] = 1u;
     }
 
-    uint current_command_id = atomicAdd(draw_command_count, 1);
+    uint current_command_id = atomicAdd(draw_command_count, 1u);
 
     draw_command_indices[current_command_id] = object_id;
 
     draw_commands[current_command_id].index_count = lod.index_count;
-    draw_commands[current_command_id].instance_count = 1;
+    draw_commands[current_command_id].instance_count = 1u;
     draw_commands[current_command_id].first_index = lod.first_index;
     draw_commands[current_command_id].vertex_offset = lod.vertex_offset;
-    draw_commands[current_command_id].first_instance = 0;
+    draw_commands[current_command_id].first_instance = 0u;
 }

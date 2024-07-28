@@ -63,42 +63,22 @@ std::vector<std::string> Utils::read_file_lines(const std::string& path) {
 }
 
 static void post_process_sub_mesh(Utils::SubMeshImportData& sub_mesh) {
-    glm::vec3 pos_min(std::numeric_limits<f32>::max());
-    glm::vec3 pos_max(std::numeric_limits<f32>::min());
-
-    for(const auto& vertex : sub_mesh.vertices) {
-        if(vertex.pos.x < pos_min.x) {
-            pos_min.x = vertex.pos.x;
-        }
-        if(vertex.pos.y < pos_min.y) {
-            pos_min.y = vertex.pos.y;
-        }
-        if(vertex.pos.z < pos_min.z) {
-            pos_min.z = vertex.pos.z;
-        }
-
-        if(vertex.pos.x > pos_max.x) {
-            pos_max.x = vertex.pos.x;
-        }
-        if(vertex.pos.y > pos_max.y) {
-            pos_max.y = vertex.pos.y;
-        }
-        if(vertex.pos.z > pos_max.z) {
-            pos_max.z = vertex.pos.z;
-        }
+    glm::vec3 center_offset{};
+    for(const auto& v : sub_mesh.vertices) {
+        center_offset += v.pos;
     }
-
-    sub_mesh.center_offset = (pos_min + pos_max) / 2.0f;
+    center_offset /= (f32)sub_mesh.vertices.size();
 
     f32 max_dist{};
     for(const auto& vertex : sub_mesh.vertices) {
-        f32 dist = glm::distance(sub_mesh.center_offset, vertex.pos);
+        f32 dist = glm::distance(center_offset, vertex.pos);
 
         if(dist > max_dist) {
             max_dist = dist;
         }
     }
 
+    sub_mesh.center_offset = center_offset;
     sub_mesh.radius = max_dist;
 }
 static void post_process_mesh(Utils::MeshImportData& mesh) {

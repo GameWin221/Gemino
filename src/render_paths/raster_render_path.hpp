@@ -119,7 +119,7 @@ public:
     const VkDeviceSize MAX_SCENE_DRAWS = 1ull * 1024ull * 1024ull; // (device memory)
     const VkDeviceSize MAX_SCENE_OBJECTS = MAX_SCENE_DRAWS; // (device memory)
 
-    const VkDeviceSize PER_FRAME_UPLOAD_BUFFER_SIZE = 16ull * 1024ull * 1024ull; // (host memory)
+    const VkDeviceSize PER_FRAME_UPLOAD_BUFFER_SIZE = 160ull * 1024ull * 1024ull; // (host memory)
 
     const VkDeviceSize OVERALL_DEVICE_MEMORY_USAGE =
         (MAX_SCENE_VERTICES * sizeof(Vertex)) +
@@ -135,6 +135,9 @@ public:
     const VkDeviceSize OVERALL_HOST_MEMORY_USAGE =
         (PER_FRAME_UPLOAD_BUFFER_SIZE * FRAMES_IN_FLIGHT);
 
+    bool _use_compute_DEBUG = false;
+    bool _use_spheres_DEBUG = false;
+
 private:
     void begin_recording_frame();
     void update_world(World& world, Handle<Camera> camera);
@@ -146,6 +149,7 @@ private:
     void render_pass_depth_hierarchy();
     void render_pass_second_draw_call_gen(u32 scene_objects_count, const DrawCallGenPC &draw_call_gen_pc);
     void render_pass_second_geometry(u32 scene_objects_count);
+    void DEBUG_render_pass_spheres(u32 scene_objects_count, const DrawCallGenPC &draw_call_gen_pc);
     void render_pass_offscreen_rt_to_swapchain();
 
     void init_scene_buffers();
@@ -192,6 +196,11 @@ private:
 
     std::vector<Frame> frames{};
 
+    Handle<GraphicsPipeline> DEBUG_sphere_pipeline{};
+    Handle<Descriptor> DEBUG_sphere_descriptor{};
+    Handle<Buffer> DEBUG_sphere_buffer{};
+    Handle<RenderTarget> DEBUG_offscreen_rt{};
+
     HandleAllocator<MeshLOD> lod_allocator{};
     HandleAllocator<Mesh> mesh_allocator{};
     HandleAllocator<Texture> texture_allocator{};
@@ -215,10 +224,14 @@ private:
     Handle<Image> depth_image{};
     Handle<Image> depth_hierarchy{};
     Handle<Sampler> depth_min_sampler{};
-    Handle<Descriptor> depth_image_descriptor{};
-    std::vector<Handle<Descriptor>> depth_hierarchy_descriptors{};
-    std::vector<Handle<RenderTarget>> depth_hierarchy_rts{};
-    Handle<GraphicsPipeline> depth_downscale_pipeline{};
+
+    std::vector<Handle<Descriptor>> compute_depth_hierarchy_descriptors{};
+    Handle<ComputePipeline> compute_depth_downscale_pipeline{};
+
+    Handle<GraphicsPipeline> graphics_depth_downscale_pipeline{};
+    std::vector<Handle<Descriptor>> graphics_depth_hierarchy_descriptors{};
+    std::vector<Handle<RenderTarget>> graphics_depth_hierarchy_rts{};
+
 
     Handle<Texture> default_white_srgb_texture{};
     Handle<Texture> default_grey_unorm_texture{};

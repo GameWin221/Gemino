@@ -159,13 +159,19 @@ glm::mat4 World::calculate_model_matrix(const Object& object) {
 }
 
 glm::mat4 World::calculate_view_matrix(const Camera& camera) const {
-    return glm::lookAt(camera.position, camera.position + camera.forward, camera.up);
+    return glm::lookAt(camera.position, camera.position + camera.forward, WORLD_UP);
 }
 glm::mat4 World::calculate_proj_matrix(const Camera& camera) const {
-    // Swap Z near and far to achieve inverted depth
-    glm::mat4 proj = glm::perspectiveRH_ZO(glm::radians(camera.fov), camera.viewport_size.x / camera.viewport_size.y, camera.far, camera.near);
-    proj[1][1] *= -1;
-    return proj;
+    // Infinite far plane with reverse Z depth
+    f32 invHalfTan = 1.0f / tanf(glm::radians(camera.fov) / 2.0f);
+    f32 aspect = camera.viewport_size.x / camera.viewport_size.y;
+
+    return {
+        invHalfTan / aspect, 0.0f, 0.0f, 0.0f,
+        0.0f, -invHalfTan, 0.0f, 0.0f,
+        0.0f, 0.0f, 0.0f, -1.0f,
+        0.0f, 0.0f, camera.near, 0.0f
+    };
 }
 
 void World::update_vectors(Camera& camera) {

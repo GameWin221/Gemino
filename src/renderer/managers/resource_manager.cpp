@@ -250,7 +250,7 @@ Handle<Descriptor> ResourceManager::create_descriptor(const DescriptorCreateInfo
         .pNext = &extended_create_info,
         .flags = VK_DESCRIPTOR_SET_LAYOUT_CREATE_UPDATE_AFTER_BIND_POOL_BIT,
         .bindingCount = static_cast<u32>(bindings.size()),
-        .pBindings = bindings.data(),
+        .pBindings = bindings.data()
     };
 
     DEBUG_ASSERT(vkCreateDescriptorSetLayout(vk_device, &descriptor_layout_create_info, nullptr, &descriptor.layout) == VK_SUCCESS)
@@ -280,9 +280,9 @@ Handle<Sampler> ResourceManager::create_sampler(const SamplerCreateInfo &info) {
         .magFilter = info.filter,
         .minFilter = info.filter,
         .mipmapMode = info.mipmap_mode,
-        .addressModeU = VK_SAMPLER_ADDRESS_MODE_REPEAT,
-        .addressModeV = VK_SAMPLER_ADDRESS_MODE_REPEAT,
-        .addressModeW = VK_SAMPLER_ADDRESS_MODE_REPEAT,
+        .addressModeU = info.address_mode,
+        .addressModeV = info.address_mode,
+        .addressModeW = info.address_mode,
         .mipLodBias = info.mipmap_bias,
         .anisotropyEnable = (info.anisotropy > 0.0f),
         .maxAnisotropy = std::min(info.anisotropy, 16.0f),
@@ -291,7 +291,6 @@ Handle<Sampler> ResourceManager::create_sampler(const SamplerCreateInfo &info) {
         .minLod = 0.0f,
         .maxLod = info.max_mipmap,
         .borderColor = VK_BORDER_COLOR_INT_OPAQUE_BLACK,
-        .unnormalizedCoordinates = VK_FALSE,
     };
 
     DEBUG_ASSERT(vkCreateSampler(vk_device, &create_info, nullptr, &sampler.sampler) == VK_SUCCESS)
@@ -425,10 +424,22 @@ void ResourceManager::update_descriptor(Handle<Descriptor> descriptor_handle, co
                 image_view = image.per_mip_views.at(binding.image_info.image_mip);
             }
 
+            VkImageLayout image_layout{};
+            VkDescriptorType descriptor_type = descriptor.create_info.bindings.at(binding.binding_index).descriptor_type;
+            if(descriptor_type == VK_DESCRIPTOR_TYPE_STORAGE_IMAGE) {
+                image_layout = VK_IMAGE_LAYOUT_GENERAL;
+            } else if(descriptor_type == VK_DESCRIPTOR_TYPE_SAMPLED_IMAGE || descriptor_type == VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER) {
+                image_layout = VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL;
+            } else if(descriptor_type == VK_DESCRIPTOR_TYPE_SAMPLER) {
+                image_layout = VK_IMAGE_LAYOUT_UNDEFINED;
+            } else {
+                DEBUG_PANIC("Binding write failed! - descriptor_type is invalid, descriptor_type = " << descriptor_type << ", binding_index = " << binding.binding_index)
+            }
+
             descriptor_images.push_back(VkDescriptorImageInfo {
                 .sampler = get_sampler_data(binding.image_info.image_sampler).sampler,
                 .imageView = image_view,
-                .imageLayout = VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL
+                .imageLayout = image_layout
             });
         } else {
             DEBUG_PANIC("Binding write failed! - Both or none binding handles were valid, binding_index = " << binding.binding_index)
