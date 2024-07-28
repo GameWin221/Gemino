@@ -69,9 +69,9 @@ int main(){
     std::srand(0xDEADBEEF);
 
     World world{};
-    for(u32 x{}; x < 40u; ++x) {
-        for(u32 y{}; y < 80u; ++y) {
-            for(u32 z{}; z < 40u; ++z) {
+    for(u32 x{}; x < 10u; ++x) {
+        for(u32 y{}; y < 10u; ++y) {
+            for(u32 z{}; z < 10u; ++z) {
                 world.create_object(ObjectCreateInfo{
                     .mesh = ((x + y + z) % 2 == 0) ? monkey_mesh_handle : sphere_mesh_handle,
                     .material = (((x + y + z) % 2 == 0) ? material_monkey_handle : material_handle),
@@ -158,18 +158,6 @@ int main(){
         if(input.get_key(Key::G, InputState::Pressed)) {
             DEBUG_LOG("Position: " << main_camera_data.position.x << "f, " << main_camera_data.position.y << "f, " << main_camera_data.position.z << "f")
             DEBUG_LOG("Rotation: " << main_camera_data.pitch << "f, " << main_camera_data.yaw << "f")
-        }
-
-        if(input.get_key(Key::H, InputState::Pressed)) {
-            render_path._use_compute_DEBUG = !render_path._use_compute_DEBUG;
-            DEBUG_LOG("render_path._use_compute_DEBUG is now: " << render_path._use_compute_DEBUG << "\n")
-            render_path.resize(window);
-        }
-
-        if(input.get_key(Key::J, InputState::Pressed)) {
-            render_path._use_spheres_DEBUG = !render_path._use_spheres_DEBUG;
-            DEBUG_LOG("render_path._use_spheres_DEBUG is now: " << render_path._use_spheres_DEBUG << "\n")
-            render_path.resize(window);
         }
 
         //for(Handle<Object> handle{}; handle < static_cast<u32>(world.get_objects().size()); ++handle) {

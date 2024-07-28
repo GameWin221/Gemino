@@ -43,11 +43,6 @@ void RasterRenderPath::init_debug_info() {
     DEBUG_LOG("OVERALL_HOST_MEMORY_USAGE = " << OVERALL_HOST_MEMORY_USAGE / 1024.0 / 1024.0 << "mb")
 }
 void RasterRenderPath::init_scene_buffers() {
-    scene_visibility_buffer = renderer.resource_manager->create_buffer(BufferCreateInfo{
-       .size = sizeof(u32) * MAX_SCENE_DRAWS,
-       .buffer_usage_flags = VK_BUFFER_USAGE_STORAGE_BUFFER_BIT | VK_BUFFER_USAGE_TRANSFER_DST_BIT,
-       .memory_usage_flags = VMA_MEMORY_USAGE_GPU_ONLY
-    });
     scene_material_buffer = renderer.resource_manager->create_buffer(BufferCreateInfo{
         .size = sizeof(Material) * MAX_SCENE_MATERIALS,
         .buffer_usage_flags = VK_BUFFER_USAGE_STORAGE_BUFFER_BIT | VK_BUFFER_USAGE_TRANSFER_DST_BIT,
@@ -98,16 +93,6 @@ void RasterRenderPath::init_scene_buffers() {
         .buffer_usage_flags = VK_BUFFER_USAGE_INDEX_BUFFER_BIT | VK_BUFFER_USAGE_TRANSFER_DST_BIT,
         .memory_usage_flags = VMA_MEMORY_USAGE_GPU_ONLY
     });
-
-    DEBUG_sphere_buffer = renderer.resource_manager->create_buffer(BufferCreateInfo{
-       .size = sizeof(glm::vec4) * MAX_SCENE_DRAWS,
-       .buffer_usage_flags = VK_BUFFER_USAGE_STORAGE_BUFFER_BIT,
-       .memory_usage_flags = VMA_MEMORY_USAGE_GPU_ONLY
-    });
-
-    renderer.record_and_submit_once([this](Handle<CommandList> cmd){
-        renderer.fill_buffer(cmd, scene_visibility_buffer, 0U, sizeof(u32));
-    });
 }
 void RasterRenderPath::init_screen_images(const Window& window) {
     VkExtent3D screen_size = VkExtent3D{ window.get_size().x, window.get_size().y };
@@ -128,89 +113,8 @@ void RasterRenderPath::init_screen_images(const Window& window) {
         .usage_flags = VK_IMAGE_USAGE_DEPTH_STENCIL_ATTACHMENT_BIT | VK_IMAGE_USAGE_SAMPLED_BIT,
         .aspect_flags = VK_IMAGE_ASPECT_DEPTH_BIT
     });
-
-    u32 hierarchy_width = Utils::nearest_pot_floor(window.get_size().x);
-    u32 hierarchy_height = Utils::nearest_pot_floor(window.get_size().y);
-    u32 hierarchy_levels = Utils::calculate_mipmap_levels_xy(hierarchy_width, hierarchy_height);
-
-    depth_hierarchy = renderer.resource_manager->create_image(ImageCreateInfo{
-        .format = VK_FORMAT_R32_SFLOAT,
-        .extent = VkExtent3D{ hierarchy_width, hierarchy_height },
-        .usage_flags = VK_IMAGE_USAGE_COLOR_ATTACHMENT_BIT | VK_IMAGE_USAGE_SAMPLED_BIT | VK_IMAGE_USAGE_STORAGE_BIT,
-        .aspect_flags = VK_IMAGE_ASPECT_COLOR_BIT,
-        .mip_level_count = hierarchy_levels,
-        .create_per_mip_views = true
-    });
-
-    depth_min_sampler = renderer.resource_manager->create_sampler(SamplerCreateInfo{
-        .filter = VK_FILTER_LINEAR,
-        .mipmap_mode = VK_SAMPLER_MIPMAP_MODE_NEAREST,
-        .reduction_mode = VK_SAMPLER_REDUCTION_MODE_MIN,
-        .address_mode = VK_SAMPLER_ADDRESS_MODE_CLAMP_TO_EDGE
-    });
 }
 void RasterRenderPath::init_descriptors(bool create_new) {
-    if (create_new) {
-        DEBUG_sphere_descriptor = renderer.resource_manager->create_descriptor(DescriptorCreateInfo{
-           .bindings {
-               DescriptorBindingCreateInfo{VK_DESCRIPTOR_TYPE_STORAGE_BUFFER},
-               DescriptorBindingCreateInfo{VK_DESCRIPTOR_TYPE_STORAGE_BUFFER},
-               DescriptorBindingCreateInfo{VK_DESCRIPTOR_TYPE_STORAGE_BUFFER},
-               DescriptorBindingCreateInfo{VK_DESCRIPTOR_TYPE_STORAGE_BUFFER},
-               DescriptorBindingCreateInfo{VK_DESCRIPTOR_TYPE_STORAGE_BUFFER},
-               DescriptorBindingCreateInfo{VK_DESCRIPTOR_TYPE_STORAGE_BUFFER},
-               DescriptorBindingCreateInfo{VK_DESCRIPTOR_TYPE_STORAGE_BUFFER}
-           }
-        });
-    }
-
-    renderer.resource_manager->update_descriptor(DEBUG_sphere_descriptor, DescriptorUpdateInfo{
-       .bindings {
-           DescriptorBindingUpdateInfo {
-               .binding_index = 0u,
-               .buffer_info {
-                   .buffer_handle = scene_lod_buffer
-               }
-           },
-           DescriptorBindingUpdateInfo {
-               .binding_index = 1u,
-               .buffer_info {
-                   .buffer_handle = scene_mesh_buffer
-               }
-           },
-           DescriptorBindingUpdateInfo {
-               .binding_index = 2u,
-               .buffer_info {
-                   .buffer_handle = scene_object_buffer
-               }
-           },
-           DescriptorBindingUpdateInfo {
-               .binding_index = 3u,
-               .buffer_info {
-                   .buffer_handle = scene_draw_index_buffer
-               }
-           },
-           DescriptorBindingUpdateInfo {
-               .binding_index = 4u,
-               .buffer_info {
-                   .buffer_handle = DEBUG_sphere_buffer
-               }
-           },
-           DescriptorBindingUpdateInfo {
-               .binding_index = 5u,
-               .buffer_info {
-                   .buffer_handle = scene_visibility_buffer
-               }
-           },
-           DescriptorBindingUpdateInfo {
-               .binding_index = 6u,
-               .buffer_info {
-                   .buffer_handle = scene_draw_count_buffer
-               }
-           }
-       }
-    });
-
     if (create_new) {
         draw_call_gen_descriptor = renderer.resource_manager->create_descriptor(DescriptorCreateInfo{
             .bindings {
@@ -220,10 +124,7 @@ void RasterRenderPath::init_descriptors(bool create_new) {
                 DescriptorBindingCreateInfo{VK_DESCRIPTOR_TYPE_STORAGE_BUFFER}, // Draw Commands
                 DescriptorBindingCreateInfo{VK_DESCRIPTOR_TYPE_STORAGE_BUFFER}, // Draw Commands Count
                 DescriptorBindingCreateInfo{VK_DESCRIPTOR_TYPE_STORAGE_BUFFER}, // Draw Commands Index
-                DescriptorBindingCreateInfo{VK_DESCRIPTOR_TYPE_STORAGE_BUFFER}, // Visibility Buffer
                 DescriptorBindingCreateInfo{VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER}, // Camera Buffer
-                DescriptorBindingCreateInfo{VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER}, // Depth Hierachy
-                DescriptorBindingCreateInfo{VK_DESCRIPTOR_TYPE_STORAGE_BUFFER}, // AABB Sphere Buffer
             }
         });
     }
@@ -269,27 +170,8 @@ void RasterRenderPath::init_descriptors(bool create_new) {
             DescriptorBindingUpdateInfo{
                 .binding_index = 6U,
                 .buffer_info {
-                    .buffer_handle = scene_visibility_buffer
-                }
-            },
-            DescriptorBindingUpdateInfo{
-                .binding_index = 7U,
-                .buffer_info {
                     .buffer_handle = scene_camera_buffer
                 },
-            },
-            DescriptorBindingUpdateInfo{
-                .binding_index = 8U,
-                .image_info {
-                    .image_handle = depth_hierarchy,
-                    .image_sampler = depth_min_sampler
-                }
-            },
-            DescriptorBindingUpdateInfo{
-                .binding_index = 9U,
-                .buffer_info {
-                    .buffer_handle = DEBUG_sphere_buffer
-                }
             }
         }
     });
@@ -351,70 +233,10 @@ void RasterRenderPath::init_descriptors(bool create_new) {
             }
         }
     });
-
-    const auto& hierarchy_image_info = renderer.resource_manager->get_image_data(depth_hierarchy);
-
-    compute_depth_hierarchy_descriptors.resize(static_cast<usize>(hierarchy_image_info.mip_level_count));
-    graphics_depth_hierarchy_descriptors.resize(static_cast<usize>(hierarchy_image_info.mip_level_count));
-
-    for(u32 i{}; i < hierarchy_image_info.mip_level_count; ++i) {
-        compute_depth_hierarchy_descriptors[i] = renderer.resource_manager->create_descriptor(DescriptorCreateInfo{
-            .bindings {
-                DescriptorBindingCreateInfo{VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER},
-                DescriptorBindingCreateInfo{VK_DESCRIPTOR_TYPE_STORAGE_IMAGE},
-            }
-        });
-
-        renderer.resource_manager->update_descriptor(compute_depth_hierarchy_descriptors[i], DescriptorUpdateInfo {
-            .bindings {
-                DescriptorBindingUpdateInfo {
-                    .binding_index = 0u,
-                    .image_info {
-                        .image_handle = ((i == 0u) ? depth_image : depth_hierarchy),
-                        .image_sampler = depth_min_sampler,
-                        .image_mip = ((i == 0u) ? INVALID_HANDLE : (i - 1u))
-                    }
-                },
-                DescriptorBindingUpdateInfo {
-                    .binding_index = 1u,
-                    .image_info {
-                        .image_handle = depth_hierarchy,
-                        .image_sampler = depth_min_sampler,
-                        .image_mip = i
-                    }
-                }
-            }
-        });
-
-        graphics_depth_hierarchy_descriptors[i] = renderer.resource_manager->create_descriptor(DescriptorCreateInfo{
-            .bindings {
-                DescriptorBindingCreateInfo{VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER}
-            }
-        });
-
-        renderer.resource_manager->update_descriptor(graphics_depth_hierarchy_descriptors[i], DescriptorUpdateInfo {
-            .bindings {
-                DescriptorBindingUpdateInfo {
-                    .image_info {
-                        .image_handle = ((i == 0u) ? depth_image : depth_hierarchy),
-                        .image_sampler = depth_min_sampler,
-                        .image_mip = ((i == 0u) ? INVALID_HANDLE : (i - 1u))
-                    }
-                }
-            }
-        });
-    }
 }
 void RasterRenderPath::init_pipelines() {
-    first_draw_call_gen_pipeline = renderer.pipeline_manager->create_compute_pipeline(ComputePipelineCreateInfo{
+    draw_call_gen_pipeline = renderer.pipeline_manager->create_compute_pipeline(ComputePipelineCreateInfo{
         .shader_path = "res/shaders/draw_call_gen.comp.spv",
-        .shader_constant_values { 0U },
-        .push_constants_size = sizeof(DrawCallGenPC),
-        .descriptors { draw_call_gen_descriptor }
-    });
-    second_draw_call_gen_pipeline = renderer.pipeline_manager->create_compute_pipeline(ComputePipelineCreateInfo{
-        .shader_path = "res/shaders/draw_call_gen.comp.spv",
-        .shader_constant_values { 1U },
         .push_constants_size = sizeof(DrawCallGenPC),
         .descriptors { draw_call_gen_descriptor }
     });
@@ -428,13 +250,11 @@ void RasterRenderPath::init_pipelines() {
 
         .color_target {
             .format = renderer.resource_manager->get_image_data(offscreen_rt_image).format,
-            .layout = VK_IMAGE_LAYOUT_COLOR_ATTACHMENT_OPTIMAL,
-            .load_op = VK_ATTACHMENT_LOAD_OP_LOAD
+            .layout = VK_IMAGE_LAYOUT_COLOR_ATTACHMENT_OPTIMAL
         },
         .depth_target {
             .format = renderer.resource_manager->get_image_data(depth_image).format,
-            .layout = VK_IMAGE_LAYOUT_DEPTH_STENCIL_ATTACHMENT_OPTIMAL,
-            .load_op = VK_ATTACHMENT_LOAD_OP_LOAD
+            .layout = VK_IMAGE_LAYOUT_DEPTH_STENCIL_ATTACHMENT_OPTIMAL
         },
 
         .enable_depth_test = true,
@@ -455,48 +275,11 @@ void RasterRenderPath::init_pipelines() {
         },
         .cull_mode = VK_CULL_MODE_NONE,
     });
-
-    compute_depth_downscale_pipeline = renderer.pipeline_manager->create_compute_pipeline(ComputePipelineCreateInfo{
-        .shader_path = "res/shaders/depth_downscale.comp.spv",
-        .push_constants_size = sizeof(glm::vec2),
-        .descriptors {compute_depth_hierarchy_descriptors.at(0) },
-    });
-
-    graphics_depth_downscale_pipeline = renderer.pipeline_manager->create_graphics_pipeline(GraphicsPipelineCreateInfo{
-        .vertex_shader_path = "res/shaders/fullscreen_tri.vert.spv",
-        .fragment_shader_path = "res/shaders/depth_downscale.frag.spv",
-
-        .descriptors { graphics_depth_hierarchy_descriptors.at(0) },
-
-        .color_target {
-            .format = renderer.resource_manager->get_image_data(depth_hierarchy).format,
-            .layout = VK_IMAGE_LAYOUT_COLOR_ATTACHMENT_OPTIMAL
-        },
-
-        .cull_mode = VK_CULL_MODE_NONE,
-    });
-
-    DEBUG_sphere_pipeline = renderer.pipeline_manager->create_graphics_pipeline(GraphicsPipelineCreateInfo{
-        .vertex_shader_path = "res/shaders/debug.vert.spv",
-        .fragment_shader_path = "res/shaders/debug.frag.spv",
-        .push_constants_size = sizeof(DrawCallGenPC),
-        .descriptors = { DEBUG_sphere_descriptor },
-        .color_target {
-            .format = renderer.resource_manager->get_image_data(offscreen_rt_image).format,
-            .layout = VK_IMAGE_LAYOUT_COLOR_ATTACHMENT_OPTIMAL,
-            .load_op = VK_ATTACHMENT_LOAD_OP_LOAD
-        },
-        .enable_blending = true,
-        .cull_mode = VK_CULL_MODE_NONE
-    });
 }
 void RasterRenderPath::init_render_targets() {
     offscreen_rt = renderer.pipeline_manager->create_render_target(forward_pipeline, RenderTargetCreateInfo{
         .color_target_handle = offscreen_rt_image,
         .depth_target_handle = depth_image
-    });
-    DEBUG_offscreen_rt = renderer.pipeline_manager->create_render_target(DEBUG_sphere_pipeline, RenderTargetCreateInfo{
-        .color_target_handle = offscreen_rt_image
     });
 
     offscreen_rt_to_swapchain_targets.resize(renderer.get_swapchain_index_count());
@@ -515,31 +298,17 @@ void RasterRenderPath::init_render_targets() {
         });
     }
 
-    const auto& hierarchy_image_info = renderer.resource_manager->get_image_data(depth_hierarchy);
-    graphics_depth_hierarchy_rts.resize(static_cast<usize>(hierarchy_image_info.mip_level_count));
-    for(u32 i{}; i < hierarchy_image_info.mip_level_count; ++i) {
-        graphics_depth_hierarchy_rts[i] = renderer.pipeline_manager->create_render_target(graphics_depth_downscale_pipeline, RenderTargetCreateInfo{
-            .color_target_handle = depth_hierarchy,
-            .color_target_mip = i
-        });
-    }
-
     renderer.record_and_submit_once([this, &init_swapchain_barriers](Handle<CommandList> cmd){
         renderer.image_barrier(cmd, VK_PIPELINE_STAGE_TOP_OF_PIPE_BIT, VK_PIPELINE_STAGE_COLOR_ATTACHMENT_OUTPUT_BIT , init_swapchain_barriers);
         renderer.image_barrier(cmd, VK_PIPELINE_STAGE_TOP_OF_PIPE_BIT, VK_PIPELINE_STAGE_EARLY_FRAGMENT_TESTS_BIT, { ImageBarrier{
             .image_handle = depth_image,
-            .dst_access_mask = VK_ACCESS_DEPTH_STENCIL_ATTACHMENT_READ_BIT, // LoadOp = Load
+            .dst_access_mask = VK_ACCESS_DEPTH_STENCIL_ATTACHMENT_WRITE_BIT, // LoadOp = Clear
             .new_layout = VK_IMAGE_LAYOUT_DEPTH_STENCIL_ATTACHMENT_OPTIMAL
         }});
         renderer.image_barrier(cmd, VK_PIPELINE_STAGE_TOP_OF_PIPE_BIT, VK_PIPELINE_STAGE_FRAGMENT_SHADER_BIT, { ImageBarrier{
             .image_handle = offscreen_rt_image,
             .dst_access_mask = VK_ACCESS_SHADER_READ_BIT,
             .new_layout = VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL,
-        }});
-        renderer.image_barrier(cmd, VK_PIPELINE_STAGE_TOP_OF_PIPE_BIT, VK_PIPELINE_STAGE_COMPUTE_SHADER_BIT, { ImageBarrier{
-            .image_handle = depth_hierarchy,
-            .dst_access_mask = VK_ACCESS_SHADER_READ_BIT, // LoadOp = Load
-            .new_layout = VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL
         }});
     });
 }
@@ -587,7 +356,6 @@ void RasterRenderPath::init_defaults() {
 }
 
 void RasterRenderPath::destroy_scene_buffers() {
-    renderer.resource_manager->destroy_buffer(scene_visibility_buffer);
     renderer.resource_manager->destroy_buffer(scene_material_buffer);
     renderer.resource_manager->destroy_buffer(scene_draw_buffer);
     renderer.resource_manager->destroy_buffer(scene_draw_index_buffer);
@@ -602,9 +370,7 @@ void RasterRenderPath::destroy_scene_buffers() {
 void RasterRenderPath::destroy_screen_images() {
     renderer.resource_manager->destroy_image(offscreen_rt_image);
     renderer.resource_manager->destroy_image(depth_image);
-    renderer.resource_manager->destroy_image(depth_hierarchy);
 
-    renderer.resource_manager->destroy_sampler(depth_min_sampler);
     renderer.resource_manager->destroy_sampler(offscreen_rt_sampler);
 }
 void RasterRenderPath::destroy_descriptors(bool create_new) {
@@ -613,28 +379,12 @@ void RasterRenderPath::destroy_descriptors(bool create_new) {
         renderer.resource_manager->destroy_descriptor(forward_descriptor);
         renderer.resource_manager->destroy_descriptor(offscreen_rt_to_swapchain_descriptor);
     }
-
-    for(const auto& handle : compute_depth_hierarchy_descriptors) {
-        renderer.resource_manager->destroy_descriptor(handle);
-    }
-
-    compute_depth_hierarchy_descriptors.clear();
-
-    for(const auto& handle : graphics_depth_hierarchy_descriptors) {
-        renderer.resource_manager->destroy_descriptor(handle);
-    }
-
-    graphics_depth_hierarchy_descriptors.clear();
 }
 void RasterRenderPath::destroy_pipelines() {
-    renderer.pipeline_manager->destroy_compute_pipeline(first_draw_call_gen_pipeline);
-    renderer.pipeline_manager->destroy_compute_pipeline(second_draw_call_gen_pipeline);
+    renderer.pipeline_manager->destroy_compute_pipeline(draw_call_gen_pipeline);
 
     renderer.pipeline_manager->destroy_graphics_pipeline(forward_pipeline);
     renderer.pipeline_manager->destroy_graphics_pipeline(offscreen_rt_to_swapchain_pipeline);
-    renderer.pipeline_manager->destroy_compute_pipeline(compute_depth_downscale_pipeline);
-
-    renderer.pipeline_manager->destroy_graphics_pipeline(graphics_depth_downscale_pipeline);
 }
 void RasterRenderPath::destroy_render_targets() {
     renderer.pipeline_manager->destroy_render_target(offscreen_rt);
@@ -644,12 +394,6 @@ void RasterRenderPath::destroy_render_targets() {
     }
 
     offscreen_rt_to_swapchain_targets.clear();
-
-    for(const auto& handle : graphics_depth_hierarchy_rts) {
-        renderer.pipeline_manager->destroy_render_target(handle);
-    }
-
-    graphics_depth_hierarchy_rts.clear();
 }
 void RasterRenderPath::destroy_frames() {
     for(const auto& frame : frames) {
@@ -799,23 +543,13 @@ void RasterRenderPath::render_world(const World& world, Handle<Camera> camera) {
 
     u32 scene_objects_count = static_cast<u32>(world.get_objects().size());
 
-    const auto& depth_hierarchy_image_info = renderer.resource_manager->get_image_data(depth_hierarchy);
-
     DrawCallGenPC draw_call_gen_pc{
         .draw_count_pre_cull = scene_objects_count,
-        .global_lod_bias = global_lod_bias,
-        .depth_hierarchy_width = static_cast<f32>(depth_hierarchy_image_info.extent.width),
-        .depth_hierarchy_height = static_cast<f32>(depth_hierarchy_image_info.extent.height)
+        .global_lod_bias = global_lod_bias
     };
 
-    render_pass_first_draw_call_gen(scene_objects_count, draw_call_gen_pc);
-    render_pass_first_geometry(scene_objects_count);
-    render_pass_depth_hierarchy();
-    render_pass_second_draw_call_gen(scene_objects_count, draw_call_gen_pc);
-    render_pass_second_geometry(scene_objects_count);
-    if(_use_spheres_DEBUG) {
-        DEBUG_render_pass_spheres(scene_objects_count, draw_call_gen_pc);
-    }
+    render_pass_draw_call_gen(scene_objects_count, draw_call_gen_pc);
+    render_pass_geometry(scene_objects_count);
 
     render_pass_offscreen_rt_to_swapchain();
 }
@@ -840,7 +574,7 @@ void RasterRenderPath::end_recording_frame() {
     frames_since_init += 1;
 }
 
-void RasterRenderPath::render_pass_first_draw_call_gen(u32 scene_objects_count, const DrawCallGenPC &draw_call_gen_pc) {
+void RasterRenderPath::render_pass_draw_call_gen(u32 scene_objects_count, const DrawCallGenPC &draw_call_gen_pc) {
     const Frame& frame = frames[frame_in_flight_index];
 
     renderer.fill_buffer(frame.command_list, scene_draw_count_buffer, 0U, sizeof(u32));
@@ -853,14 +587,19 @@ void RasterRenderPath::render_pass_first_draw_call_gen(u32 scene_objects_count, 
         }
     });
 
-    renderer.begin_compute_pipeline(frame.command_list, first_draw_call_gen_pipeline);
-    renderer.bind_compute_descriptor(frame.command_list, first_draw_call_gen_pipeline, draw_call_gen_descriptor, 0U);
-    renderer.push_compute_constants(frame.command_list, first_draw_call_gen_pipeline, &draw_call_gen_pc);
+    renderer.begin_compute_pipeline(frame.command_list, draw_call_gen_pipeline);
+    renderer.bind_compute_descriptor(frame.command_list, draw_call_gen_pipeline, draw_call_gen_descriptor, 0U);
+    renderer.push_compute_constants(frame.command_list, draw_call_gen_pipeline, &draw_call_gen_pc);
     renderer.dispatch_compute_pipeline(frame.command_list, glm::uvec3(Utils::div_ceil(scene_objects_count, 32U), 1U, 1U));
 
     renderer.buffer_barrier(frame.command_list, VK_PIPELINE_STAGE_COMPUTE_SHADER_BIT, VK_PIPELINE_STAGE_DRAW_INDIRECT_BIT, {
         BufferBarrier{
             .buffer_handle = scene_draw_buffer,
+            .src_access_mask = VK_ACCESS_SHADER_WRITE_BIT,
+            .dst_access_mask = VK_ACCESS_INDIRECT_COMMAND_READ_BIT,
+        },
+        BufferBarrier{
+            .buffer_handle = scene_draw_index_buffer,
             .src_access_mask = VK_ACCESS_SHADER_WRITE_BIT,
             .dst_access_mask = VK_ACCESS_INDIRECT_COMMAND_READ_BIT,
         },
@@ -871,7 +610,7 @@ void RasterRenderPath::render_pass_first_draw_call_gen(u32 scene_objects_count, 
         },
     });
 }
-void RasterRenderPath::render_pass_first_geometry(u32 scene_objects_count) {
+void RasterRenderPath::render_pass_geometry(u32 scene_objects_count) {
     const Frame& frame = frames[frame_in_flight_index];
 
     renderer.image_barrier(frame.command_list, VK_PIPELINE_STAGE_FRAGMENT_SHADER_BIT, VK_PIPELINE_STAGE_COLOR_ATTACHMENT_OUTPUT_BIT, {
@@ -883,219 +622,9 @@ void RasterRenderPath::render_pass_first_geometry(u32 scene_objects_count) {
             .new_layout = VK_IMAGE_LAYOUT_COLOR_ATTACHMENT_OPTIMAL
         }
     });
-    renderer.image_barrier(frame.command_list, VK_PIPELINE_STAGE_LATE_FRAGMENT_TESTS_BIT, VK_PIPELINE_STAGE_EARLY_FRAGMENT_TESTS_BIT, {
-        ImageBarrier{
-            .image_handle = depth_image,
-            .src_access_mask = VK_ACCESS_DEPTH_STENCIL_ATTACHMENT_WRITE_BIT,
-            .dst_access_mask = VK_ACCESS_DEPTH_STENCIL_ATTACHMENT_READ_BIT,
-            .old_layout = VK_IMAGE_LAYOUT_DEPTH_STENCIL_ATTACHMENT_OPTIMAL,
-            .new_layout = VK_IMAGE_LAYOUT_DEPTH_STENCIL_ATTACHMENT_OPTIMAL
-        }
-    });
-
-    renderer.begin_graphics_pipeline(frame.command_list, forward_pipeline, offscreen_rt, RenderTargetClear{});
-    renderer.clear_color_attachment(frame.command_list, forward_pipeline, offscreen_rt, RenderTargetClear{
-        .color {0.0f, 0.0f, 0.0f, 1.0f}
-    });
-    renderer.clear_depth_attachment(frame.command_list, forward_pipeline, offscreen_rt, RenderTargetClear{
-        .depth = 0.0f
-    });
-
-    renderer.bind_graphics_descriptor(frame.command_list, forward_pipeline, forward_descriptor, 0U);
-    renderer.bind_vertex_buffer(frame.command_list, scene_vertex_buffer);
-    renderer.bind_index_buffer(frame.command_list, scene_index_buffer);
-    renderer.draw_indexed_indirect_count(frame.command_list,scene_draw_buffer, scene_draw_count_buffer,scene_objects_count, sizeof(VkDrawIndexedIndirectCommand));
-
-    renderer.end_graphics_pipeline(frame.command_list, forward_pipeline);
-}
-void RasterRenderPath::render_pass_depth_hierarchy() {
-    const Frame& frame = frames[frame_in_flight_index];
-
-    if(_use_compute_DEBUG) {
-        renderer.image_barrier(frame.command_list, VK_PIPELINE_STAGE_LATE_FRAGMENT_TESTS_BIT, VK_PIPELINE_STAGE_COMPUTE_SHADER_BIT, { ImageBarrier{
-            .image_handle = depth_image,
-            .src_access_mask = VK_ACCESS_DEPTH_STENCIL_ATTACHMENT_WRITE_BIT,
-            .dst_access_mask = VK_ACCESS_SHADER_READ_BIT,
-            .old_layout = VK_IMAGE_LAYOUT_DEPTH_STENCIL_ATTACHMENT_OPTIMAL,
-            .new_layout = VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL
-        }});
-
-        renderer.image_barrier(frame.command_list, VK_PIPELINE_STAGE_COMPUTE_SHADER_BIT, VK_PIPELINE_STAGE_COMPUTE_SHADER_BIT, { ImageBarrier {
-            .image_handle = depth_hierarchy,
-            .src_access_mask = VK_ACCESS_SHADER_READ_BIT,
-            .dst_access_mask = VK_ACCESS_SHADER_WRITE_BIT,
-            .old_layout = VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL,
-            .new_layout = VK_IMAGE_LAYOUT_GENERAL
-        }});
-
-        const Image& depth_hierarchy_info = renderer.resource_manager->get_image_data(depth_hierarchy);
-        for(u32 i{}; i < depth_hierarchy_info.mip_level_count; ++i) {
-            renderer.begin_compute_pipeline(frame.command_list, compute_depth_downscale_pipeline);
-
-            glm::vec2 mip_size(
-                std::max(depth_hierarchy_info.extent.width >> i, 1u),
-                std::max(depth_hierarchy_info.extent.height >> i, 1u)
-            );
-
-            renderer.bind_compute_descriptor(frame.command_list, compute_depth_downscale_pipeline, compute_depth_hierarchy_descriptors[i], 0U);
-            renderer.push_compute_constants(frame.command_list, compute_depth_downscale_pipeline, &mip_size);
-
-            renderer.dispatch_compute_pipeline(frame.command_list, glm::uvec3(
-                Utils::div_ceil(depth_hierarchy_info.extent.width, 32u),
-                Utils::div_ceil(depth_hierarchy_info.extent.height, 32u),
-                1u
-            ));
-
-            renderer.image_barrier(frame.command_list, VK_PIPELINE_STAGE_COMPUTE_SHADER_BIT, VK_PIPELINE_STAGE_COMPUTE_SHADER_BIT, { ImageBarrier {
-                .image_handle = depth_hierarchy,
-                .src_access_mask = VK_ACCESS_SHADER_WRITE_BIT,
-                .dst_access_mask = VK_ACCESS_SHADER_READ_BIT,
-                .old_layout = VK_IMAGE_LAYOUT_GENERAL,
-                .new_layout = VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL,
-                .base_mipmap_level_override = i,
-                .mipmap_level_count_override = 1U
-            }});
-        }
-
-        renderer.image_barrier(frame.command_list, VK_PIPELINE_STAGE_COMPUTE_SHADER_BIT, VK_PIPELINE_STAGE_COMPUTE_SHADER_BIT, { ImageBarrier {
-            .image_handle = depth_hierarchy,
-            .src_access_mask = VK_ACCESS_SHADER_READ_BIT,
-            .dst_access_mask = VK_ACCESS_SHADER_READ_BIT,
-            .old_layout = VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL,
-            .new_layout = VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL
-        }});
-
-        renderer.image_barrier(frame.command_list, VK_PIPELINE_STAGE_COMPUTE_SHADER_BIT, VK_PIPELINE_STAGE_EARLY_FRAGMENT_TESTS_BIT, { ImageBarrier{
-            .image_handle = depth_image,
-            .src_access_mask = VK_ACCESS_SHADER_READ_BIT,
-            .dst_access_mask = VK_ACCESS_DEPTH_STENCIL_ATTACHMENT_READ_BIT, // LoadOp = Load
-            .old_layout = VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL,
-            .new_layout = VK_IMAGE_LAYOUT_DEPTH_STENCIL_ATTACHMENT_OPTIMAL
-        }});
-    } else {
-        renderer.image_barrier(frame.command_list, VK_PIPELINE_STAGE_LATE_FRAGMENT_TESTS_BIT, VK_PIPELINE_STAGE_FRAGMENT_SHADER_BIT, { ImageBarrier{
-            .image_handle = depth_image,
-            .src_access_mask = VK_ACCESS_DEPTH_STENCIL_ATTACHMENT_WRITE_BIT,
-            .dst_access_mask = VK_ACCESS_SHADER_READ_BIT,
-            .old_layout = VK_IMAGE_LAYOUT_DEPTH_STENCIL_ATTACHMENT_OPTIMAL,
-            .new_layout = VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL
-        }});
-
-        renderer.image_barrier(frame.command_list, VK_PIPELINE_STAGE_COMPUTE_SHADER_BIT, VK_PIPELINE_STAGE_COLOR_ATTACHMENT_OUTPUT_BIT, { ImageBarrier {
-            .image_handle = depth_hierarchy,
-            .src_access_mask = VK_ACCESS_SHADER_READ_BIT,
-            .dst_access_mask = VK_ACCESS_COLOR_ATTACHMENT_WRITE_BIT,
-            .old_layout = VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL,
-            .new_layout = VK_IMAGE_LAYOUT_COLOR_ATTACHMENT_OPTIMAL
-        }});
-
-        const Image& depth_hierarchy_info = renderer.resource_manager->get_image_data(depth_hierarchy);
-        for(u32 i{}; i < depth_hierarchy_info.mip_level_count; ++i) {
-            renderer.begin_graphics_pipeline(frame.command_list, graphics_depth_downscale_pipeline, graphics_depth_hierarchy_rts[i], RenderTargetClear{});
-
-            renderer.bind_graphics_descriptor(frame.command_list, graphics_depth_downscale_pipeline, graphics_depth_hierarchy_descriptors[i], 0U);
-
-            renderer.draw_count(frame.command_list, 3u);
-
-            renderer.end_graphics_pipeline(frame.command_list, graphics_depth_downscale_pipeline);
-
-            renderer.image_barrier(frame.command_list, VK_PIPELINE_STAGE_COLOR_ATTACHMENT_OUTPUT_BIT, VK_PIPELINE_STAGE_FRAGMENT_SHADER_BIT, { ImageBarrier {
-                .image_handle = depth_hierarchy,
-                .src_access_mask = VK_ACCESS_COLOR_ATTACHMENT_WRITE_BIT,
-                .dst_access_mask = VK_ACCESS_SHADER_READ_BIT,
-                .old_layout = VK_IMAGE_LAYOUT_COLOR_ATTACHMENT_OPTIMAL,
-                .new_layout = VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL,
-                .base_mipmap_level_override = i,
-                .mipmap_level_count_override = 1U
-            }});
-        }
-
-        renderer.image_barrier(frame.command_list, VK_PIPELINE_STAGE_FRAGMENT_SHADER_BIT, VK_PIPELINE_STAGE_COMPUTE_SHADER_BIT, { ImageBarrier {
-            .image_handle = depth_hierarchy,
-            .src_access_mask = VK_ACCESS_SHADER_READ_BIT,
-            .dst_access_mask = VK_ACCESS_SHADER_READ_BIT,
-            .old_layout = VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL,
-            .new_layout = VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL
-        }});
-
-        renderer.image_barrier(frame.command_list, VK_PIPELINE_STAGE_FRAGMENT_SHADER_BIT, VK_PIPELINE_STAGE_EARLY_FRAGMENT_TESTS_BIT, { ImageBarrier{
-            .image_handle = depth_image,
-            .src_access_mask = VK_ACCESS_SHADER_READ_BIT,
-            .dst_access_mask = VK_ACCESS_DEPTH_STENCIL_ATTACHMENT_READ_BIT, // LoadOp = Load
-            .old_layout = VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL,
-            .new_layout = VK_IMAGE_LAYOUT_DEPTH_STENCIL_ATTACHMENT_OPTIMAL
-        }});
-    }
-}
-void RasterRenderPath::render_pass_second_draw_call_gen(u32 scene_objects_count, const DrawCallGenPC &draw_call_gen_pc) {
-    const Frame& frame = frames[frame_in_flight_index];
-
-    renderer.buffer_barrier(frame.command_list, VK_PIPELINE_STAGE_DRAW_INDIRECT_BIT, VK_PIPELINE_STAGE_TRANSFER_BIT, {
-        BufferBarrier{
-            .buffer_handle = scene_draw_count_buffer,
-            .src_access_mask = VK_ACCESS_INDIRECT_COMMAND_READ_BIT,
-            .dst_access_mask = VK_ACCESS_TRANSFER_WRITE_BIT
-        }
-    });
-    renderer.buffer_barrier(frame.command_list, VK_PIPELINE_STAGE_DRAW_INDIRECT_BIT, VK_PIPELINE_STAGE_COMPUTE_SHADER_BIT, {
-        BufferBarrier{
-            .buffer_handle = scene_draw_buffer,
-            .src_access_mask = VK_ACCESS_INDIRECT_COMMAND_READ_BIT,
-            .dst_access_mask = VK_ACCESS_SHADER_WRITE_BIT
-        }
-    });
-
-    renderer.fill_buffer(frame.command_list, scene_draw_count_buffer, 0U, sizeof(u32));
-
-    renderer.buffer_barrier(frame.command_list, VK_PIPELINE_STAGE_TRANSFER_BIT, VK_PIPELINE_STAGE_COMPUTE_SHADER_BIT, {
-        BufferBarrier{
-            .buffer_handle = scene_draw_count_buffer,
-            .src_access_mask = VK_ACCESS_TRANSFER_WRITE_BIT,
-            .dst_access_mask = VK_ACCESS_SHADER_READ_BIT | VK_ACCESS_SHADER_WRITE_BIT
-        }
-    });
-
-    renderer.begin_compute_pipeline(frame.command_list, second_draw_call_gen_pipeline);
-    renderer.bind_compute_descriptor(frame.command_list, second_draw_call_gen_pipeline, draw_call_gen_descriptor, 0U);
-    renderer.push_compute_constants(frame.command_list, second_draw_call_gen_pipeline, &draw_call_gen_pc);
-    renderer.dispatch_compute_pipeline(frame.command_list, glm::uvec3(Utils::div_ceil(scene_objects_count, 32U), 1U, 1U));
-
-    renderer.buffer_barrier(frame.command_list, VK_PIPELINE_STAGE_COMPUTE_SHADER_BIT, VK_PIPELINE_STAGE_DRAW_INDIRECT_BIT, {
-        BufferBarrier{
-            .buffer_handle = scene_draw_buffer,
-            .src_access_mask = VK_ACCESS_SHADER_WRITE_BIT,
-            .dst_access_mask = VK_ACCESS_INDIRECT_COMMAND_READ_BIT,
-        },
-        BufferBarrier{
-            .buffer_handle = scene_draw_count_buffer,
-            .src_access_mask = VK_ACCESS_SHADER_WRITE_BIT,
-            .dst_access_mask = VK_ACCESS_INDIRECT_COMMAND_READ_BIT,
-        },
-    });
-}
-void RasterRenderPath::render_pass_second_geometry(u32 scene_objects_count) {
-    const Frame& frame = frames[frame_in_flight_index];
-
-    renderer.image_barrier(frame.command_list, VK_PIPELINE_STAGE_COLOR_ATTACHMENT_OUTPUT_BIT, VK_PIPELINE_STAGE_COLOR_ATTACHMENT_OUTPUT_BIT, {
-        ImageBarrier{
-            .image_handle = offscreen_rt_image,
-            .src_access_mask = VK_ACCESS_COLOR_ATTACHMENT_WRITE_BIT,
-            .dst_access_mask = VK_ACCESS_COLOR_ATTACHMENT_READ_BIT,
-            .old_layout = VK_IMAGE_LAYOUT_COLOR_ATTACHMENT_OPTIMAL,
-            .new_layout = VK_IMAGE_LAYOUT_COLOR_ATTACHMENT_OPTIMAL
-        }
-    });
-
-    renderer.buffer_barrier(frame.command_list, VK_PIPELINE_STAGE_COMPUTE_SHADER_BIT, VK_PIPELINE_STAGE_VERTEX_SHADER_BIT, {
-        BufferBarrier{
-            .buffer_handle = scene_draw_index_buffer,
-            .src_access_mask = VK_ACCESS_SHADER_WRITE_BIT,
-            .dst_access_mask = VK_ACCESS_SHADER_READ_BIT
-        }
-    });
 
     renderer.begin_graphics_pipeline(frame.command_list, forward_pipeline, offscreen_rt, RenderTargetClear{
-        .color {0.0f, 0.0f, 0.0f, 1.0f},
+        .color = {0.0f, 0.0f, 0.0f, 1.0f},
         .depth = 0.0f
     });
 
@@ -1105,45 +634,6 @@ void RasterRenderPath::render_pass_second_geometry(u32 scene_objects_count) {
     renderer.draw_indexed_indirect_count(frame.command_list,scene_draw_buffer, scene_draw_count_buffer,scene_objects_count, sizeof(VkDrawIndexedIndirectCommand));
 
     renderer.end_graphics_pipeline(frame.command_list, forward_pipeline);
-}
-void RasterRenderPath::DEBUG_render_pass_spheres(u32 scene_objects_count, const DrawCallGenPC &draw_call_gen_pc) {
-    const Frame& frame = frames[frame_in_flight_index];
-
-    renderer.image_barrier(frame.command_list, VK_PIPELINE_STAGE_COLOR_ATTACHMENT_OUTPUT_BIT, VK_PIPELINE_STAGE_COLOR_ATTACHMENT_OUTPUT_BIT, {
-        ImageBarrier{
-            .image_handle = offscreen_rt_image,
-            .src_access_mask = VK_ACCESS_COLOR_ATTACHMENT_WRITE_BIT,
-            .dst_access_mask = VK_ACCESS_COLOR_ATTACHMENT_READ_BIT,
-            .old_layout = VK_IMAGE_LAYOUT_COLOR_ATTACHMENT_OPTIMAL,
-            .new_layout = VK_IMAGE_LAYOUT_COLOR_ATTACHMENT_OPTIMAL
-        }
-    });
-
-    renderer.buffer_barrier(frame.command_list, VK_PIPELINE_STAGE_COMPUTE_SHADER_BIT, VK_PIPELINE_STAGE_VERTEX_SHADER_BIT, {
-        BufferBarrier{
-            .buffer_handle = DEBUG_sphere_buffer,
-            .src_access_mask = VK_ACCESS_SHADER_WRITE_BIT,
-            .dst_access_mask = VK_ACCESS_SHADER_READ_BIT
-        }
-    });
-
-    renderer.buffer_barrier(frame.command_list, VK_PIPELINE_STAGE_VERTEX_SHADER_BIT, VK_PIPELINE_STAGE_VERTEX_SHADER_BIT, {
-        BufferBarrier{
-            .buffer_handle = scene_draw_index_buffer,
-            .src_access_mask = VK_ACCESS_SHADER_READ_BIT,
-            .dst_access_mask = VK_ACCESS_SHADER_READ_BIT
-        }
-    });
-
-    renderer.begin_graphics_pipeline(frame.command_list, DEBUG_sphere_pipeline, DEBUG_offscreen_rt, RenderTargetClear{
-        .color {0.0f, 0.0f, 0.0f, 1.0f},
-        .depth = 0.0f
-    });
-    renderer.push_graphics_constants(frame.command_list, DEBUG_sphere_pipeline, &draw_call_gen_pc);
-    renderer.bind_graphics_descriptor(frame.command_list, DEBUG_sphere_pipeline, DEBUG_sphere_descriptor, 0U);
-    renderer.draw_count(frame.command_list, 6u, 0u, scene_objects_count);
-
-    renderer.end_graphics_pipeline(frame.command_list, DEBUG_sphere_pipeline);
 }
 void RasterRenderPath::render_pass_offscreen_rt_to_swapchain() {
     const Frame& frame = frames[frame_in_flight_index];
