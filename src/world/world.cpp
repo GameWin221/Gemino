@@ -13,9 +13,9 @@ Handle<Object> World::create_object(const ObjectCreateInfo& create_info) {
 
     object.matrix = calculate_model_matrix(object);
 
-    Handle<Object> object_handle = objects.alloc(object);
+    Handle<Object> object_handle = m_objects.alloc(object);
 
-    changed_object_handles.insert(object_handle);
+    m_changed_object_handles.insert(object_handle);
 
     return object_handle;
 }
@@ -35,65 +35,65 @@ Handle<Camera> World::create_camera(const CameraCreateInfo& create_info) {
     camera.proj = calculate_proj_matrix(camera);
     camera.view_proj = camera.proj * camera.view;
 
-    return cameras.alloc(camera);
+    return m_cameras.alloc(camera);
 }
 
 void World::set_position(Handle<Object> object, glm::vec3 position) {
-    Object& target = objects.get_element_mutable(object);
+    Object &target = m_objects.get_element_mutable(object);
 
     if(target.position == position) return;
 
     target.position = position;
     target.matrix = calculate_model_matrix(target);
-    changed_object_handles.insert(object);
+    m_changed_object_handles.insert(object);
 }
 void World::set_rotation(Handle<Object> object, glm::vec3 rotation) {
-    Object& target = objects.get_element_mutable(object);
+    Object &target = m_objects.get_element_mutable(object);
 
     if(target.rotation == rotation) return;
 
     target.rotation = rotation;
     target.matrix = calculate_model_matrix(target);
-    changed_object_handles.insert(object);
+    m_changed_object_handles.insert(object);
 }
 void World::set_scale(Handle<Object> object, glm::vec3 scale) {
-    Object& target = objects.get_element_mutable(object);
+    Object &target = m_objects.get_element_mutable(object);
 
     if(target.scale == scale) return;
 
     target.scale = scale;
     target.max_scale = glm::max(glm::max(scale.x, scale.y), scale.z);
     target.matrix = calculate_model_matrix(target);
-    changed_object_handles.insert(object);
+    m_changed_object_handles.insert(object);
 }
 
 void World::set_mesh(Handle<Object> object, Handle<Mesh> mesh) {
-    Object& target = objects.get_element_mutable(object);
+    Object &target = m_objects.get_element_mutable(object);
 
     if(target.mesh == mesh) return;
 
     target.mesh = mesh;
-    changed_object_handles.insert(object);
+    m_changed_object_handles.insert(object);
 }
 void World::set_material(Handle<Object> object, Handle<Material> material) {
-    Object& target = objects.get_element_mutable(object);
+    Object &target = m_objects.get_element_mutable(object);
 
     if(target.material == material) return;
 
     target.material = material;
-    changed_object_handles.insert(object);
+    m_changed_object_handles.insert(object);
 }
 void World::set_visibility(Handle<Object> object, bool visible) {
-    Object& target = objects.get_element_mutable(object);
+    Object &target = m_objects.get_element_mutable(object);
 
     if(target.visible == static_cast<u32>(visible)) return;
 
     target.visible = visible;
-    changed_object_handles.insert(object);
+    m_changed_object_handles.insert(object);
 }
 
 void World::set_camera_position(Handle<Camera> camera, glm::vec3 position) {
-    Camera& target = cameras.get_element_mutable(camera);
+    Camera &target = m_cameras.get_element_mutable(camera);
 
     if(target.position == position) return;
 
@@ -105,7 +105,7 @@ void World::set_camera_position(Handle<Camera> camera, glm::vec3 position) {
     target.view_proj = target.proj * target.view;
 }
 void World::set_camera_rotation(Handle<Camera> camera, float pitch, float yaw) {
-    Camera& target = cameras.get_element_mutable(camera);
+    Camera &target = m_cameras.get_element_mutable(camera);
 
     if(target.pitch == pitch && target.yaw == yaw) return;
 
@@ -118,7 +118,7 @@ void World::set_camera_rotation(Handle<Camera> camera, float pitch, float yaw) {
     target.view_proj = target.proj * target.view;
 }
 void World::set_camera_fov(Handle<Camera> camera, float fov) {
-    Camera& target = cameras.get_element_mutable(camera);
+    Camera &target = m_cameras.get_element_mutable(camera);
 
     if(target.fov == fov) return;
 
@@ -129,7 +129,7 @@ void World::set_camera_fov(Handle<Camera> camera, float fov) {
     target.view_proj = target.proj * target.view;
 }
 void World::set_camera_viewport(Handle<Camera> camera, glm::vec2 viewport_size) {
-    Camera& target = cameras.get_element_mutable(camera);
+    Camera &target = m_cameras.get_element_mutable(camera);
 
     if(target.viewport_size == viewport_size) return;
 
@@ -140,7 +140,7 @@ void World::set_camera_viewport(Handle<Camera> camera, glm::vec2 viewport_size) 
     target.view_proj = target.proj * target.view;
 }
 
-glm::mat4 World::calculate_model_matrix(const Object& object) {
+glm::mat4 World::calculate_model_matrix(const Object &object) {
     glm::mat4 mat = glm::translate(glm::mat4(1.0f), object.position);
 
     if (object.rotation.y != 0.0f) {
@@ -158,10 +158,10 @@ glm::mat4 World::calculate_model_matrix(const Object& object) {
     return mat;
 }
 
-glm::mat4 World::calculate_view_matrix(const Camera& camera) const {
+glm::mat4 World::calculate_view_matrix(const Camera &camera) const {
     return glm::lookAt(camera.position, camera.position + camera.forward, WORLD_UP);
 }
-glm::mat4 World::calculate_proj_matrix(const Camera& camera) const {
+glm::mat4 World::calculate_proj_matrix(const Camera &camera) const {
     // Infinite far plane with reverse Z depth
     f32 invHalfTan = 1.0f / tanf(glm::radians(camera.fov) / 2.0f);
     f32 aspect = camera.viewport_size.x / camera.viewport_size.y;
@@ -174,7 +174,7 @@ glm::mat4 World::calculate_proj_matrix(const Camera& camera) const {
     };
 }
 
-void World::update_vectors(Camera& camera) {
+void World::update_vectors(Camera &camera) {
     camera.pitch = glm::clamp(camera.pitch, -89.999f, 89.999f);
 
     camera.forward = glm::normalize(glm::vec3(
@@ -202,7 +202,7 @@ void World::update_frustum(Camera &camera) {
 }
 
 void World::_clear_updates() {
-    changed_object_handles.clear();
+    m_changed_object_handles.clear();
 }
 
 

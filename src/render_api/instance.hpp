@@ -32,39 +32,39 @@ public:
     explicit Instance(Proxy window_handle);
     ~Instance();
 
-    Instance& operator=(const Instance& other) = delete;
-    Instance& operator=(Instance&& other) noexcept = delete;
+    Instance &operator=(const Instance &other) = delete;
+    Instance &operator=(Instance &&other) noexcept = delete;
 
     VkFormatProperties get_format_properties(VkFormat format) const;
     VkPhysicalDeviceProperties get_physical_device_properties() const;
 
-    VkDevice get_device() const { return vk_device; }
-    VkSurfaceKHR get_surface() const { return vk_surface; }
-    VkPhysicalDevice get_physical_device() const { return vk_physical_device; }
+    VkDevice get_device() const { return m_device; }
+    VkSurfaceKHR get_surface() const { return m_surface; }
+    VkPhysicalDevice get_physical_device() const { return m_physical_device; }
 
-    VkQueue get_graphics_queue() const { return vk_queue_graphics; }
-    VkQueue get_transfer_queue() const { return vk_queue_transfer; }
-    VkQueue get_compute_queue() const { return vk_queue_compute; }
+    VkQueue get_graphics_queue() const { return m_queue_graphics; }
+    VkQueue get_transfer_queue() const { return m_queue_transfer; }
+    VkQueue get_compute_queue() const { return m_queue_compute; }
 
-    const QueueFamilyIndices& get_queue_family_indices() const { return vk_queue_indices; }
+    const QueueFamilyIndices &get_queue_family_indices() const { return m_queue_indices; }
 
-    VmaAllocator get_allocator() const { return vk_allocator; }
+    VmaAllocator get_allocator() const { return m_allocator; }
 private:
-    VkInstance vk_instance{};
-    VkDevice vk_device{};
+    VkInstance m_instance{};
+    VkDevice m_device{};
 
-    VmaAllocator vk_allocator{};
+    VmaAllocator m_allocator{};
 
-    VkPhysicalDevice vk_physical_device{};
-    VkSurfaceKHR vk_surface{};
+    VkPhysicalDevice m_physical_device{};
+    VkSurfaceKHR m_surface{};
 
-    VkQueue vk_queue_graphics{};
-    VkQueue vk_queue_transfer{};
-    VkQueue vk_queue_compute{};
+    VkQueue m_queue_graphics{};
+    VkQueue m_queue_transfer{};
+    VkQueue m_queue_compute{};
 
-    QueueFamilyIndices vk_queue_indices{};
+    QueueFamilyIndices m_queue_indices{};
 
-    VkDebugUtilsMessengerEXT vk_debug_messenger{};
+    VkDebugUtilsMessengerEXT m_debug_messenger{};
 
 private:
     void create_instance();

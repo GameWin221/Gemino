@@ -83,21 +83,21 @@ Instance::Instance(Proxy window_handle) {
 }
 
 Instance::~Instance() {
-    vkDeviceWaitIdle(vk_device);
+    vkDeviceWaitIdle(m_device);
 
-    vmaDestroyAllocator(vk_allocator);
-    vkDestroyDevice(vk_device, nullptr);
-    vkDestroySurfaceKHR(vk_instance, vk_surface, nullptr);
+    vmaDestroyAllocator(m_allocator);
+    vkDestroyDevice(m_device, nullptr);
+    vkDestroySurfaceKHR(m_instance, m_surface, nullptr);
 
 #ifdef ENABLE_VALIDATION_DEFINE
-    auto DestroyDebugUtilsMessengerEXT = reinterpret_cast<PFN_vkDestroyDebugUtilsMessengerEXT>(vkGetInstanceProcAddr(vk_instance, "vkDestroyDebugUtilsMessengerEXT"));
+    auto DestroyDebugUtilsMessengerEXT = reinterpret_cast<PFN_vkDestroyDebugUtilsMessengerEXT>(vkGetInstanceProcAddr(m_instance, "vkDestroyDebugUtilsMessengerEXT"));
 
     DEBUG_ASSERT(DestroyDebugUtilsMessengerEXT != nullptr)
 
-    DestroyDebugUtilsMessengerEXT(vk_instance, vk_debug_messenger, nullptr);
+    DestroyDebugUtilsMessengerEXT(m_instance, m_debug_messenger, nullptr);
 #endif
 
-    vkDestroyInstance(vk_instance, nullptr);
+    vkDestroyInstance(m_instance, nullptr);
 }
 
 void Instance::create_instance() {
@@ -108,7 +108,7 @@ void Instance::create_instance() {
 #endif
 
     uint32_t glfw_extension_count{};
-    const char** glfw_extensions = glfwGetRequiredInstanceExtensions(&glfw_extension_count);
+    const char **glfw_extensions = glfwGetRequiredInstanceExtensions(&glfw_extension_count);
 
     std::vector<const char*> required_extensions(static_cast<usize>(glfw_extension_count));
     std::memcpy(required_extensions.data(), glfw_extensions, sizeof(const char*) * required_extensions.size());
@@ -133,7 +133,7 @@ void Instance::create_instance() {
 
     std::set<std::string> required_extensions_set(required_extensions.begin(), required_extensions.end());
 
-    for(const auto& supported_ext : supported_extensions) {
+    for(const auto &supported_ext : supported_extensions) {
         required_extensions_set.erase(supported_ext.extensionName);
     }
 
@@ -168,36 +168,36 @@ void Instance::create_instance() {
     create_info.pNext = &DEBUG_MESSENGER_CREATE_INFO;
 #endif
 
-    DEBUG_ASSERT(vkCreateInstance(&create_info, nullptr, &vk_instance) == VK_SUCCESS)
+    DEBUG_ASSERT(vkCreateInstance(&create_info, nullptr, &m_instance) == VK_SUCCESS)
 }
 
 void Instance::create_debug_messenger() {
 #ifdef ENABLE_VALIDATION_DEFINE
-    auto CreateDebugUtilsMessengerEXT = reinterpret_cast<PFN_vkCreateDebugUtilsMessengerEXT>(vkGetInstanceProcAddr(vk_instance, "vkCreateDebugUtilsMessengerEXT"));
+    auto CreateDebugUtilsMessengerEXT = reinterpret_cast<PFN_vkCreateDebugUtilsMessengerEXT>(vkGetInstanceProcAddr(m_instance, "vkCreateDebugUtilsMessengerEXT"));
 
     DEBUG_ASSERT(CreateDebugUtilsMessengerEXT != nullptr)
 
-    DEBUG_ASSERT(CreateDebugUtilsMessengerEXT(vk_instance, &DEBUG_MESSENGER_CREATE_INFO, nullptr, &vk_debug_messenger) == VK_SUCCESS)
+    DEBUG_ASSERT(CreateDebugUtilsMessengerEXT(m_instance, &DEBUG_MESSENGER_CREATE_INFO, nullptr, &m_debug_messenger) == VK_SUCCESS)
 #endif
 }
 
 void Instance::create_window_surface(Proxy window_handle) {
-    DEBUG_ASSERT(glfwCreateWindowSurface(vk_instance, reinterpret_cast<GLFWwindow*>(window_handle), nullptr, &vk_surface) == VK_SUCCESS)
+    DEBUG_ASSERT(glfwCreateWindowSurface(m_instance, reinterpret_cast<GLFWwindow*>(window_handle), nullptr, &m_surface) == VK_SUCCESS)
 }
 
 void Instance::create_physical_device() {
     uint32_t device_count{};
-    vkEnumeratePhysicalDevices(vk_instance, &device_count, nullptr);
+    vkEnumeratePhysicalDevices(m_instance, &device_count, nullptr);
 
     if (device_count == 0U)
         DEBUG_PANIC("Failed to enumerate GPUs with Vulkan support!")
 
     std::vector<VkPhysicalDevice> all_physical_devices(static_cast<usize>(device_count));
-    vkEnumeratePhysicalDevices(vk_instance, &device_count, all_physical_devices.data());
+    vkEnumeratePhysicalDevices(m_instance, &device_count, all_physical_devices.data());
 
     std::vector<PhysicalDeviceRated> suitable_physical_devices{};
 
-    for (const auto& device : all_physical_devices) {
+    for (const auto &device : all_physical_devices) {
         VkPhysicalDeviceProperties properties{};
         vkGetPhysicalDeviceProperties(device, &properties);
 
@@ -217,33 +217,33 @@ void Instance::create_physical_device() {
     }
 
     // Find the best physical device by highest score
-    vk_physical_device = std::max_element(
+    m_physical_device = std::max_element(
         suitable_physical_devices.begin(),
         suitable_physical_devices.end(),
-        [](const auto& a, const auto& b){ return a.score < b.score; }
+        [](const auto &a, const auto &b){ return a.score < b.score; }
     )->device;
 
-    vk_queue_indices = get_device_queue_family_indices(vk_physical_device);
+    m_queue_indices = get_device_queue_family_indices(m_physical_device);
 
-    DEBUG_ASSERT(vk_physical_device != nullptr)
+    DEBUG_ASSERT(m_physical_device != nullptr)
 
     VkPhysicalDeviceProperties properties{};
-    vkGetPhysicalDeviceProperties(vk_physical_device, &properties);
+    vkGetPhysicalDeviceProperties(m_physical_device, &properties);
 
-    bool async_transfer_possible = vk_queue_indices.transfer.value() != vk_queue_indices.graphics.value() && vk_queue_indices.transfer.value() != vk_queue_indices.compute.value();
-    bool async_compute_possible = vk_queue_indices.compute.value() != vk_queue_indices.graphics.value() && vk_queue_indices.compute.value() != vk_queue_indices.transfer.value();
+    bool async_transfer_possible = m_queue_indices.transfer.value() != m_queue_indices.graphics.value() && m_queue_indices.transfer.value() != m_queue_indices.compute.value();
+    bool async_compute_possible = m_queue_indices.compute.value() != m_queue_indices.graphics.value() && m_queue_indices.compute.value() != m_queue_indices.transfer.value();
 
     DEBUG_LOG("\n" << properties.deviceName << " will be used as the physical device.")
-    DEBUG_LOG("Graphics queue index: " << vk_queue_indices.graphics.value())
-    DEBUG_LOG("Transfer queue index: " << vk_queue_indices.transfer.value() << ", async transfer will " << (async_transfer_possible ? "" : "not ") << "be possible.")
-    DEBUG_LOG("Compute queue index: " << vk_queue_indices.compute.value() << ", async compute will " << (async_compute_possible ? "" : "not ") << "be possible.")
+    DEBUG_LOG("Graphics queue index: " << m_queue_indices.graphics.value())
+    DEBUG_LOG("Transfer queue index: " << m_queue_indices.transfer.value() << ", async transfer will " << (async_transfer_possible ? "" : "not ") << "be possible.")
+    DEBUG_LOG("Compute queue index: " << m_queue_indices.compute.value() << ", async compute will " << (async_compute_possible ? "" : "not ") << "be possible.")
 }
 
 void Instance::create_logical_device() {
     std::set<u32> unique_queue_indices {
-        vk_queue_indices.graphics.value(),
-        vk_queue_indices.compute.value(),
-        vk_queue_indices.transfer.value()
+        m_queue_indices.graphics.value(),
+        m_queue_indices.compute.value(),
+        m_queue_indices.transfer.value()
     };
 
     std::vector<VkDeviceQueueCreateInfo> queue_create_infos{};
@@ -273,22 +273,22 @@ void Instance::create_logical_device() {
     create_info.ppEnabledLayerNames = REQUESTED_VALIDATION_LAYER_NAMES.data();
 #endif
 
-    DEBUG_ASSERT(vkCreateDevice(vk_physical_device, &create_info, nullptr, &vk_device) == VK_SUCCESS)
+    DEBUG_ASSERT(vkCreateDevice(m_physical_device, &create_info, nullptr, &m_device) == VK_SUCCESS)
 
-    vkGetDeviceQueue(vk_device, vk_queue_indices.graphics.value(), 0U, &vk_queue_graphics);
-    vkGetDeviceQueue(vk_device, vk_queue_indices.transfer.value(), 0U, &vk_queue_transfer);
-    vkGetDeviceQueue(vk_device, vk_queue_indices.compute.value(), 0U, &vk_queue_compute);
+    vkGetDeviceQueue(m_device, m_queue_indices.graphics.value(), 0U, &m_queue_graphics);
+    vkGetDeviceQueue(m_device, m_queue_indices.transfer.value(), 0U, &m_queue_transfer);
+    vkGetDeviceQueue(m_device, m_queue_indices.compute.value(), 0U, &m_queue_compute);
 }
 
 void Instance::create_allocator() {
     VmaAllocatorCreateInfo create_info {
-        .physicalDevice = vk_physical_device,
-        .device = vk_device,
-        .instance = vk_instance,
+        .physicalDevice = m_physical_device,
+        .device = m_device,
+        .instance = m_instance,
         .vulkanApiVersion = DESIRED_VK_API_VERSION
     };
 
-    vmaCreateAllocator(&create_info, &vk_allocator);
+    vmaCreateAllocator(&create_info, &m_allocator);
 }
 
 u32 Instance::rate_device(VkPhysicalDevice device) {
@@ -324,7 +324,7 @@ QueueFamilyIndices Instance::get_device_queue_family_indices(VkPhysicalDevice de
     // Find unique graphics and present queue
     for (u32 i{}; i < queue_family_count; ++i) {
         VkBool32 present_support{};
-        vkGetPhysicalDeviceSurfaceSupportKHR(device, i, vk_surface, &present_support);
+        vkGetPhysicalDeviceSurfaceSupportKHR(device, i, m_surface, &present_support);
 
         if ((queue_families[i].queueFlags & VK_QUEUE_GRAPHICS_BIT) && present_support) {
             indices.graphics = i;
@@ -401,13 +401,13 @@ bool Instance::check_device_extension_support(VkPhysicalDevice device) {
 
     std::set<std::string> required_extensions(REQUESTED_DEVICE_EXTENSION_NAMES.begin(), REQUESTED_DEVICE_EXTENSION_NAMES.end());
 
-    for (const auto& extension : available_extensions) {
+    for (const auto &extension : available_extensions) {
         required_extensions.erase(extension.extensionName);
     }
 
     if (!required_extensions.empty()) {
         DEBUG_WARNING("The physical device doesn't support the following extensions: ")
-        for (const auto& extension : required_extensions) {
+        for (const auto &extension : required_extensions) {
             DEBUG_WARNING(extension)
         }
 
@@ -503,10 +503,10 @@ bool Instance::check_device_swapchain_support(VkPhysicalDevice device) {
     std::vector<VkSurfaceFormatKHR> formats{};
     std::vector<VkPresentModeKHR> present_modes{};
 
-    vkGetPhysicalDeviceSurfaceCapabilitiesKHR(device, vk_surface, &capabilities);
+    vkGetPhysicalDeviceSurfaceCapabilitiesKHR(device, m_surface, &capabilities);
 
     u32 format_count{};
-    vkGetPhysicalDeviceSurfaceFormatsKHR(device, vk_surface, &format_count, nullptr);
+    vkGetPhysicalDeviceSurfaceFormatsKHR(device, m_surface, &format_count, nullptr);
 
     if(format_count == 0U) {
         DEBUG_WARNING("There are no supported swapchain formats on this physical device!")
@@ -514,10 +514,10 @@ bool Instance::check_device_swapchain_support(VkPhysicalDevice device) {
     }
 
     formats.resize(static_cast<usize>(format_count));
-    vkGetPhysicalDeviceSurfaceFormatsKHR(device, vk_surface, &format_count, formats.data());
+    vkGetPhysicalDeviceSurfaceFormatsKHR(device, m_surface, &format_count, formats.data());
 
     u32 present_mode_count{};
-    vkGetPhysicalDeviceSurfacePresentModesKHR(device, vk_surface, &present_mode_count, nullptr);
+    vkGetPhysicalDeviceSurfacePresentModesKHR(device, m_surface, &present_mode_count, nullptr);
 
     if(present_mode_count == 0U) {
         DEBUG_WARNING("There are no supported present modes on this physical device!")
@@ -525,7 +525,7 @@ bool Instance::check_device_swapchain_support(VkPhysicalDevice device) {
     }
 
     present_modes.resize(static_cast<usize>(present_mode_count));
-    vkGetPhysicalDeviceSurfacePresentModesKHR(device, vk_surface, &present_mode_count, present_modes.data());
+    vkGetPhysicalDeviceSurfacePresentModesKHR(device, m_surface, &present_mode_count, present_modes.data());
 
     return true;
 }
@@ -557,14 +557,14 @@ bool Instance::validation_layers_supported() {
 
 VkFormatProperties Instance::get_format_properties(VkFormat format) const {
     VkFormatProperties properties;
-    vkGetPhysicalDeviceFormatProperties(vk_physical_device, format, &properties);
+    vkGetPhysicalDeviceFormatProperties(m_physical_device, format, &properties);
 
     return properties;
 }
 
 VkPhysicalDeviceProperties Instance::get_physical_device_properties() const {
     VkPhysicalDeviceProperties properties;
-    vkGetPhysicalDeviceProperties(vk_physical_device, &properties);
+    vkGetPhysicalDeviceProperties(m_physical_device, &properties);
 
     return properties;
 }

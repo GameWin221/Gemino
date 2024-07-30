@@ -18,13 +18,13 @@ struct WindowConfig {
 
 class Window {
 public:
-    explicit Window(const WindowConfig& config);
+    explicit Window(const WindowConfig &config);
     ~Window();
 
-    Window& operator=(const Window& other) = delete;
-    Window& operator=(Window&& other) noexcept = delete;
+    Window & operator=(const Window &other) = delete;
+    Window & operator=(Window &&other) noexcept = delete;
 
-    void set_title(const std::string& title);
+    void set_title(const std::string &title);
     void set_size(glm::uvec2 windowed_size);
     void set_fullscreen(bool fullscreen);
 
@@ -38,16 +38,16 @@ public:
 
     glm::uvec2 get_size() const;
 
-    Proxy get_native_handle() const { return static_cast<Proxy>(window_handle); }
+    Proxy get_native_handle() const { return static_cast<Proxy>(m_window_handle); }
 
-    const WindowConfig& get_config() const { return window_config; }
+    const WindowConfig& get_config() const { return m_window_config; }
 
 private:
-    WindowConfig window_config{};
+    WindowConfig m_window_config{};
 
-    struct GLFWwindow* window_handle{};
+    struct GLFWwindow *m_window_handle{};
 
-    static void framebuffer_size_callback(struct GLFWwindow* window, i32 width, i32 height);
+    static void framebuffer_size_callback(struct GLFWwindow *window, i32 width, i32 height);
 
     bool was_resized = false;
 };

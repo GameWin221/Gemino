@@ -145,51 +145,51 @@ enum struct InputState : u32 {
 
 class InputManager {
 public:
-    explicit InputManager(Window& polled_window);
+    explicit InputManager(Window &polled_window);
     ~InputManager();
 
-    InputManager& operator=(const InputManager& other) = delete;
-    InputManager& operator=(InputManager&& other) noexcept = delete;
+    InputManager &operator=(const InputManager &other) = delete;
+    InputManager &operator=(InputManager &&other) noexcept = delete;
 
     void poll_input();
 
     void set_cursor_mode(CursorMode mode);
-    CursorMode get_cursor_mode() const { return cursor_mode; }
+    CursorMode get_cursor_mode() const { return m_cursor_mode; }
 
     bool get_key(Key key, InputState state) const;
     bool get_button(Button button, InputState state) const;
 
-    Key get_last_key() const { return last_key; };
-    Button get_last_button() const { return last_button; };
+    Key get_last_key() const { return m_last_key; };
+    Button get_last_button() const { return m_last_button; };
 
-    glm::vec2 get_scroll() const { return scroll_delta; };
+    glm::vec2 get_scroll() const { return m_scroll_delta; };
 
-    glm::vec2 get_mouse_position() const { return current_mouse_pos; };
-    glm::vec2 get_mouse_velocity() const { return mouse_delta; };
+    glm::vec2 get_mouse_position() const { return m_current_mouse_pos; };
+    glm::vec2 get_mouse_velocity() const { return m_mouse_delta; };
 
 private:
-    struct GLFWwindow* polled_window_handle{};
+    GLFWwindow* m_polled_window_handle{};
 
-    CursorMode cursor_mode = CursorMode::Free;
+    CursorMode m_cursor_mode = CursorMode::Free;
 
-    Key last_key{};
-    Button last_button{};
+    Key m_last_key{};
+    Button m_last_button{};
 
-    glm::vec2 scroll_delta{};
+    glm::vec2 m_scroll_delta{};
 
-    glm::vec2 current_mouse_pos{};
-    glm::vec2 last_mouse_pos{};
-    glm::vec2 mouse_delta{};
+    glm::vec2 m_current_mouse_pos{};
+    glm::vec2 m_last_mouse_pos{};
+    glm::vec2 m_mouse_delta{};
 
-    std::array<bool, static_cast<usize>(Key::LAST_KEY) - static_cast<usize>(Key::FIRST_KEY) + 1> current_key_presses{};
-    std::array<bool, static_cast<usize>(Key::LAST_KEY) - static_cast<usize>(Key::FIRST_KEY) + 1> last_key_presses{};
+    std::array<bool, static_cast<usize>(Key::LAST_KEY) - static_cast<usize>(Key::FIRST_KEY) + 1> m_current_key_presses{};
+    std::array<bool, static_cast<usize>(Key::LAST_KEY) - static_cast<usize>(Key::FIRST_KEY) + 1> m_last_key_presses{};
 
-    std::array<bool, static_cast<usize>(Button::LAST_BUTTON) - static_cast<usize>(Button::FIRST_BUTTON) + 1> current_button_presses{};
-    std::array<bool, static_cast<usize>(Button::LAST_BUTTON) - static_cast<usize>(Button::FIRST_BUTTON) + 1> last_button_presses{};
+    std::array<bool, static_cast<usize>(Button::LAST_BUTTON) - static_cast<usize>(Button::FIRST_BUTTON) + 1> m_current_button_presses{};
+    std::array<bool, static_cast<usize>(Button::LAST_BUTTON) - static_cast<usize>(Button::FIRST_BUTTON) + 1> m_last_button_presses{};
 
-    static void scroll_callback(struct GLFWwindow* window, f64 x_offset, f64 y_offset);
-    static void key_callback(GLFWwindow* window, i32 key, i32 scancode, i32 action, i32 mods);
-    static void mouse_button_callback(GLFWwindow* window, i32 button, i32 action, i32 mods);
+    static void scroll_callback(GLFWwindow *window, f64 x_offset, f64 y_offset);
+    static void key_callback(GLFWwindow *window, i32 key, i32 scancode, i32 action, i32 mods);
+    static void mouse_button_callback(GLFWwindow *window, i32 button, i32 action, i32 mods);
 };
 
 #endif

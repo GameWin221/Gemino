@@ -3,8 +3,8 @@
 
 #include <string>
 #include <vulkan/vulkan.h>
-#include <renderer/vertex.hpp>
-#include <renderer/managers/resource_manager.hpp>
+#include <render_api/vertex.hpp>
+#include <render_api/managers/resource_manager.hpp>
 #include <common/handle_allocator.hpp>
 #include <common/types.hpp>
 
@@ -84,33 +84,34 @@ struct ComputePipeline {
 
 class PipelineManager {
 public:
-    PipelineManager(VkDevice device, const ResourceManager* resource_manager_ptr);
+    PipelineManager(VkDevice device, const ResourceManager *resource_manager_ptr);
     ~PipelineManager();
 
-    PipelineManager& operator=(const PipelineManager& other) = delete;
-    PipelineManager& operator=(PipelineManager&& other) noexcept = delete;
+    PipelineManager &operator=(const PipelineManager &other) = delete;
+    PipelineManager &operator=(PipelineManager &&other) noexcept = delete;
 
-    Handle<GraphicsPipeline> create_graphics_pipeline(const GraphicsPipelineCreateInfo& info);
-    Handle<ComputePipeline> create_compute_pipeline(const ComputePipelineCreateInfo& info);
-    Handle<RenderTarget> create_render_target(Handle<GraphicsPipeline> src_pipeline, const RenderTargetCreateInfo& info);
+    Handle<GraphicsPipeline> create_graphics_pipeline(const GraphicsPipelineCreateInfo &info);
+    Handle<ComputePipeline> create_compute_pipeline(const ComputePipelineCreateInfo &info);
+    Handle<RenderTarget> create_render_target(Handle<GraphicsPipeline> src_pipeline, const RenderTargetCreateInfo &info);
 
     void destroy_graphics_pipeline(Handle<GraphicsPipeline> pipeline_handle);
     void destroy_compute_pipeline(Handle<ComputePipeline> pipeline_handle);
     void destroy_render_target(Handle<RenderTarget> rt_handle);
 
-    const GraphicsPipeline& get_graphics_pipeline_data(Handle<GraphicsPipeline> pipeline_handle) const;
-    const ComputePipeline& get_compute_pipeline_data(Handle<ComputePipeline> pipeline_handle) const;
-    const RenderTarget& get_render_target_data(Handle<RenderTarget> rt_handle) const;
+    const GraphicsPipeline &get_graphics_pipeline_data(Handle<GraphicsPipeline> pipeline_handle) const;
+    const ComputePipeline &get_compute_pipeline_data(Handle<ComputePipeline> pipeline_handle) const;
+    const RenderTarget &get_render_target_data(Handle<RenderTarget> rt_handle) const;
 
 private:
     VkShaderModule create_shader_module(const std::string& path);
 
-    const VkDevice vk_device;
-    const ResourceManager* resource_manager; // ResourceManager is guaranteed to live as long as PipelineManager
+    const VkDevice VK_DEVICE;
 
-    HandleAllocator<GraphicsPipeline> graphics_pipeline_allocator{};
-    HandleAllocator<ComputePipeline> compute_pipeline_allocator{};
-    HandleAllocator<RenderTarget> render_target_allocator{};
+    const ResourceManager *const m_resource_manager_ptr; // ResourceManager is guaranteed to live as long as PipelineManager
+
+    HandleAllocator<GraphicsPipeline> m_graphics_pipeline_allocator{};
+    HandleAllocator<ComputePipeline> m_compute_pipeline_allocator{};
+    HandleAllocator<RenderTarget> m_render_target_allocator{};
 };
 
 

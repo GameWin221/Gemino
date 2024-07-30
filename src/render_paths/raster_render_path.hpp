@@ -1,7 +1,7 @@
 #ifndef GEMINO_RASTER_RENDER_PATH_HPP
 #define GEMINO_RASTER_RENDER_PATH_HPP
 
-#include <renderer/renderer.hpp>
+#include <render_api/render_api.hpp>
 #include <world/world.hpp>
 #include <window/window.hpp>
 #include <common/utils.hpp>
@@ -89,7 +89,7 @@ public:
     RasterRenderPath(Window& window, VSyncMode v_sync);
     ~RasterRenderPath();
 
-    u32 get_frames_since_init() const { return frames_since_init; }
+    u32 get_frames_since_init() const { return m_frames_since_init; }
 
     void resize(const Window& window);
     void render(World& world, Handle<Camera> camera);
@@ -104,7 +104,7 @@ public:
     Handle<Material> create_material(const MaterialCreateInfo& create_info);
     void destroy_material(Handle<Material> material_handle);
 
-    float global_lod_bias{};
+    float m_global_lod_bias{};
 
     const u32 FRAMES_IN_FLIGHT = 2U;
 
@@ -117,6 +117,7 @@ public:
     const VkDeviceSize MAX_SCENE_DRAWS = 1ull * 1024ull * 1024ull; // (device memory)
     const VkDeviceSize MAX_SCENE_OBJECTS = MAX_SCENE_DRAWS; // (device memory)
 
+    // I know it's huge for a per-frame buffer but until I don't implement batch uploading its ok I guess
     const VkDeviceSize PER_FRAME_UPLOAD_BUFFER_SIZE = 16ull * 1024ull * 1024ull; // (host memory)
 
     const VkDeviceSize OVERALL_DEVICE_MEMORY_USAGE =
@@ -160,7 +161,7 @@ private:
     void destroy_screen_images();
     void destroy_scene_buffers();
 
-    Renderer renderer;
+    RenderAPI m_api;
 
     struct Frame {
         Handle<CommandList> command_list{};
@@ -178,52 +179,52 @@ private:
         }
     };
 
-    u32 texture_anisotropy = 8U;
-    float texture_mip_bias = 0.0f;
+    u32 m_texture_anisotropy = 8U;
+    float m_texture_mip_bias = 0.0f;
 
-    u32 frame_in_flight_index{};
-    u32 swapchain_target_index{};
-    u32 frames_since_init{};
+    u32 m_frame_in_flight_index{};
+    u32 m_swapchain_target_index{};
+    u32 m_frames_since_init{};
 
-    std::vector<Frame> frames{};
+    std::vector<Frame> m_frames{};
 
-    HandleAllocator<MeshLOD> lod_allocator{};
-    HandleAllocator<Mesh> mesh_allocator{};
-    HandleAllocator<Texture> texture_allocator{};
-    HandleAllocator<Material> material_allocator{};
+    HandleAllocator<MeshLOD> m_lod_allocator{};
+    HandleAllocator<Mesh> m_mesh_allocator{};
+    HandleAllocator<Texture> m_texture_allocator{};
+    HandleAllocator<Material> m_material_allocator{};
 
-    Handle<Descriptor> draw_call_gen_descriptor{};
-    Handle<ComputePipeline> draw_call_gen_pipeline{};
+    Handle<Descriptor> m_draw_call_gen_descriptor{};
+    Handle<ComputePipeline> m_draw_call_gen_pipeline{};
 
-    Handle<RenderTarget> offscreen_rt{};
-    Handle<Image> offscreen_rt_image{};
-    Handle<Sampler> offscreen_rt_sampler{};
+    Handle<RenderTarget> m_offscreen_rt{};
+    Handle<Image> m_offscreen_rt_image{};
+    Handle<Sampler> m_offscreen_rt_sampler{};
 
-    Handle<Descriptor> forward_descriptor{};
-    Handle<GraphicsPipeline> forward_pipeline{};
+    Handle<Descriptor> m_forward_descriptor{};
+    Handle<GraphicsPipeline> m_forward_pipeline{};
 
-    std::vector<Handle<RenderTarget>> offscreen_rt_to_swapchain_targets{};
-    Handle<Descriptor> offscreen_rt_to_swapchain_descriptor{};
-    Handle<GraphicsPipeline> offscreen_rt_to_swapchain_pipeline{};
+    std::vector<Handle<RenderTarget>> m_offscreen_rt_to_swapchain_targets{};
+    Handle<Descriptor> m_offscreen_rt_to_swapchain_descriptor{};
+    Handle<GraphicsPipeline> m_offscreen_rt_to_swapchain_pipeline{};
 
-    Handle<Image> depth_image{};
+    Handle<Image> m_depth_image{};
 
-    Handle<Texture> default_white_srgb_texture{};
-    Handle<Texture> default_grey_unorm_texture{};
+    Handle<Texture> m_default_white_srgb_texture{};
+    Handle<Texture> m_default_grey_unorm_texture{};
 
-    u32 allocated_vertices{};
-    u32 allocated_indices{};
+    u32 m_allocated_vertices{};
+    u32 m_allocated_indices{};
 
-    Handle<Buffer> scene_vertex_buffer{};
-    Handle<Buffer> scene_index_buffer{};
-    Handle<Buffer> scene_lod_buffer{};
-    Handle<Buffer> scene_mesh_buffer{};
-    Handle<Buffer> scene_object_buffer{};
-    Handle<Buffer> scene_material_buffer{};
-    Handle<Buffer> scene_camera_buffer{};
-    Handle<Buffer> scene_draw_buffer{};
-    Handle<Buffer> scene_draw_index_buffer{};
-    Handle<Buffer> scene_draw_count_buffer{};
+    Handle<Buffer> m_scene_vertex_buffer{};
+    Handle<Buffer> m_scene_index_buffer{};
+    Handle<Buffer> m_scene_lod_buffer{};
+    Handle<Buffer> m_scene_mesh_buffer{};
+    Handle<Buffer> m_scene_object_buffer{};
+    Handle<Buffer> m_scene_material_buffer{};
+    Handle<Buffer> m_scene_camera_buffer{};
+    Handle<Buffer> m_scene_draw_buffer{};
+    Handle<Buffer> m_scene_draw_index_buffer{};
+    Handle<Buffer> m_scene_draw_count_buffer{};
 };
 
 #endif

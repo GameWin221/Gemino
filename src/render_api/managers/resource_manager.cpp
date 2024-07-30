@@ -1,7 +1,7 @@
 #include "resource_manager.hpp"
 #include <cstring>
 
-ResourceManager::ResourceManager(VkDevice device, VmaAllocator allocator) : vk_device(device), vk_allocator(allocator) {
+ResourceManager::ResourceManager(VkDevice device, VmaAllocator allocator) : VK_DEVICE(device), VK_ALLOCATOR(allocator) {
     std::vector<VkDescriptorPoolSize> pool_sizes {
         VkDescriptorPoolSize { VK_DESCRIPTOR_TYPE_SAMPLER, 128U },
         VkDescriptorPoolSize { VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER, 4096U },
@@ -17,7 +17,7 @@ ResourceManager::ResourceManager(VkDevice device, VmaAllocator allocator) : vk_d
     };
 
     u32 max_sets{};
-    for(const auto& size : pool_sizes) {
+    for(const auto &size : pool_sizes) {
         max_sets += size.descriptorCount;
     }
 
@@ -29,26 +29,26 @@ ResourceManager::ResourceManager(VkDevice device, VmaAllocator allocator) : vk_d
         .pPoolSizes = pool_sizes.data()
     };
 
-    DEBUG_ASSERT(vkCreateDescriptorPool(vk_device, &descriptor_pool_create_info, nullptr, &vk_descriptor_pool) == VK_SUCCESS)
+    DEBUG_ASSERT(vkCreateDescriptorPool(VK_DEVICE, &descriptor_pool_create_info, nullptr, &m_descriptor_pool) == VK_SUCCESS)
 }
 ResourceManager::~ResourceManager() {
-    for(const auto& handle : image_allocator.get_valid_handles_copy()) {
+    for(const auto &handle : m_image_allocator.get_valid_handles_copy()) {
         destroy_image(handle);
     }
-    for(const auto& handle : buffer_allocator.get_valid_handles_copy()) {
+    for(const auto &handle : m_buffer_allocator.get_valid_handles_copy()) {
         destroy_buffer(handle);
     }
-    for(const auto& handle : descriptor_allocator.get_valid_handles_copy()) {
+    for(const auto &handle : m_descriptor_allocator.get_valid_handles_copy()) {
         destroy_descriptor(handle);
     }
-    for(const auto& handle : sampler_allocator.get_valid_handles_copy()) {
+    for(const auto &handle : m_sampler_allocator.get_valid_handles_copy()) {
         destroy_sampler(handle);
     }
 
-    vkDestroyDescriptorPool(vk_device, vk_descriptor_pool, nullptr);
+    vkDestroyDescriptorPool(VK_DEVICE, m_descriptor_pool, nullptr);
 }
 
-Handle<Image> ResourceManager::create_image(const ImageCreateInfo& info) {
+Handle<Image> ResourceManager::create_image(const ImageCreateInfo &info) {
     VkExtent3D image_extent{
         .width = std::max(1U, info.extent.width),
         .height = std::max(1U, info.extent.height),
@@ -114,7 +114,7 @@ Handle<Image> ResourceManager::create_image(const ImageCreateInfo& info) {
         .usage = VMA_MEMORY_USAGE_GPU_ONLY
     };
 
-    DEBUG_ASSERT(vmaCreateImage(vk_allocator, &image_create_info, &allocation_create_info, &image.image, &image.allocation, nullptr) == VK_SUCCESS)
+    DEBUG_ASSERT(vmaCreateImage(VK_ALLOCATOR, &image_create_info, &allocation_create_info, &image.image, &image.allocation, nullptr) == VK_SUCCESS)
 
     VkImageViewCreateInfo view_create_info{
         .sType = VK_STRUCTURE_TYPE_IMAGE_VIEW_CREATE_INFO,
@@ -129,7 +129,7 @@ Handle<Image> ResourceManager::create_image(const ImageCreateInfo& info) {
         }
     };
 
-    DEBUG_ASSERT(vkCreateImageView(vk_device, &view_create_info, nullptr, &image.view) == VK_SUCCESS)
+    DEBUG_ASSERT(vkCreateImageView(VK_DEVICE, &view_create_info, nullptr, &image.view) == VK_SUCCESS)
 
     if(info.create_per_mip_views) {
         image.per_mip_views.resize(static_cast<usize>(info.mip_level_count));
@@ -138,11 +138,11 @@ Handle<Image> ResourceManager::create_image(const ImageCreateInfo& info) {
             view_create_info.subresourceRange.levelCount = 1U;
             view_create_info.subresourceRange.baseMipLevel = i;
 
-            DEBUG_ASSERT(vkCreateImageView(vk_device, &view_create_info, nullptr, &image.per_mip_views[i]) == VK_SUCCESS)
+            DEBUG_ASSERT(vkCreateImageView(VK_DEVICE, &view_create_info, nullptr, &image.per_mip_views[i]) == VK_SUCCESS)
         }
     }
 
-    return image_allocator.alloc(image);
+    return m_image_allocator.alloc(image);
 }
 Handle<Image> ResourceManager::create_image_borrowed(VkImage borrowed_image, VkImageView borrowed_view, const ImageCreateInfo &info) {
     VkExtent3D image_extent{
@@ -193,7 +193,7 @@ Handle<Image> ResourceManager::create_image_borrowed(VkImage borrowed_image, VkI
         }
     }
 
-    return image_allocator.alloc(image);
+    return m_image_allocator.alloc(image);
 }
 Handle<Buffer> ResourceManager::create_buffer(const BufferCreateInfo &info) {
     Buffer buffer{
@@ -212,9 +212,9 @@ Handle<Buffer> ResourceManager::create_buffer(const BufferCreateInfo &info) {
         .usage = info.memory_usage_flags
     };
 
-    DEBUG_ASSERT(vmaCreateBuffer(vk_allocator, &buffer_create_info, &allocation_create_info, &buffer.buffer, &buffer.allocation, nullptr) == VK_SUCCESS)
+    DEBUG_ASSERT(vmaCreateBuffer(VK_ALLOCATOR, &buffer_create_info, &allocation_create_info, &buffer.buffer, &buffer.allocation, nullptr) == VK_SUCCESS)
 
-    return buffer_allocator.alloc(buffer);
+    return m_buffer_allocator.alloc(buffer);
 }
 Handle<Descriptor> ResourceManager::create_descriptor(const DescriptorCreateInfo &info) {
     Descriptor descriptor{
@@ -253,18 +253,18 @@ Handle<Descriptor> ResourceManager::create_descriptor(const DescriptorCreateInfo
         .pBindings = bindings.data()
     };
 
-    DEBUG_ASSERT(vkCreateDescriptorSetLayout(vk_device, &descriptor_layout_create_info, nullptr, &descriptor.layout) == VK_SUCCESS)
+    DEBUG_ASSERT(vkCreateDescriptorSetLayout(VK_DEVICE, &descriptor_layout_create_info, nullptr, &descriptor.layout) == VK_SUCCESS)
 
     VkDescriptorSetAllocateInfo allocate_info {
         .sType = VK_STRUCTURE_TYPE_DESCRIPTOR_SET_ALLOCATE_INFO,
-        .descriptorPool = vk_descriptor_pool,
+        .descriptorPool = m_descriptor_pool,
         .descriptorSetCount = 1U,
         .pSetLayouts = &descriptor.layout
     };
 
-    DEBUG_ASSERT(vkAllocateDescriptorSets(vk_device, &allocate_info, &descriptor.set) == VK_SUCCESS)
+    DEBUG_ASSERT(vkAllocateDescriptorSets(VK_DEVICE, &allocate_info, &descriptor.set) == VK_SUCCESS)
 
-    return descriptor_allocator.alloc(descriptor);
+    return m_descriptor_allocator.alloc(descriptor);
 }
 Handle<Sampler> ResourceManager::create_sampler(const SamplerCreateInfo &info) {
     Sampler sampler{};
@@ -293,40 +293,40 @@ Handle<Sampler> ResourceManager::create_sampler(const SamplerCreateInfo &info) {
         .borderColor = VK_BORDER_COLOR_INT_OPAQUE_BLACK,
     };
 
-    DEBUG_ASSERT(vkCreateSampler(vk_device, &create_info, nullptr, &sampler.sampler) == VK_SUCCESS)
+    DEBUG_ASSERT(vkCreateSampler(VK_DEVICE, &create_info, nullptr, &sampler.sampler) == VK_SUCCESS)
 
-    return sampler_allocator.alloc(sampler);
+    return m_sampler_allocator.alloc(sampler);
 }
 
-void* ResourceManager::map_buffer(Handle<Buffer> buffer_handle) {
+void *ResourceManager::map_buffer(Handle<Buffer> buffer_handle) {
 #if DEBUG_MODE // Remove hot-path checks in release mode
-    if (!buffer_allocator.is_handle_valid(buffer_handle)) {
+    if (!m_buffer_allocator.is_handle_valid(buffer_handle)) {
         DEBUG_PANIC("Cannot map buffer! - Buffer with a handle id: = " << buffer_handle << ", does not exist!")
     }
 #endif
 
-    void* data;
-    DEBUG_ASSERT(vmaMapMemory(vk_allocator, buffer_allocator.get_element(buffer_handle).allocation, &data) == VK_SUCCESS)
+    void *data;
+    DEBUG_ASSERT(vmaMapMemory(VK_ALLOCATOR, m_buffer_allocator.get_element(buffer_handle).allocation, &data) == VK_SUCCESS)
 
     return data;
 }
 void ResourceManager::unmap_buffer(Handle<Buffer> buffer_handle) {
 #if DEBUG_MODE // Remove hot-path checks in release mode
-    if (!buffer_allocator.is_handle_valid(buffer_handle)) {
+    if (!m_buffer_allocator.is_handle_valid(buffer_handle)) {
         DEBUG_PANIC("Cannot unmap buffer! - Buffer with a handle id: = " << buffer_handle << ", does not exist!")
     }
 #endif
 
-    vmaUnmapMemory(vk_allocator, buffer_allocator.get_element(buffer_handle).allocation);
+    vmaUnmapMemory(VK_ALLOCATOR, m_buffer_allocator.get_element(buffer_handle).allocation);
 }
 void ResourceManager::flush_mapped_buffer(Handle<Buffer> buffer_handle, VkDeviceSize size, VkDeviceSize offset) {
 #if DEBUG_MODE // Remove hot-path checks in release mode
-    if (!buffer_allocator.is_handle_valid(buffer_handle)) {
+    if (!m_buffer_allocator.is_handle_valid(buffer_handle)) {
         DEBUG_PANIC("Cannot flush mapped buffer! - Buffer with a handle id: = " << buffer_handle << ", does not exist!")
     }
 #endif
 
-    const Buffer& buffer = buffer_allocator.get_element(buffer_handle);
+    const Buffer &buffer = m_buffer_allocator.get_element(buffer_handle);
 
     VkDeviceSize flush_size;
     if(size != 0) {
@@ -339,43 +339,42 @@ void ResourceManager::flush_mapped_buffer(Handle<Buffer> buffer_handle, VkDevice
         DEBUG_PANIC("Cannot flush mapped buffer! - Flush range out of bounds: flush_size = " << flush_size << ", offset = " << offset)
     }
 
-    vmaFlushAllocation(vk_allocator, buffer.allocation, offset, size);
+    vmaFlushAllocation(VK_ALLOCATOR, buffer.allocation, offset, size);
 }
 
-void ResourceManager::memcpy_to_buffer_once(Handle<Buffer> buffer_handle, const void* src_data, usize size, usize dst_offset, usize src_offset) {
-    void* mapped = reinterpret_cast<void*>(reinterpret_cast<usize>(map_buffer(buffer_handle)) + dst_offset);
-    void* src = reinterpret_cast<void*>(reinterpret_cast<usize>(src_data) + src_offset);
+void ResourceManager::memcpy_to_buffer_once(Handle<Buffer> buffer_handle, const void *src_data, usize size, usize dst_offset, usize src_offset) {
+    void *mapped = reinterpret_cast<void*>(reinterpret_cast<usize>(map_buffer(buffer_handle)) + dst_offset);
+    void *src = reinterpret_cast<void*>(reinterpret_cast<usize>(src_data) + src_offset);
 
     std::memcpy(mapped, src, size);
 
     unmap_buffer(buffer_handle);
 }
 void ResourceManager::memcpy_to_buffer(void *dst_mapped_buffer, const void *src_data, usize size, usize dst_offset, usize src_offset) {
-    void* mapped = reinterpret_cast<void*>(reinterpret_cast<usize>(dst_mapped_buffer) + dst_offset);
-    void* src = reinterpret_cast<void*>(reinterpret_cast<usize>(src_data) + src_offset);
+    void *mapped = reinterpret_cast<void*>(reinterpret_cast<usize>(dst_mapped_buffer) + dst_offset);
+    void *src = reinterpret_cast<void*>(reinterpret_cast<usize>(src_data) + src_offset);
     std::memcpy(mapped, src, size);
 }
-
 
 /*
 void ResourceManager::update_image_layout(Handle<Image> image_handle, VkImageLayout new_layout) {
 #if DEBUG_MODE // Remove hot-path checks in release mode
-    if (!image_allocator.is_handle_valid(image_handle)) {
+    if (!m_image_allocator.is_handle_valid(image_handle)) {
         DEBUG_PANIC("Cannot update image layout - Image with a handle id: = " << image_handle << ", does not exist!")
     }
 #endif
 
-    image_allocator.get_element_mutable(image_handle).current_layout = new_layout;
+    m_image_allocator.get_element_mutable(image_handle).current_layout = new_layout;
 }
 */
 void ResourceManager::update_descriptor(Handle<Descriptor> descriptor_handle, const DescriptorUpdateInfo &info) {
 #if DEBUG_MODE // Remove hot-path checks in release mode
-    if (!descriptor_allocator.is_handle_valid(descriptor_handle)) {
+    if (!m_descriptor_allocator.is_handle_valid(descriptor_handle)) {
         DEBUG_PANIC("Cannot update descriptor - Descriptor with a handle id: = " << descriptor_handle << ", does not exist!")
     }
 #endif
 
-    const Descriptor& descriptor = descriptor_allocator.get_element(descriptor_handle);
+    const Descriptor &descriptor = m_descriptor_allocator.get_element(descriptor_handle);
 
     std::vector<VkWriteDescriptorSet> descriptor_writes{};
     std::vector<u32> descriptor_info_indices{};
@@ -449,7 +448,7 @@ void ResourceManager::update_descriptor(Handle<Descriptor> descriptor_handle, co
     }
 
     for(usize i{}; i < descriptor_writes.size(); ++i) {
-        auto& write = descriptor_writes[i];
+        auto &write = descriptor_writes[i];
 
         if(write.descriptorType == VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER || write.descriptorType == VK_DESCRIPTOR_TYPE_SAMPLER || write.descriptorType == VK_DESCRIPTOR_TYPE_SAMPLED_IMAGE || write.descriptorType == VK_DESCRIPTOR_TYPE_STORAGE_IMAGE) {
             write.pImageInfo = &descriptor_images[descriptor_info_indices[i]];
@@ -460,15 +459,15 @@ void ResourceManager::update_descriptor(Handle<Descriptor> descriptor_handle, co
         }
     }
 
-    vkUpdateDescriptorSets(vk_device, static_cast<u32>(descriptor_writes.size()), descriptor_writes.data(), 0U, nullptr);
+    vkUpdateDescriptorSets(VK_DEVICE, static_cast<u32>(descriptor_writes.size()), descriptor_writes.data(), 0U, nullptr);
 }
 
 void ResourceManager::destroy_image(Handle<Image> image_handle) {
-    if (!image_allocator.is_handle_valid(image_handle)) {
+    if (!m_image_allocator.is_handle_valid(image_handle)) {
         DEBUG_PANIC("Cannot delete image - Image with a handle id: = " << image_handle << ", does not exist!")
     }
 
-    const Image& image = image_allocator.get_element(image_handle);
+    const Image &image = m_image_allocator.get_element(image_handle);
 
     // If it is a borrowed image
     if(image.allocation == nullptr) {
@@ -476,82 +475,82 @@ void ResourceManager::destroy_image(Handle<Image> image_handle) {
     }
 
     for(const auto& view : image.per_mip_views) {
-        vkDestroyImageView(vk_device, view, nullptr);
+        vkDestroyImageView(VK_DEVICE, view, nullptr);
     }
 
-    vkDestroyImageView(vk_device, image.view, nullptr);
-    vmaDestroyImage(vk_allocator, image.image, image.allocation);
+    vkDestroyImageView(VK_DEVICE, image.view, nullptr);
+    vmaDestroyImage(VK_ALLOCATOR, image.image, image.allocation);
 
-    image_allocator.free(image_handle);
+    m_image_allocator.free(image_handle);
 }
 void ResourceManager::destroy_buffer(Handle<Buffer> buffer_handle) {
-    if (!buffer_allocator.is_handle_valid(buffer_handle)) {
+    if (!m_buffer_allocator.is_handle_valid(buffer_handle)) {
         DEBUG_PANIC("Cannot delete buffer - Buffer with a handle id: = " << buffer_handle << ", does not exist!")
     }
 
-    const Buffer& buffer = buffer_allocator.get_element(buffer_handle);
+    const Buffer &buffer = m_buffer_allocator.get_element(buffer_handle);
 
-    vmaDestroyBuffer(vk_allocator, buffer.buffer, buffer.allocation);
+    vmaDestroyBuffer(VK_ALLOCATOR, buffer.buffer, buffer.allocation);
 
-    buffer_allocator.free(buffer_handle);
+    m_buffer_allocator.free(buffer_handle);
 }
 void ResourceManager::destroy_descriptor(Handle<Descriptor> descriptor_handle) {
-    if (!descriptor_allocator.is_handle_valid(descriptor_handle)) {
+    if (!m_descriptor_allocator.is_handle_valid(descriptor_handle)) {
         DEBUG_PANIC("Cannot delete descriptor - Descriptor with a handle id: = " << descriptor_handle << ", does not exist!")
     }
 
-    const Descriptor& descriptor = descriptor_allocator.get_element(descriptor_handle);
+    const Descriptor &descriptor = m_descriptor_allocator.get_element(descriptor_handle);
 
-    vkFreeDescriptorSets(vk_device, vk_descriptor_pool, 1U, &descriptor.set);
-    vkDestroyDescriptorSetLayout(vk_device, descriptor.layout, nullptr);
+    vkFreeDescriptorSets(VK_DEVICE, m_descriptor_pool, 1U, &descriptor.set);
+    vkDestroyDescriptorSetLayout(VK_DEVICE, descriptor.layout, nullptr);
 
-    descriptor_allocator.free(descriptor_handle);
+    m_descriptor_allocator.free(descriptor_handle);
 }
 void ResourceManager::destroy_sampler(Handle<Sampler> sampler_handle) {
-    if (!sampler_allocator.is_handle_valid(sampler_handle)) {
+    if (!m_sampler_allocator.is_handle_valid(sampler_handle)) {
         DEBUG_PANIC("Cannot delete sampler - Sampler with a handle id: = " << sampler_handle << ", does not exist!")
     }
 
-    const Sampler& sampler = sampler_allocator.get_element(sampler_handle);
+    const Sampler &sampler = m_sampler_allocator.get_element(sampler_handle);
 
-    vkDestroySampler(vk_device, sampler.sampler, nullptr);
+    vkDestroySampler(VK_DEVICE, sampler.sampler, nullptr);
 
-    sampler_allocator.free(sampler_handle);
+    m_sampler_allocator.free(sampler_handle);
 }
 
-const Image& ResourceManager::get_image_data(Handle<Image> image_handle) const {
+const Image &ResourceManager::get_image_data(Handle<Image> image_handle) const {
 #if DEBUG_MODE // Remove hot-path checks in release mode
-    if (!image_allocator.is_handle_valid(image_handle)) {
+    if (!m_image_allocator.is_handle_valid(image_handle)) {
         DEBUG_PANIC("Cannot get image data - Image with a handle id: = " << image_handle << ", does not exist!")
     }
 #endif
 
-    return image_allocator.get_element(image_handle);
+    return m_image_allocator.get_element(image_handle);
 }
-const Buffer& ResourceManager::get_buffer_data(Handle<Buffer> buffer_handle) const {
+const Buffer &ResourceManager::get_buffer_data(Handle<Buffer> buffer_handle) const {
 #if DEBUG_MODE // Remove hot-path checks in release mode
-    if (!buffer_allocator.is_handle_valid(buffer_handle)) {
+    if (!m_buffer_allocator.is_handle_valid(buffer_handle)) {
         DEBUG_PANIC("Cannot get buffer data - Buffer with a handle id: = " << buffer_handle << ", does not exist!")
     }
 #endif
 
-    return buffer_allocator.get_element(buffer_handle);
+    return m_buffer_allocator.get_element(buffer_handle);
 }
-const Descriptor& ResourceManager::get_descriptor_data(Handle<Descriptor> descriptor_handle) const {
+const Descriptor &ResourceManager::get_descriptor_data(Handle<Descriptor> descriptor_handle) const {
 #if DEBUG_MODE // Remove hot-path checks in release mode
-    if (!descriptor_allocator.is_handle_valid(descriptor_handle)) {
+    if (!m_descriptor_allocator.is_handle_valid(descriptor_handle)) {
         DEBUG_PANIC("Cannot get descriptor data - Descriptor with a handle id: = " << descriptor_handle << ", does not exist!")
     }
 #endif
 
-    return descriptor_allocator.get_element(descriptor_handle);
+    return m_descriptor_allocator.get_element(descriptor_handle);
 }
-const Sampler& ResourceManager::get_sampler_data(Handle<Sampler> sampler_handle) const {
+const Sampler &ResourceManager::get_sampler_data(Handle<Sampler> sampler_handle) const {
 #if DEBUG_MODE // Remove hot-path checks in release mode
-    if (!sampler_allocator.is_handle_valid(sampler_handle)) {
+    if (!m_sampler_allocator.is_handle_valid(sampler_handle)) {
         DEBUG_PANIC("Cannot get sampler data - Sampler with a handle id: = " << sampler_handle << ", does not exist!")
     }
 #endif
 
-    return sampler_allocator.get_element(sampler_handle);
+    return m_sampler_allocator.get_element(sampler_handle);
 }

@@ -105,46 +105,46 @@ public:
     ResourceManager(VkDevice device, VmaAllocator allocator);
     ~ResourceManager();
 
-    ResourceManager& operator=(const ResourceManager& other) = delete;
-    ResourceManager& operator=(ResourceManager&& other) noexcept = delete;
+    ResourceManager &operator=(const ResourceManager &other) = delete;
+    ResourceManager &operator=(ResourceManager &&other) noexcept = delete;
 
-    Handle<Image> create_image(const ImageCreateInfo& info);
-    Handle<Image> create_image_borrowed(VkImage borrowed_image, VkImageView borrowed_view, const ImageCreateInfo& info);
-    Handle<Buffer> create_buffer(const BufferCreateInfo& info);
-    Handle<Descriptor> create_descriptor(const DescriptorCreateInfo& info);
-    Handle<Sampler> create_sampler(const SamplerCreateInfo& info);
+    Handle<Image> create_image(const ImageCreateInfo &info);
+    Handle<Image> create_image_borrowed(VkImage borrowed_image, VkImageView borrowed_view, const ImageCreateInfo &info);
+    Handle<Buffer> create_buffer(const BufferCreateInfo &info);
+    Handle<Descriptor> create_descriptor(const DescriptorCreateInfo &info);
+    Handle<Sampler> create_sampler(const SamplerCreateInfo &info);
 
-    void* map_buffer(Handle<Buffer> buffer_handle);
+    void *map_buffer(Handle<Buffer> buffer_handle);
     void unmap_buffer(Handle<Buffer> buffer_handle);
     void flush_mapped_buffer(Handle<Buffer> buffer_handle, VkDeviceSize size = 0, VkDeviceSize offset = 0);
 
-    void memcpy_to_buffer_once(Handle<Buffer> buffer_handle, const void* src_data, usize size, usize dst_offset = 0, usize src_offset = 0);
+    void memcpy_to_buffer_once(Handle<Buffer> buffer_handle, const void *src_data, usize size, usize dst_offset = 0, usize src_offset = 0);
 
     // Requires an already mapped buffer
-    void memcpy_to_buffer(void* dst_mapped_buffer, const void* src_data, usize size, usize dst_offset = 0, usize src_offset = 0);
+    void memcpy_to_buffer(void *dst_mapped_buffer, const void *src_data, usize size, usize dst_offset = 0, usize src_offset = 0);
 
-    void update_descriptor(Handle<Descriptor> descriptor_handle, const DescriptorUpdateInfo& info);
+    void update_descriptor(Handle<Descriptor> descriptor_handle, const DescriptorUpdateInfo &info);
 
     void destroy_image(Handle<Image> image_handle);
     void destroy_buffer(Handle<Buffer> buffer_handle);
     void destroy_descriptor(Handle<Descriptor> descriptor_handle);
     void destroy_sampler(Handle<Sampler> sampler_handle);
 
-    const Image& get_image_data(Handle<Image> image_handle) const;
-    const Buffer& get_buffer_data(Handle<Buffer> buffer_handle) const;
-    const Descriptor& get_descriptor_data(Handle<Descriptor> descriptor_handle) const;
-    const Sampler& get_sampler_data(Handle<Sampler> sampler_handle) const;
+    const Image &get_image_data(Handle<Image> image_handle) const;
+    const Buffer &get_buffer_data(Handle<Buffer> buffer_handle) const;
+    const Descriptor &get_descriptor_data(Handle<Descriptor> descriptor_handle) const;
+    const Sampler &get_sampler_data(Handle<Sampler> sampler_handle) const;
 
 private:
-    const VkDevice vk_device;
-    const VmaAllocator vk_allocator;
+    const VkDevice VK_DEVICE;
+    const VmaAllocator VK_ALLOCATOR;
 
-    VkDescriptorPool vk_descriptor_pool{};
+    VkDescriptorPool m_descriptor_pool{};
 
-    HandleAllocator<Buffer> buffer_allocator{};
-    HandleAllocator<Image> image_allocator{};
-    HandleAllocator<Descriptor> descriptor_allocator{};
-    HandleAllocator<Sampler> sampler_allocator{};
+    HandleAllocator<Buffer> m_buffer_allocator{};
+    HandleAllocator<Image> m_image_allocator{};
+    HandleAllocator<Descriptor> m_descriptor_allocator{};
+    HandleAllocator<Sampler> m_sampler_allocator{};
 };
 
 #endif

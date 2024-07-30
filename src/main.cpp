@@ -1,6 +1,5 @@
 #include <window/window.hpp>
 #include <window/input_manager.hpp>
-#include <renderer/renderer.hpp>
 #include <world/world.hpp>
 
 #include <common/types.hpp>
@@ -19,7 +18,6 @@ int main(){
         .fullscreen = false,
         .resizable = true
     });
-
 
     InputManager input(window);
 
@@ -89,7 +87,6 @@ int main(){
         .scale = glm::vec3(5.0f)
     });
 
-
     auto main_camera = world.create_camera(CameraCreateInfo{
         .viewport_size = glm::vec2(window.get_size()),
         .position = glm::vec3(-2.0f, 10.0f, -2.0f),
@@ -108,7 +105,7 @@ int main(){
     while(window.is_open()) {
         input.poll_input();
 
-        const auto& main_camera_data = world.get_camera(main_camera);
+        const auto &main_camera_data = world.get_camera(main_camera);
 
         float camera_movement_speed = 6.0f;
         float camera_rotate_speed = 0.1f;

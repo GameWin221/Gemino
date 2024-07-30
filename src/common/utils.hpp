@@ -4,7 +4,7 @@
 #include <common/types.hpp>
 #include <common/debug.hpp>
 
-#include <renderer/vertex.hpp>
+#include <render_api/vertex.hpp>
 
 #include <vector>
 #include <string>
