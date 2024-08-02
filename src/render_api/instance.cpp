@@ -233,10 +233,18 @@ void Instance::create_physical_device() {
     bool async_transfer_possible = m_queue_indices.transfer.value() != m_queue_indices.graphics.value() && m_queue_indices.transfer.value() != m_queue_indices.compute.value();
     bool async_compute_possible = m_queue_indices.compute.value() != m_queue_indices.graphics.value() && m_queue_indices.compute.value() != m_queue_indices.transfer.value();
 
+    std::string str(properties.deviceName);
+    if (str.find("RTX") != std::string::npos || str.find("GTX") != std::string::npos || str.find("NVIDIA") != std::string::npos || str.find("GeForce") != std::string::npos) {
+        m_preferred_warp_size = 32u;
+    } else {
+        m_preferred_warp_size = 64u;
+    }
+
     DEBUG_LOG("\n" << properties.deviceName << " will be used as the physical device.")
     DEBUG_LOG("Graphics queue index: " << m_queue_indices.graphics.value())
     DEBUG_LOG("Transfer queue index: " << m_queue_indices.transfer.value() << ", async transfer will " << (async_transfer_possible ? "" : "not ") << "be possible.")
     DEBUG_LOG("Compute queue index: " << m_queue_indices.compute.value() << ", async compute will " << (async_compute_possible ? "" : "not ") << "be possible.")
+    DEBUG_LOG("Preferred warp size: " << m_preferred_warp_size)
 }
 
 void Instance::create_logical_device() {

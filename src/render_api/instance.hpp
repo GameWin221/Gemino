@@ -38,6 +38,8 @@ public:
     VkFormatProperties get_format_properties(VkFormat format) const;
     VkPhysicalDeviceProperties get_physical_device_properties() const;
 
+    u32 get_physical_device_preferred_warp_size() const { return m_preferred_warp_size; };
+
     VkDevice get_device() const { return m_device; }
     VkSurfaceKHR get_surface() const { return m_surface; }
     VkPhysicalDevice get_physical_device() const { return m_physical_device; }
@@ -65,6 +67,8 @@ private:
     QueueFamilyIndices m_queue_indices{};
 
     VkDebugUtilsMessengerEXT m_debug_messenger{};
+
+    u32 m_preferred_warp_size{};
 
 private:
     void create_instance();

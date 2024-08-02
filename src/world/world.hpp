@@ -7,6 +7,7 @@
 #include <common/handle_allocator.hpp>
 #include <glm/glm.hpp>
 #include <glm/gtc/matrix_transform.hpp>
+#include <glm/gtc/quaternion.hpp>
 
 struct alignas(16) Camera {
     alignas(16) glm::mat4 view = glm::mat4(1.0f);
@@ -34,21 +35,22 @@ struct alignas(16) Camera {
     alignas(16) glm::vec4 _pad0{};
     alignas(16) glm::vec4 _pad1{};
 };
-// std140
-struct alignas(16) MeshLOD {
-    glm::vec3 center_offset{};
-    f32 radius{};
 
+struct MeshLOD {
     u32 index_count{};
     u32 first_index{};
     i32 vertex_offset{};
 };
 // std430
-struct Mesh {
+struct alignas(16) Mesh {
+    glm::vec3 center_offset{};
+    f32 radius{};
+
     f32 cull_distance = 1000.0f;
     f32 lod_bias{};
+
     u32 lod_count{};
-    std::array<Handle<MeshLOD>, 8> lods{};
+    std::array<MeshLOD, 8> lods{};
 };
 struct alignas(16) Texture {
     u32 width{};
@@ -70,15 +72,14 @@ struct alignas(16) Material {
 };
 // std140
 struct alignas(16) Object {
+    alignas(16) glm::vec3 position{};
+    alignas(16) glm::quat rotation{};
+    alignas(16) glm::vec3 scale = glm::vec3(1.0f);
+    f32 max_scale = 1.0f;
+
     Handle<Mesh> mesh = INVALID_HANDLE;
     Handle<Material> material = INVALID_HANDLE;
     u32 visible = 1U;
-
-    alignas(16) glm::mat4 matrix = glm::mat4(1.0f);
-    alignas(16) glm::vec3 position{};
-    alignas(16) glm::vec3 rotation{};
-    alignas(16) glm::vec3 scale = glm::vec3(1.0f);
-    f32 max_scale = 1.0f;
 };
 
 struct ObjectCreateInfo{
@@ -87,13 +88,13 @@ struct ObjectCreateInfo{
 
     bool visible = true;
 
-    glm::vec3 position = glm::vec3(0.0f);
-    glm::vec3 rotation = glm::vec3(0.0f);
+    glm::vec3 position{};
+    glm::quat rotation{};
     glm::vec3 scale = glm::vec3(1.0f);
 };
 struct CameraCreateInfo{
     glm::vec2 viewport_size{};
-    glm::vec3 position = glm::vec3(0.0f);
+    glm::vec3 position{};
 
     float pitch = 0.0f;
     float yaw = 0.0f;
@@ -109,7 +110,7 @@ public:
     Handle<Camera> create_camera(const CameraCreateInfo &create_info);
 
     void set_position(Handle<Object> object, glm::vec3 position);
-    void set_rotation(Handle<Object> object, glm::vec3 rotation);
+    void set_rotation(Handle<Object> object, glm::quat rotation);
     void set_scale(Handle<Object> object, glm::vec3 scale);
 
     void set_mesh(Handle<Object> object, Handle<Mesh> mesh);

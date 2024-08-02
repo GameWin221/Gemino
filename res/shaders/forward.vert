@@ -30,13 +30,15 @@ layout(set = 0, binding = 4) uniform CameraBuffer {
 void main() {
     uint object_id = draw_command_indices[gl_DrawIDARB];
 
-    vec4 v_world_space = objects[object_id].matrix * vec4(v_position, 1.0);
+    Object object = objects[object_id];
 
-    gl_Position = camera.view_proj * v_world_space;
+    vec3 v_world_space = rotateVQ(v_position, object.rotation) * object.scale + object.position;
 
-    f_position = v_world_space.xyz;
+    gl_Position = camera.view_proj * vec4(v_world_space, 1.0);
 
-    f_normal = normalize(mat3(objects[object_id].matrix) * v_normal);
+    f_position = v_world_space;
+
+    f_normal = normalize(rotateVQ(v_normal, object.rotation));
 
     f_texcoord = v_texcoord;
 

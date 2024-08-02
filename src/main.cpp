@@ -21,7 +21,7 @@ int main(){
 
     InputManager input(window);
 
-    RasterRenderPath render_path(window, VSyncMode::Disabled);
+    RasterRenderPath render_path(window, VSyncMode::Adaptive);
 
     auto texture = Utils::load_u8_image("res/texture.png", 4U);
     auto texture_monkey = Utils::load_u8_image("res/monkey.jpg", 4U);
@@ -70,11 +70,15 @@ int main(){
     for(u32 x{}; x < 10u; ++x) {
         for(u32 y{}; y < 10u; ++y) {
             for(u32 z{}; z < 10u; ++z) {
+                glm::quat rotation_x = glm::angleAxis(glm::radians((std::rand() % 3600) / 10.0f), glm::vec3(1.0f, 0.0f, 0.0f));
+                glm::quat rotation_y = glm::angleAxis(glm::radians((std::rand() % 3600) / 10.0f), glm::vec3(0.0f, 1.0f, 0.0f));
+                glm::quat rotation_z = glm::angleAxis(glm::radians((std::rand() % 3600) / 10.0f), glm::vec3(0.0f, 0.0f, 1.0f));
+
                 world.create_object(ObjectCreateInfo{
                     .mesh = ((x + y + z) % 2 == 0) ? monkey_mesh_handle : sphere_mesh_handle,
                     .material = (((x + y + z) % 2 == 0) ? material_monkey_handle : material_handle),
                     .position = glm::vec3(x * 3U, y * 2U, z * 3U),
-                    .rotation = glm::vec3((std::rand() % 3600) / 10.0f, (std::rand() % 3600) / 10.0f, (std::rand() % 3600) / 10.0f)
+                    .rotation = rotation_x * rotation_y * rotation_z
                 });
             }
         }
@@ -146,11 +150,16 @@ int main(){
 
         f32 f_time = static_cast<f32>(time);
 
-
         //world.set_camera_position(main_camera, glm::vec3(40.4874f, 7.70619f, 29.7653f));
         //world.set_camera_rotation(main_camera,glm::mix(19.1001f, 20.1001f, sinf(f_time)),glm::mix(-84.5997f, -85.5997f, sinf(f_time)));
 
-        //std::this_thread::sleep_for(std::chrono::milliseconds(50));
+        if(input.get_key(Key::R, InputState::Pressed)) {
+            render_path.set_config_enable_dynamic_lod(!render_path.get_config_enable_dynamic_lod());
+            DEBUG_LOG("dynamic_lod " << (render_path.get_config_enable_dynamic_lod() ? "enabled" : "disabled"))
+        } else if(input.get_key(Key::T, InputState::Pressed)) {
+            render_path.set_config_enable_frustum_cull(!render_path.get_config_enable_frustum_cull());
+            DEBUG_LOG("frustum_cull " << (render_path.get_config_enable_frustum_cull() ? "enabled" : "disabled"))
+        }
 
         if(input.get_key(Key::G, InputState::Pressed)) {
             DEBUG_LOG("Position: " << main_camera_data.position.x << "f, " << main_camera_data.position.y << "f, " << main_camera_data.position.z << "f")

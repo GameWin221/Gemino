@@ -2,32 +2,34 @@
 
 #include "forward.glsl"
 
-layout(local_size_x = 32, local_size_y = 1, local_size_z = 1) in;
+layout (constant_id = 0) const uint ENABLE_DYNAMIC_LOD = 1u;
+layout (constant_id = 1) const uint ENABLE_FRUSTUM_CULL = 1u;
+layout (constant_id = 2) const int WARP_SIZE = 32;
+
+layout(local_size_x_id = 2) in;
 
 layout(push_constant) uniform PushConstant {
     uint draw_count_pre_cull;
     float global_lod_bias;
+    float global_cull_dist_multiplier;
 };
 
-layout(set = 0, binding = 0) readonly buffer MeshLODBuffer {
-    MeshLOD lods[];
-};
-layout(set = 0, binding = 1) readonly buffer MeshBuffer {
+layout(set = 0, binding = 0) readonly buffer MeshBuffer {
     Mesh meshes[];
 };
-layout(set = 0, binding = 2) readonly buffer ObjectBuffer {
+layout(set = 0, binding = 1) readonly buffer ObjectBuffer {
     Object objects[];
 };
-layout(set = 0, binding = 3) writeonly buffer DrawCommandBuffer {
+layout(set = 0, binding = 2) writeonly buffer DrawCommandBuffer {
     DrawCommand draw_commands[];
 };
-layout(set = 0, binding = 4) buffer DrawCommandCountBuffer {
+layout(set = 0, binding = 3) buffer DrawCommandCountBuffer {
     uint draw_command_count;
 };
-layout(set = 0, binding = 5) writeonly buffer DrawCommandIndexBuffer {
+layout(set = 0, binding = 4) writeonly buffer DrawCommandIndexBuffer {
     uint draw_command_indices[];
 };
-layout(set = 0, binding = 6) uniform CameraBuffer {
+layout(set = 0, binding = 5) uniform CameraBuffer {
     Camera camera;
 };
 
@@ -38,40 +40,46 @@ void main() {
         return;
     }
 
-    if (objects[object_id].visible == 0u) {
+    Object object = objects[object_id];
+
+    if (object.visible == 0u) {
         return;
     }
 
-    uint mesh_id = objects[object_id].mesh;
-    float cull_distance = meshes[mesh_id].cull_distance;
+    Mesh mesh = meshes[object.mesh];
 
-    // Make distance checks early on so warps that work on potentially neighboring objects will return early
-    float dist = distance(camera.position, objects[object_id].position);
+    vec3 mesh_position = rotateVQ(mesh.center_offset, object.rotation) * object.scale + object.position;
+    // Distance to camera plane is cheaper than euclidean distance
+    float mesh_dist = dot(mesh_position - camera.position, camera.forward);
+    float cull_distance = mesh.cull_distance * global_cull_dist_multiplier;
 
-    if(dist > cull_distance) {
-        return;
+    // Frustum Culling
+    if (ENABLE_FRUSTUM_CULL != 0u) {
+        vec3 mesh_pos_camera_diff = mesh_position - camera.position;
+        float mesh_radius = mesh.radius * object.max_scale;
+
+        bool in_frustum = true;
+        in_frustum = in_frustum && (mesh_dist <= cull_distance);
+        in_frustum = in_frustum && (dot(camera.right_plane, mesh_pos_camera_diff) > -mesh_radius);
+        in_frustum = in_frustum && (dot(camera.left_plane, mesh_pos_camera_diff) > -mesh_radius);
+        in_frustum = in_frustum && (dot(camera.bottom_plane, mesh_pos_camera_diff) > -mesh_radius);
+        in_frustum = in_frustum && (dot(camera.top_plane, mesh_pos_camera_diff) > -mesh_radius);
+        if(!in_frustum) {
+            return;
+        }
     }
 
     // LOD Picking
     // https://www.desmos.com/calculator/igswt6rlwt
-    float lod_f = max(max(log2((1 << meshes[mesh_id].lod_count) * (dist / cull_distance) + (dist / LOD_DIV_CONSTANT)), 0.0) + global_lod_bias + meshes[mesh_id].lod_bias, 0.0);
-    uint lod_id = min(uint(lod_f), meshes[mesh_id].lod_count - 1u);
-    MeshLOD lod = lods[meshes[mesh_id].lods[lod_id]];
-
-    // Frustum Culling
-    vec3 lod_position = vec3(objects[object_id].matrix * vec4(lod.center_offset, 1.0));
-    vec3 lod_pos_camera_diff = lod_position - camera.position;
-    float lod_radius = lod.radius * objects[object_id].max_scale;
-
-    bool in_frustum = true;
-    in_frustum = in_frustum && (dot(camera.right_plane, lod_pos_camera_diff) > -lod_radius);
-    in_frustum = in_frustum && (dot(camera.left_plane, lod_pos_camera_diff) > -lod_radius);
-    in_frustum = in_frustum && (dot(camera.bottom_plane, lod_pos_camera_diff) > -lod_radius);
-    in_frustum = in_frustum && (dot(camera.top_plane, lod_pos_camera_diff) > -lod_radius);
-
-    if(!in_frustum) {
-        return;
+    float lod_f;
+    if (ENABLE_DYNAMIC_LOD != 0u) {
+        lod_f = max(max(log2((1 << mesh.lod_count) * (mesh_dist / cull_distance) + (mesh_dist / LOD_DIV_CONSTANT)), 0.0) + global_lod_bias + mesh.lod_bias, 0.0);
+    } else {
+        lod_f = max(global_lod_bias + mesh.lod_bias, 0.0);
     }
+    uint lod_id = min(uint(lod_f), mesh.lod_count - 1u);
+
+    MeshLOD lod = mesh.lods[lod_id];
 
     uint current_command_id = atomicAdd(draw_command_count, 1u);
 

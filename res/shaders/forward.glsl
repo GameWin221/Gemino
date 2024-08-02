@@ -1,27 +1,28 @@
 struct MeshLOD {
-    vec3 center_offset;
-    float radius;
-
     uint index_count;
     uint first_index;
     int vertex_offset;
 };
 struct Mesh {
+    vec3 center_offset;
+    float radius;
+
     float cull_distance;
     float lod_bias;
+
     uint lod_count;
-    uint lods[8];
+
+    MeshLOD lods[8];
 };
 struct Object {
+    vec3 position;
+    vec4 rotation;
+    vec3 scale;
+    float max_scale;
+
     uint mesh;
     uint material;
     uint visible;
-
-    mat4 matrix;
-    vec3 position;
-    vec3 rotation;
-    vec3 scale;
-    float max_scale;
 };
 struct Material {
     uint albedo_texture;
@@ -67,3 +68,7 @@ struct DrawCommand {
 };
 
 #define LOD_DIV_CONSTANT 50.0
+
+vec3 rotateVQ(vec3 v, vec4 q) {
+    return v + 2.0 * cross(q.xyz, cross(q.xyz, v) + q.w * v);
+}

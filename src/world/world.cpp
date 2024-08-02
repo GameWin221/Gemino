@@ -2,16 +2,14 @@
 
 Handle<Object> World::create_object(const ObjectCreateInfo& create_info) {
     Object object{
-        .mesh = create_info.mesh,
-        .material = create_info.material,
-        .visible = static_cast<u32>(create_info.visible),
         .position = create_info.position,
         .rotation = create_info.rotation,
         .scale = create_info.scale,
-        .max_scale = glm::max(glm::max(create_info.scale.x, create_info.scale.y), create_info.scale.z)
+        .max_scale = glm::max(glm::max(create_info.scale.x, create_info.scale.y), create_info.scale.z),
+        .mesh = create_info.mesh,
+        .material = create_info.material,
+        .visible = static_cast<u32>(create_info.visible),
     };
-
-    object.matrix = calculate_model_matrix(object);
 
     Handle<Object> object_handle = m_objects.alloc(object);
 
@@ -44,16 +42,14 @@ void World::set_position(Handle<Object> object, glm::vec3 position) {
     if(target.position == position) return;
 
     target.position = position;
-    target.matrix = calculate_model_matrix(target);
     m_changed_object_handles.insert(object);
 }
-void World::set_rotation(Handle<Object> object, glm::vec3 rotation) {
+void World::set_rotation(Handle<Object> object, glm::quat rotation) {
     Object &target = m_objects.get_element_mutable(object);
 
     if(target.rotation == rotation) return;
 
     target.rotation = rotation;
-    target.matrix = calculate_model_matrix(target);
     m_changed_object_handles.insert(object);
 }
 void World::set_scale(Handle<Object> object, glm::vec3 scale) {
@@ -63,7 +59,6 @@ void World::set_scale(Handle<Object> object, glm::vec3 scale) {
 
     target.scale = scale;
     target.max_scale = glm::max(glm::max(scale.x, scale.y), scale.z);
-    target.matrix = calculate_model_matrix(target);
     m_changed_object_handles.insert(object);
 }
 

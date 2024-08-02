@@ -31,7 +31,6 @@ void RasterRenderPath::init_debug_info() {
     DEBUG_LOG("MAX_SCENE_INDICES = " << MAX_SCENE_INDICES << ", " << (MAX_SCENE_INDICES * sizeof(u32) / 1024.0 / 1024.0) << "mb")
     DEBUG_LOG("MAX_SCENE_TEXTURES = " << MAX_SCENE_TEXTURES << ", " << ((MAX_SCENE_TEXTURES * sizeof(VkDeviceSize) * 2) / 1024.0 / 1024.0) << "mb")
     DEBUG_LOG("MAX_SCENE_MATERIALS = " << MAX_SCENE_MATERIALS << ", " << (MAX_SCENE_MATERIALS * sizeof(Material) / 1024.0 / 1024.0) << "mb")
-    DEBUG_LOG("MAX_SCENE_LODS = " << MAX_SCENE_LODS << ", " << (MAX_SCENE_LODS * sizeof(MeshLOD) / 1024.0 / 1024.0) << "mb")
     DEBUG_LOG("MAX_SCENE_MESHES = " << MAX_SCENE_MESHES << ", " << (MAX_SCENE_MESHES * sizeof(Mesh) / 1024.0 / 1024.0) << "mb")
     DEBUG_LOG("MAX_SCENE_DRAWS = " << MAX_SCENE_DRAWS << ", " << (MAX_SCENE_DRAWS * sizeof(VkDrawIndexedIndirectCommand) / 1024.0 / 1024.0) << "mb")
     DEBUG_LOG("MAX_SCENE_DRAW_INDICES = " << MAX_SCENE_DRAWS << ", " << (MAX_SCENE_DRAWS * sizeof(u32) / 1024.0 / 1024.0) << "mb")
@@ -62,11 +61,6 @@ void RasterRenderPath::init_scene_buffers() {
        .size = sizeof(u32),
        .buffer_usage_flags = VK_BUFFER_USAGE_STORAGE_BUFFER_BIT | VK_BUFFER_USAGE_INDIRECT_BUFFER_BIT | VK_BUFFER_USAGE_TRANSFER_DST_BIT,
        .memory_usage_flags = VMA_MEMORY_USAGE_GPU_ONLY
-    });
-    m_scene_lod_buffer = m_api.m_resource_manager->create_buffer(BufferCreateInfo{
-        .size = sizeof(MeshLOD) * MAX_SCENE_LODS,
-        .buffer_usage_flags = VK_BUFFER_USAGE_STORAGE_BUFFER_BIT | VK_BUFFER_USAGE_TRANSFER_DST_BIT,
-        .memory_usage_flags = VMA_MEMORY_USAGE_GPU_ONLY
     });
     m_scene_mesh_buffer = m_api.m_resource_manager->create_buffer(BufferCreateInfo{
         .size = sizeof(Mesh) * MAX_SCENE_MESHES,
@@ -113,12 +107,34 @@ void RasterRenderPath::init_screen_images(const Window &window) {
         .usage_flags = VK_IMAGE_USAGE_DEPTH_STENCIL_ATTACHMENT_BIT | VK_IMAGE_USAGE_SAMPLED_BIT,
         .aspect_flags = VK_IMAGE_ASPECT_DEPTH_BIT
     });
+
+    std::vector<ImageBarrier> init_swapchain_barriers{};
+    for(u32 i{}; i < m_api.get_swapchain_index_count(); ++i){
+        init_swapchain_barriers.push_back(ImageBarrier{
+            .image_handle = m_api.get_swapchain_image_handle(i),
+            .dst_access_mask = VK_ACCESS_COLOR_ATTACHMENT_WRITE_BIT, // LoadOp = Clear
+            .new_layout = VK_IMAGE_LAYOUT_PRESENT_SRC_KHR,
+        });
+    }
+
+    m_api.record_and_submit_once([this, &init_swapchain_barriers](Handle<CommandList> cmd){
+        m_api.image_barrier(cmd, VK_PIPELINE_STAGE_TOP_OF_PIPE_BIT, VK_PIPELINE_STAGE_COLOR_ATTACHMENT_OUTPUT_BIT , init_swapchain_barriers);
+        m_api.image_barrier(cmd, VK_PIPELINE_STAGE_TOP_OF_PIPE_BIT, VK_PIPELINE_STAGE_EARLY_FRAGMENT_TESTS_BIT, { ImageBarrier{
+            .image_handle = m_depth_image,
+            .dst_access_mask = VK_ACCESS_DEPTH_STENCIL_ATTACHMENT_WRITE_BIT, // LoadOp = Clear
+            .new_layout = VK_IMAGE_LAYOUT_DEPTH_STENCIL_ATTACHMENT_OPTIMAL
+        }});
+        m_api.image_barrier(cmd, VK_PIPELINE_STAGE_TOP_OF_PIPE_BIT, VK_PIPELINE_STAGE_FRAGMENT_SHADER_BIT, { ImageBarrier{
+            .image_handle = m_offscreen_rt_image,
+            .dst_access_mask = VK_ACCESS_SHADER_READ_BIT,
+            .new_layout = VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL,
+        }});
+    });
 }
 void RasterRenderPath::init_descriptors(bool create_new) {
     if (create_new) {
         m_draw_call_gen_descriptor = m_api.m_resource_manager->create_descriptor(DescriptorCreateInfo{
             .bindings {
-                DescriptorBindingCreateInfo{VK_DESCRIPTOR_TYPE_STORAGE_BUFFER}, // MeshLOD Buffer
                 DescriptorBindingCreateInfo{VK_DESCRIPTOR_TYPE_STORAGE_BUFFER}, // Mesh Buffer
                 DescriptorBindingCreateInfo{VK_DESCRIPTOR_TYPE_STORAGE_BUFFER}, // Object Buffer
                 DescriptorBindingCreateInfo{VK_DESCRIPTOR_TYPE_STORAGE_BUFFER}, // Draw Commands
@@ -134,41 +150,35 @@ void RasterRenderPath::init_descriptors(bool create_new) {
             DescriptorBindingUpdateInfo{
                 .binding_index = 0U,
                 .buffer_info {
-                    .buffer_handle = m_scene_lod_buffer
+                    .buffer_handle = m_scene_mesh_buffer
                 }
             },
             DescriptorBindingUpdateInfo{
                 .binding_index = 1U,
                 .buffer_info {
-                    .buffer_handle = m_scene_mesh_buffer
+                    .buffer_handle = m_scene_object_buffer
                 }
             },
             DescriptorBindingUpdateInfo{
                 .binding_index = 2U,
                 .buffer_info {
-                    .buffer_handle = m_scene_object_buffer
+                    .buffer_handle = m_scene_draw_buffer
                 }
             },
             DescriptorBindingUpdateInfo{
                 .binding_index = 3U,
                 .buffer_info {
-                    .buffer_handle = m_scene_draw_buffer
+                    .buffer_handle = m_scene_draw_count_buffer
                 }
             },
             DescriptorBindingUpdateInfo{
                 .binding_index = 4U,
                 .buffer_info {
-                    .buffer_handle = m_scene_draw_count_buffer
-                }
-            },
-            DescriptorBindingUpdateInfo{
-                .binding_index = 5U,
-                .buffer_info {
                     .buffer_handle = m_scene_draw_index_buffer
                 }
             },
             DescriptorBindingUpdateInfo{
-                .binding_index = 6U,
+                .binding_index = 5U,
                 .buffer_info {
                     .buffer_handle = m_scene_camera_buffer
                 },
@@ -237,6 +247,11 @@ void RasterRenderPath::init_descriptors(bool create_new) {
 void RasterRenderPath::init_pipelines() {
     m_draw_call_gen_pipeline = m_api.m_pipeline_manager->create_compute_pipeline(ComputePipelineCreateInfo{
         .shader_path = "res/shaders/draw_call_gen.comp.spv",
+        .shader_constant_values {
+            static_cast<uint32_t>(m_config_enable_dynamic_lod),
+            static_cast<uint32_t>(m_config_enable_frustum_cull),
+            static_cast<uint32_t>(m_api.m_instance->get_physical_device_preferred_warp_size()),
+        },
         .push_constants_size = sizeof(DrawCallGenPC),
         .descriptors { m_draw_call_gen_descriptor }
     });
@@ -270,7 +285,7 @@ void RasterRenderPath::init_pipelines() {
         .fragment_shader_path = "res/shaders/fullscreen_tri.frag.spv",
         .descriptors = { m_offscreen_rt_to_swapchain_descriptor } ,
         .color_target {
-            .format = m_api.m_resource_manager->get_image_data(m_offscreen_rt).format,
+            .format = m_api.m_resource_manager->get_image_data(m_api.get_swapchain_image_handle(0u)).format,
             .layout = VK_IMAGE_LAYOUT_PRESENT_SRC_KHR
         },
         .cull_mode = VK_CULL_MODE_NONE,
@@ -288,29 +303,6 @@ void RasterRenderPath::init_render_targets() {
             .color_target_handle = m_api.get_swapchain_image_handle(i)
         });
     }
-
-    std::vector<ImageBarrier> init_swapchain_barriers{};
-    for(u32 i{}; i < m_api.get_swapchain_index_count(); ++i){
-        init_swapchain_barriers.push_back(ImageBarrier{
-            .image_handle = m_api.get_swapchain_image_handle(i),
-            .dst_access_mask = VK_ACCESS_COLOR_ATTACHMENT_WRITE_BIT, // LoadOp = Clear
-            .new_layout = VK_IMAGE_LAYOUT_PRESENT_SRC_KHR,
-        });
-    }
-
-    m_api.record_and_submit_once([this, &init_swapchain_barriers](Handle<CommandList> cmd){
-        m_api.image_barrier(cmd, VK_PIPELINE_STAGE_TOP_OF_PIPE_BIT, VK_PIPELINE_STAGE_COLOR_ATTACHMENT_OUTPUT_BIT , init_swapchain_barriers);
-        m_api.image_barrier(cmd, VK_PIPELINE_STAGE_TOP_OF_PIPE_BIT, VK_PIPELINE_STAGE_EARLY_FRAGMENT_TESTS_BIT, { ImageBarrier{
-            .image_handle = m_depth_image,
-            .dst_access_mask = VK_ACCESS_DEPTH_STENCIL_ATTACHMENT_WRITE_BIT, // LoadOp = Clear
-            .new_layout = VK_IMAGE_LAYOUT_DEPTH_STENCIL_ATTACHMENT_OPTIMAL
-        }});
-        m_api.image_barrier(cmd, VK_PIPELINE_STAGE_TOP_OF_PIPE_BIT, VK_PIPELINE_STAGE_FRAGMENT_SHADER_BIT, { ImageBarrier{
-            .image_handle = m_offscreen_rt_image,
-            .dst_access_mask = VK_ACCESS_SHADER_READ_BIT,
-            .new_layout = VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL,
-        }});
-    });
 }
 void RasterRenderPath::init_frames() {
     m_frames.resize(FRAMES_IN_FLIGHT);
@@ -360,7 +352,6 @@ void RasterRenderPath::destroy_scene_buffers() {
     m_api.m_resource_manager->destroy_buffer(m_scene_draw_buffer);
     m_api.m_resource_manager->destroy_buffer(m_scene_draw_index_buffer);
     m_api.m_resource_manager->destroy_buffer(m_scene_draw_count_buffer);
-    m_api.m_resource_manager->destroy_buffer(m_scene_lod_buffer);
     m_api.m_resource_manager->destroy_buffer(m_scene_mesh_buffer);
     m_api.m_resource_manager->destroy_buffer(m_scene_object_buffer);
     m_api.m_resource_manager->destroy_buffer(m_scene_camera_buffer);
@@ -434,10 +425,33 @@ void RasterRenderPath::resize(const Window &window) {
     m_api.wait_for_device_idle();
 }
 void RasterRenderPath::render(World &world, Handle<Camera> camera) {
+    if (m_reload_pipelines_queued) {
+        DEBUG_LOG("Reloading pipelines...")
+
+        for (const auto &f : m_frames) {
+            m_api.wait_for_fence(f.fence);
+        }
+
+        m_api.wait_for_device_idle();
+
+        destroy_render_targets();
+        destroy_pipelines();
+
+        init_pipelines();
+        init_render_targets();
+
+        DEBUG_LOG("Reloaded pipelines!")
+        m_reload_pipelines_queued = false;
+        return;
+    }
+
     begin_recording_frame();
     update_world(world, camera);
     render_world(world, camera);
     end_recording_frame();
+}
+void RasterRenderPath::reload_pipelines() {
+    m_reload_pipelines_queued = true;
 }
 
 void RasterRenderPath::begin_recording_frame() {
@@ -447,7 +461,7 @@ void RasterRenderPath::begin_recording_frame() {
 
     VkResult result = m_api.get_next_swapchain_index(frame.present_semaphore, &m_swapchain_target_index);
     if(result == VK_ERROR_OUT_OF_DATE_KHR) {
-        DEBUG_LOG("VK_ERROR_OUT_OF_DATE_KHR") // This message shouldn't be ever visible because a resize always occurs before rendering
+        DEBUG_ERROR("VK_ERROR_OUT_OF_DATE_KHR") // This message shouldn't be ever visible because a resize always occurs before rendering
     } else if (result != VK_SUCCESS && result != VK_SUBOPTIMAL_KHR) {
         DEBUG_PANIC("Failed to acquire a swapchain image!")
     }
@@ -545,7 +559,8 @@ void RasterRenderPath::render_world(const World &world, Handle<Camera> camera) {
 
     DrawCallGenPC draw_call_gen_pc{
         .draw_count_pre_cull = scene_objects_count,
-        .global_lod_bias = m_global_lod_bias
+        .global_lod_bias = m_config_global_lod_bias,
+        .global_cull_dist_multiplier = m_config_global_cull_dist_multiplier
     };
 
     render_pass_draw_call_gen(scene_objects_count, draw_call_gen_pc);
@@ -590,7 +605,7 @@ void RasterRenderPath::render_pass_draw_call_gen(u32 scene_objects_count, const 
     m_api.begin_compute_pipeline(frame.command_list, m_draw_call_gen_pipeline);
     m_api.bind_compute_descriptor(frame.command_list, m_draw_call_gen_pipeline, m_draw_call_gen_descriptor, 0U);
     m_api.push_compute_constants(frame.command_list, m_draw_call_gen_pipeline, &draw_call_gen_pc);
-    m_api.dispatch_compute_pipeline(frame.command_list, glm::uvec3(Utils::div_ceil(scene_objects_count, 32U), 1U, 1U));
+    m_api.dispatch_compute_pipeline(frame.command_list, glm::uvec3(Utils::div_ceil(scene_objects_count, m_api.m_instance->get_physical_device_preferred_warp_size()), 1u, 1u));
 
     m_api.buffer_barrier(frame.command_list, VK_PIPELINE_STAGE_COMPUTE_SHADER_BIT, VK_PIPELINE_STAGE_DRAW_INDIRECT_BIT, {
         BufferBarrier{
@@ -661,6 +676,8 @@ Handle<Mesh> RasterRenderPath::create_mesh(const MeshCreateInfo &create_info) {
     // TEMPORARY TEMPORARY TEMPORARY TEMPORARY
 
     Mesh mesh{
+        .center_offset = glm::vec3{},
+        .radius = 0.0f,
         .cull_distance = create_info.cull_distance,
         .lod_bias = create_info.lod_bias,
         .lod_count = static_cast<u32>(create_info.lods.size())
@@ -673,20 +690,20 @@ Handle<Mesh> RasterRenderPath::create_mesh(const MeshCreateInfo &create_info) {
         DEBUG_PANIC("Mesh cannot use more than 8 LODs! lod_count = " << mesh.lod_count)
     }
 
-    u32 lod_id{};
-    Handle<MeshLOD> last_lod_handle{};
-    for(; lod_id < mesh.lod_count; ++lod_id) {
+    for(u32 lod_id{}; lod_id < mesh.lod_count; ++lod_id) {
         const auto &lod = create_info.lods[lod_id];
 
-        MeshLOD mesh_lod{
-            .center_offset = lod.center_offset,
-            .radius = lod.radius,
+        mesh.lods[lod_id] = MeshLOD {
             .index_count = lod.index_count,
             .first_index = m_allocated_indices,
             .vertex_offset = static_cast<i32>(m_allocated_vertices)
         };
 
-        last_lod_handle = m_lod_allocator.alloc(mesh_lod);
+        // Pick the biggest bounding sphere out of all LODs
+        if (lod.radius > mesh.radius) {
+            mesh.radius = lod.radius;
+            mesh.center_offset = lod.center_offset;
+        }
 
         Handle<Buffer> staging_buffer = m_api.m_resource_manager->create_buffer(BufferCreateInfo{
             .size = (lod.vertex_count * sizeof(Vertex)) + (lod.index_count * sizeof(u32)) + sizeof(MeshLOD),
@@ -696,7 +713,7 @@ Handle<Mesh> RasterRenderPath::create_mesh(const MeshCreateInfo &create_info) {
 
         VkDeviceSize upload_offset{};
 
-        m_api.record_and_submit_once([this, &upload_offset, &lod, &mesh_lod, staging_buffer, last_lod_handle](Handle<CommandList> cmd) {
+        m_api.record_and_submit_once([this, &upload_offset, &lod, staging_buffer](Handle<CommandList> cmd) {
             // Vertices
             m_api.m_resource_manager->memcpy_to_buffer_once(staging_buffer, lod.vertex_data, lod.vertex_count * sizeof(Vertex), upload_offset);
             m_api.copy_buffer_to_buffer(cmd, staging_buffer, m_scene_vertex_buffer, { VkBufferCopy{
@@ -716,25 +733,12 @@ Handle<Mesh> RasterRenderPath::create_mesh(const MeshCreateInfo &create_info) {
             }});
 
             upload_offset += lod.index_count * sizeof(u32);
-
-            m_api.m_resource_manager->memcpy_to_buffer_once(staging_buffer, &mesh_lod, sizeof(mesh_lod), upload_offset);
-            m_api.copy_buffer_to_buffer(cmd, staging_buffer, m_scene_lod_buffer, { VkBufferCopy{
-                .srcOffset = upload_offset,
-                .dstOffset = last_lod_handle * sizeof(MeshLOD),
-                .size = sizeof(MeshLOD)
-            }});
         });
 
         m_api.m_resource_manager->destroy_buffer(staging_buffer);
 
-        mesh.lods[lod_id] = last_lod_handle;
-
         m_allocated_vertices += lod.vertex_count;
         m_allocated_indices += lod.index_count;
-    }
-
-    for(; lod_id < 8U; ++lod_id) {
-        mesh.lods[lod_id] = last_lod_handle;
     }
 
     Handle<Buffer> staging_buffer = m_api.m_resource_manager->create_buffer(BufferCreateInfo{
@@ -772,10 +776,6 @@ void RasterRenderPath::destroy_mesh(Handle<Mesh> mesh_handle) {
 
     const Mesh &mesh = m_mesh_allocator.get_element(mesh_handle);
 
-    for(const auto& handle : mesh.lods) {
-        m_lod_allocator.free(handle);
-    }
-
     m_mesh_allocator.free(mesh_handle);
 }
 
@@ -804,7 +804,7 @@ Handle<Texture> RasterRenderPath::create_u8_texture(const TextureCreateInfo &cre
         DEBUG_PANIC("create_u8_texture failed! | create_info.bytes_per_pixel must be between 1 and 4, bytes_per_pixel=" << create_info.bytes_per_pixel)
     }
 
-    DEBUG_ASSERT(m_texture_anisotropy <= 16U)
+    DEBUG_ASSERT(m_config_texture_anisotropy <= 16U)
 
     Texture texture{
         .width = create_info.width,
@@ -831,8 +831,8 @@ Handle<Texture> RasterRenderPath::create_u8_texture(const TextureCreateInfo &cre
         .mipmap_mode = create_info.linear_filter ? VK_SAMPLER_MIPMAP_MODE_LINEAR : VK_SAMPLER_MIPMAP_MODE_NEAREST,
 
         .max_mipmap = static_cast<f32>(texture.mip_level_count),
-        .mipmap_bias = m_texture_mip_bias,
-        .anisotropy = static_cast<f32>(m_texture_anisotropy)
+        .mipmap_bias = m_config_texture_mip_bias,
+        .anisotropy = static_cast<f32>(m_config_texture_anisotropy)
     });
 
     // TEMPORARY TEMPORARY TEMPORARY TEMPORARY
@@ -965,4 +965,19 @@ void RasterRenderPath::destroy_material(Handle<Material> material_handle) {
     const Material& material = m_material_allocator.get_element(material_handle);
 
     m_material_allocator.free(material_handle);
+}
+
+void RasterRenderPath::set_config_global_lod_bias(float value) {
+    m_config_global_lod_bias = value;
+}
+void RasterRenderPath::set_config_global_cull_dist_multiplier(float value) {
+    m_config_global_cull_dist_multiplier = std::max(value, 0.0f);
+}
+void RasterRenderPath::set_config_enable_dynamic_lod(bool enable) {
+    m_config_enable_dynamic_lod = enable;
+    reload_pipelines();
+}
+void RasterRenderPath::set_config_enable_frustum_cull(bool enable) {
+    m_config_enable_frustum_cull = enable;
+    reload_pipelines();
 }
