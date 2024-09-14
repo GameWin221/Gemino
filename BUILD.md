@@ -17,7 +17,7 @@ Open the project's directory, your IDE will handle it and configure CMake accord
 There is a .sln file in the project root folder to make Visual Studio users' lives easier. It should work identically as the CMake project.
 
 # Compiling Shaders
-Place all of your shaders in the `res/shaders` directory. **Only there** the shaders will get automatically compiled and copied correctly.
+Place all of your shaders in the `res/shared/shaders` directory. **Only there** the shaders will get automatically compiled and copied correctly.
 
 ### 1. Using CMake or Visual Studio
 - CMake will generate custom shader build commands everytime you reload or create the CMake project (`cmake` command). In debug mode it will compile the shaders with additional debug info.
@@ -31,5 +31,5 @@ Use GLSL to SPIR-V compiler like `glslangValidator` or `glslc` on each shader so
 
 On Windows you can run the `compile.bat` script located in the `res/shaders` directory.
 
-## Automatic `res/` directory copying
-The whole `res/` directory will get automatically copied to the build directory after a successful build. (Both using CMake and Visual Studio)
+## Automatic `res/shared` directory copying
+The whole `res/shared` directory will get automatically copied to the build directory after a successful build. (Both using CMake and Visual Studio)

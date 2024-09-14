@@ -14,14 +14,16 @@ struct Mesh {
 
     MeshLOD lods[8];
 };
-struct Object {
+struct Transform {
     vec3 position;
     vec4 rotation;
     vec3 scale;
     float max_scale;
-
+};
+struct Object {
     uint mesh;
     uint material;
+    uint parent;
     uint visible;
 };
 struct Material {
@@ -70,5 +72,6 @@ struct DrawCommand {
 #define LOD_DIV_CONSTANT 50.0
 
 vec3 rotateVQ(vec3 v, vec4 q) {
-    return v + 2.0 * cross(q.xyz, cross(q.xyz, v) + q.w * v);
+    // wxyz quaterions
+    return v + 2.0 * cross(q.yzw, cross(q.yzw, v) + q.x * v);
 }

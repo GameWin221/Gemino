@@ -1,12 +1,11 @@
-cmake_minimum_required(VERSION 3.20)
+cmake_minimum_required(VERSION 3.14)
 project(Gemino LANGUAGES CXX C)
 
+set(CMAKE_POLICY_DEFAULT_CMP0077 NEW)
 set(CMAKE_CXX_STANDARD 20)
 set(CMAKE_C_STANDARD 17)
 set(CMAKE_CXX_STANDARD_REQUIRED ON)
 set(CMAKE_C_STANDARD_REQUIRED ON)
-set(CMAKE_POLICY_DEFAULT_CMP0077 NEW)
-set(CMAKE_EXE_LINKER_FLAGS "-static")
 
 set(GLFW_BUILD_EXAMPLES OFF)
 set(GLFW_BUILD_TESTS OFF)
@@ -42,19 +41,25 @@ target_include_directories(${PROJECT_NAME} PRIVATE ${GLFW_INCLUDE_DIRS} ${GLM_IN
 target_link_libraries(${PROJECT_NAME} PRIVATE glfw Vulkan::Vulkan glm::glm VulkanMemoryAllocator tinygltf)
 
 file(GLOB_RECURSE GEMINO_SHADER_SRC_FILES
-    "${CMAKE_CURRENT_LIST_DIR}/res/shaders/*.vert"
-    "${CMAKE_CURRENT_LIST_DIR}/res/shaders/*.frag"
-    "${CMAKE_CURRENT_LIST_DIR}/res/shaders/*.comp"
-    "${CMAKE_CURRENT_LIST_DIR}/res/shaders/*.tesc"
-    "${CMAKE_CURRENT_LIST_DIR}/res/shaders/*.tese"
-    "${CMAKE_CURRENT_LIST_DIR}/res/shaders/*.geom"
-    "${CMAKE_CURRENT_LIST_DIR}/res/shaders/*.rgen"
-    "${CMAKE_CURRENT_LIST_DIR}/res/shaders/*.rint"
-    "${CMAKE_CURRENT_LIST_DIR}/res/shaders/*.rahit"
-    "${CMAKE_CURRENT_LIST_DIR}/res/shaders/*.rchit"
-    "${CMAKE_CURRENT_LIST_DIR}/res/shaders/*.rmiss"
-    "${CMAKE_CURRENT_LIST_DIR}/res/shaders/*.rcall"
+    "${CMAKE_CURRENT_LIST_DIR}/res/shared/shaders/*.vert"
+    "${CMAKE_CURRENT_LIST_DIR}/res/shared/shaders/*.frag"
+    "${CMAKE_CURRENT_LIST_DIR}/res/shared/shaders/*.comp"
+    "${CMAKE_CURRENT_LIST_DIR}/res/shared/shaders/*.tesc"
+    "${CMAKE_CURRENT_LIST_DIR}/res/shared/shaders/*.tese"
+    "${CMAKE_CURRENT_LIST_DIR}/res/shared/shaders/*.geom"
+    "${CMAKE_CURRENT_LIST_DIR}/res/shared/shaders/*.rgen"
+    "${CMAKE_CURRENT_LIST_DIR}/res/shared/shaders/*.rint"
+    "${CMAKE_CURRENT_LIST_DIR}/res/shared/shaders/*.rahit"
+    "${CMAKE_CURRENT_LIST_DIR}/res/shared/shaders/*.rchit"
+    "${CMAKE_CURRENT_LIST_DIR}/res/shared/shaders/*.rmiss"
+    "${CMAKE_CURRENT_LIST_DIR}/res/shared/shaders/*.rcall"
 )
+
+if(NOT MSVC)
+    target_link_options(${PROJECT_NAME} PRIVATE -s)
+else()
+
+endif()
 
 if(CMAKE_BUILD_TYPE MATCHES "Debug" OR CMAKE_BUILD_TYPE MATCHES "RelWithDebInfo")
     foreach(file ${GEMINO_SHADER_SRC_FILES})
@@ -73,6 +78,6 @@ else()
 endif()
 
 add_custom_command(TARGET ${PROJECT_NAME} POST_BUILD
-    COMMAND ${CMAKE_COMMAND} -E copy_directory ${CMAKE_CURRENT_LIST_DIR}/res/ ${PROJECT_BINARY_DIR}/res/
+    COMMAND ${CMAKE_COMMAND} -E copy_directory ${CMAKE_CURRENT_LIST_DIR}/res/shared ${PROJECT_BINARY_DIR}/res/shared
 )
-message(STATUS "${PROJECT_NAME}: Copied ${CMAKE_CURRENT_LIST_DIR}/res/ to ${PROJECT_BINARY_DIR}/res/")
+message(STATUS "${PROJECT_NAME}: Copied ${CMAKE_CURRENT_LIST_DIR}/res/shared to ${PROJECT_BINARY_DIR}/res/shared")

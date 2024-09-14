@@ -20,16 +20,22 @@ layout(set = 0, binding = 0) readonly buffer MeshBuffer {
 layout(set = 0, binding = 1) readonly buffer ObjectBuffer {
     Object objects[];
 };
-layout(set = 0, binding = 2) writeonly buffer DrawCommandBuffer {
+layout(set = 0, binding = 2) readonly buffer LocalTransformBuffer {
+    Transform local_transforms[];
+};
+layout(set = 0, binding = 3) readonly buffer GlobalTransformBuffer {
+    Transform global_transforms[];
+};
+layout(set = 0, binding = 4) writeonly buffer DrawCommandBuffer {
     DrawCommand draw_commands[];
 };
-layout(set = 0, binding = 3) buffer DrawCommandCountBuffer {
+layout(set = 0, binding = 5) buffer DrawCommandCountBuffer {
     uint draw_command_count;
 };
-layout(set = 0, binding = 4) writeonly buffer DrawCommandIndexBuffer {
+layout(set = 0, binding = 6) writeonly buffer DrawCommandIndexBuffer {
     uint draw_command_indices[];
 };
-layout(set = 0, binding = 5) uniform CameraBuffer {
+layout(set = 0, binding = 7) uniform CameraBuffer {
     Camera camera;
 };
 
@@ -48,7 +54,9 @@ void main() {
 
     Mesh mesh = meshes[object.mesh];
 
-    vec3 mesh_position = rotateVQ(mesh.center_offset, object.rotation) * object.scale + object.position;
+    Transform transform = global_transforms[object_id];
+
+    vec3 mesh_position = rotateVQ(mesh.center_offset, transform.rotation) * transform.scale + transform.position;
     // Distance to camera plane is cheaper than euclidean distance
     float mesh_dist = dot(mesh_position - camera.position, camera.forward);
     float cull_distance = mesh.cull_distance * global_cull_dist_multiplier;
@@ -56,7 +64,7 @@ void main() {
     // Frustum Culling
     if (ENABLE_FRUSTUM_CULL != 0u) {
         vec3 mesh_pos_camera_diff = mesh_position - camera.position;
-        float mesh_radius = mesh.radius * object.max_scale;
+        float mesh_radius = mesh.radius * transform.max_scale;
 
         bool in_frustum = true;
         in_frustum = in_frustum && (mesh_dist <= cull_distance);

@@ -53,44 +53,50 @@ struct alignas(16) Mesh {
     std::array<MeshLOD, 8> lods{};
 };
 struct alignas(16) Texture {
-    u32 width{};
-    u32 height{};
-    u32 bytes_per_pixel{};
-    u32 mip_level_count{};
-    u32 is_srgb{};
-    u32 use_linear_filter{};
-    Handle<u32> image{};
-    Handle<u32> sampler{};
+    alignas(4) u32 width{};
+    alignas(4) u32 height{};
+    alignas(4) u32 bytes_per_pixel{};
+    alignas(4) u32 mip_level_count{};
+    alignas(4) u32 is_srgb{};
+    alignas(4) u32 use_linear_filter{};
+    alignas(4) Handle<u32> image{};
+    alignas(4) Handle<u32> sampler{};
 };
 // std140
 struct alignas(16) Material {
-    Handle<Texture> albedo_texture = INVALID_HANDLE;
-    Handle<Texture> roughness_texture = INVALID_HANDLE;
-    Handle<Texture> metalness_texture = INVALID_HANDLE;
-    Handle<Texture> normal_texture = INVALID_HANDLE;
+    alignas(4) Handle<Texture> albedo_texture = INVALID_HANDLE;
+    alignas(4) Handle<Texture> roughness_texture = INVALID_HANDLE;
+    alignas(4) Handle<Texture> metalness_texture = INVALID_HANDLE;
+    alignas(4) Handle<Texture> normal_texture = INVALID_HANDLE;
     alignas(16) glm::vec3 color = glm::vec3(1.0f);
 };
 // std140
-struct alignas(16) Object {
+struct alignas(16) Transform {
     alignas(16) glm::vec3 position{};
-    alignas(16) glm::quat rotation{};
+    alignas(16) glm::quat rotation = glm::quat(1.0f, 0.0f, 0.0f, 0.0f);
     alignas(16) glm::vec3 scale = glm::vec3(1.0f);
-    f32 max_scale = 1.0f;
-
-    Handle<Mesh> mesh = INVALID_HANDLE;
-    Handle<Material> material = INVALID_HANDLE;
-    u32 visible = 1U;
+    alignas(4) f32 max_scale = 1.0f;
+};
+// std140
+struct alignas(16) Object {
+    // Global transform and local transform are both allocated at the same handle as object
+    alignas(4) Handle<Mesh> mesh = INVALID_HANDLE;
+    alignas(4) Handle<Material> material = INVALID_HANDLE;
+    alignas(4) Handle<Object> parent = INVALID_HANDLE;
+    alignas(4) u32 visible = 1U;
 };
 
 struct ObjectCreateInfo{
     Handle<Mesh> mesh = INVALID_HANDLE;
     Handle<Material> material = INVALID_HANDLE;
 
+    Handle<Object> parent = INVALID_HANDLE;
+
     bool visible = true;
 
-    glm::vec3 position{};
-    glm::quat rotation{};
-    glm::vec3 scale = glm::vec3(1.0f);
+    glm::vec3 local_position{};
+    glm::quat local_rotation = glm::quat(1.0f, 0.0f, 0.0f, 0.0f);
+    glm::vec3 local_scale = glm::vec3(1.0f);
 };
 struct CameraCreateInfo{
     glm::vec2 viewport_size{};
@@ -103,11 +109,30 @@ struct CameraCreateInfo{
     float near_plane = 0.02f;
     float far_plane = 2000.0f;
 };
+struct SceneCreateInfo {
+    std::vector<Handle<Mesh>> meshes{};
+    std::vector<Handle<Material>> materials{};
+    std::vector<Handle<Texture>> textures{};
+
+    std::vector<u32> meshes_default_materials{};
+    std::vector<std::vector<u32>> meshes_primitives{};
+
+    std::vector<ObjectCreateInfo> objects{};
+    std::vector<std::vector<u32>> children{};
+
+    std::vector<u32> root_objects{};
+
+    glm::vec3 position{};
+    glm::quat rotation = glm::quat(1.0f, 0.0f, 0.0f, 0.0f);
+    glm::vec3 scale = glm::vec3(1.0f);
+};
 
 class World {
 public:
     Handle<Object> create_object(const ObjectCreateInfo &create_info);
     Handle<Camera> create_camera(const CameraCreateInfo &create_info);
+    std::vector<Handle<Object>> instantiate_scene(const SceneCreateInfo &create_info);
+    std::vector<Handle<Object>> instantiate_scene_object(const SceneCreateInfo &create_info, u32 object_id);
 
     void set_position(Handle<Object> object, glm::vec3 position);
     void set_rotation(Handle<Object> object, glm::quat rotation);
@@ -116,18 +141,22 @@ public:
     void set_mesh(Handle<Object> object, Handle<Mesh> mesh);
     void set_material(Handle<Object> object, Handle<Material> material);
     void set_visibility(Handle<Object> object, bool visible);
+    void set_parent(Handle<Object> object, Handle<Object> new_parent);
 
-    const Object &get_object(Handle<Object> object) const { return m_objects.get_element(object); };
+    const std::vector<Handle<Object>> &get_children(Handle<Object> object) const { return m_children.get_element(object); }
+    const Transform &get_local_transform(Handle<Object> object) const { return m_local_transforms.get_element(object); }
+    const Transform &get_global_transform(Handle<Object> object) const { return m_global_transforms.get_element(object); }
+    const Object &get_object(Handle<Object> object) const { return m_objects.get_element(object); }
     const Camera &get_camera(Handle<Camera> camera) const { return m_cameras.get_element(camera); }
-    bool get_visibility(Handle<Object> object) const { return static_cast<bool>(m_objects.get_element(object).visible); };
+    bool get_visibility(Handle<Object> object) const { return static_cast<bool>(m_objects.get_element(object).visible); }
 
     void set_camera_position(Handle<Camera> camera, glm::vec3 position);
     void set_camera_rotation(Handle<Camera> camera, float pitch, float yaw);
     void set_camera_fov(Handle<Camera> camera, float fov);
     void set_camera_viewport(Handle<Camera> camera, glm::vec2 viewport_size);
 
-    const std::unordered_set<Handle<Object>>& get_valid_object_handles() const { return m_objects.get_valid_handles(); }
-    const std::unordered_set<Handle<Camera>>& get_valid_camera_handles() const { return m_cameras.get_valid_handles(); }
+    const std::unordered_set<Handle<Object>> &get_valid_object_handles() const { return m_objects.get_valid_handles(); }
+    const std::unordered_set<Handle<Camera>> &get_valid_camera_handles() const { return m_cameras.get_valid_handles(); }
 
     const std::vector<Object> &get_objects() const { return m_objects.get_all_elements(); };
     const std::vector<Camera> &get_cameras() const { return m_cameras.get_all_elements(); };
@@ -139,15 +168,18 @@ public:
     void _clear_updates();
 
 private:
-    glm::mat4 calculate_model_matrix(const Object &object);
+    void instantiate_scene_recursive(const SceneCreateInfo &create_info, std::vector<Handle<Object>> &instantiated, u32 object_id, u32 parent_id);
 
     glm::mat4 calculate_view_matrix(const Camera &camera) const;
     glm::mat4 calculate_proj_matrix(const Camera &camera) const;
     void update_vectors(Camera &camera);
     void update_frustum(Camera &camera);
 
+    HandleAllocator<Transform> m_local_transforms{};
+    HandleAllocator<Transform> m_global_transforms{};
     HandleAllocator<Object> m_objects{};
     HandleAllocator<Camera> m_cameras{};
+    HandleAllocator<std::vector<u32>> m_children{};
 
     std::unordered_set<Handle<Object>> m_changed_object_handles{};
 };

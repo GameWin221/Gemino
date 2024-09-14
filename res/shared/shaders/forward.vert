@@ -17,28 +17,34 @@ layout(location = 3) out flat uint f_draw_id;
 layout(set = 0, binding = 1) readonly buffer ObjectBuffer {
     Object objects[];
 };
-layout(set = 0, binding = 2) readonly buffer MaterialBuffer {
+layout(set = 0, binding = 2) readonly buffer LocalTransformBuffer {
+    Transform local_transforms[];
+};
+layout(set = 0, binding = 3) readonly buffer GlobalTransformBuffer {
+    Transform global_transforms[];
+};
+layout(set = 0, binding = 4) readonly buffer MaterialBuffer {
     Material materials[];
 };
-layout(set = 0, binding = 3) readonly buffer DrawCommandIndexBuffer {
+layout(set = 0, binding = 5) readonly buffer DrawCommandIndexBuffer {
     uint draw_command_indices[];
 };
-layout(set = 0, binding = 4) uniform CameraBuffer {
+layout(set = 0, binding = 6) uniform CameraBuffer {
     Camera camera;
 };
 
 void main() {
     uint object_id = draw_command_indices[gl_DrawIDARB];
 
-    Object object = objects[object_id];
+    Transform transform = global_transforms[object_id];
 
-    vec3 v_world_space = rotateVQ(v_position, object.rotation) * object.scale + object.position;
+    vec3 v_world_space = rotateVQ(v_position, transform.rotation) * transform.scale + transform.position;
 
     gl_Position = camera.view_proj * vec4(v_world_space, 1.0);
 
     f_position = v_world_space;
 
-    f_normal = normalize(rotateVQ(v_normal, object.rotation));
+    f_normal = normalize(rotateVQ(v_normal, transform.rotation));
 
     f_texcoord = v_texcoord;
 

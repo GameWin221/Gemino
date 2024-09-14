@@ -16,13 +16,19 @@ layout (set = 0, binding = 0) uniform sampler2D textures[];
 layout(set = 0, binding = 1) readonly buffer ObjectBuffer {
     Object objects[];
 };
-layout(set = 0, binding = 2) readonly buffer MaterialBuffer {
+layout(set = 0, binding = 2) readonly buffer LocalTransformBuffer {
+    Transform local_transforms[];
+};
+layout(set = 0, binding = 3) readonly buffer GlobalTransformBuffer {
+    Transform global_transforms[];
+};
+layout(set = 0, binding = 4) readonly buffer MaterialBuffer {
     Material materials[];
 };
-layout(set = 0, binding = 3) readonly buffer DrawCommandIndexBuffer {
+layout(set = 0, binding = 5) readonly buffer DrawCommandIndexBuffer {
     uint draw_command_indices[];
 };
-layout(set = 0, binding = 4) uniform CameraBuffer {
+layout(set = 0, binding = 6) uniform CameraBuffer {
     Camera camera;
 };
 

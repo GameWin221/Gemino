@@ -6,5 +6,7 @@
 cmake-build*
 build
 
-res/shaders/*.spv
-res/shaders/**/*.spv
+res/Sponza
+
+res/shared/shaders/*.spv
+res/shared/shaders/**/*.spv
