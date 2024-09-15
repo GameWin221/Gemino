@@ -8,22 +8,23 @@ Handle<Object> World::create_object(const ObjectCreateInfo& create_info) {
         .visible = static_cast<u32>(create_info.visible),
     };
 
-    Transform local_transform {
+    Transform local_transform{
         .position = create_info.local_position,
         .rotation = create_info.local_rotation,
         .scale = create_info.local_scale,
         .max_scale = glm::max(glm::max(create_info.local_scale.x, create_info.local_scale.y), create_info.local_scale.z),
     };
 
-    Transform global_transform = local_transform;
+    Transform global_transform{};
     if (object.parent != INVALID_HANDLE) {
         const auto &parent_transform = m_global_transforms.get_element(object.parent);
 
-        global_transform.position = parent_transform.rotation * global_transform.position;
-        global_transform.position *= parent_transform.scale;
-
-        global_transform.position += parent_transform.position;
-        global_transform.scale *= parent_transform.scale;
+        global_transform.position = parent_transform.rotation * local_transform.position * parent_transform.scale + parent_transform.position;
+        global_transform.scale = local_transform.scale * parent_transform.scale;
+        global_transform.rotation = parent_transform.rotation * local_transform.rotation;
+        global_transform.max_scale = glm::max(glm::max(global_transform.scale.x, global_transform.scale.y), global_transform.scale.z);
+    } else {
+        global_transform = local_transform;
     }
 
     Handle<Object> object_handle = m_objects.alloc(object);
@@ -60,7 +61,7 @@ Handle<Camera> World::create_camera(const CameraCreateInfo& create_info) {
     return m_cameras.alloc(camera);
 }
 
-void World::instantiate_scene_recursive(const SceneCreateInfo &create_info, std::vector<Handle<Object>> &instantiated, u32 object_id, u32 parent_id) {
+void World::instantiate_scene_recursive(const SceneCreateInfo &create_info, std::vector<Handle<Object>> &instantiated, u32 object_id, Handle<Object> parent_handle) {
 #if DEBUG_MODE
     if (create_info.objects.size() <= object_id) {
         DEBUG_PANIC("Scene object out of bounds! object_id = " << object_id)
@@ -71,15 +72,20 @@ void World::instantiate_scene_recursive(const SceneCreateInfo &create_info, std:
 #endif
 
     ObjectCreateInfo obj = create_info.objects[object_id];
-    obj.parent = parent_id;
-    obj.local_position += create_info.position;
-    obj.local_rotation *= create_info.rotation;
-    obj.local_scale *= create_info.scale;
+    obj.parent = parent_handle;
 
-    instantiated.push_back(create_object(obj));
+    if (parent_handle == INVALID_HANDLE) {
+        obj.local_position = create_info.rotation * obj.local_position * create_info.scale + create_info.position;
+        obj.local_scale *= create_info.scale;
+        obj.local_rotation = create_info.rotation * obj.local_rotation;
+    }
+
+    Handle<Object> handle = create_object(obj);
+
+    instantiated.push_back(handle);
 
     for (const auto &child_id : create_info.children[object_id]) {
-        instantiate_scene_recursive(create_info, instantiated, child_id, object_id);
+        instantiate_scene_recursive(create_info, instantiated, child_id, handle);
     }
 }
 std::vector<Handle<Object>> World::instantiate_scene(const SceneCreateInfo &create_info) {

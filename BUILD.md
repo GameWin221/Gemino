@@ -3,6 +3,8 @@
 You have to get the Vulkan SDK from https://vulkan.lunarg.com/ and have it installed. CMake and Visual Studio will find it automatically only when the `VULKAN_SDK` environmental variable is set correctly.
 You will also need Vulkan drivers 1.2 or newer.
 
+Sponza scene is required for the default example and can be downloaded [here](https://www.intel.com/content/www/us/en/developer/topic-technology/graphics-research/samples.html), from the Intel GPU Research samples. After you download it, paste it in the `res/Sponza` directory.
+
 ## Build Tool
 ### 1. Using CMake
 - `mkdir build`

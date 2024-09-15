@@ -168,7 +168,7 @@ public:
     void _clear_updates();
 
 private:
-    void instantiate_scene_recursive(const SceneCreateInfo &create_info, std::vector<Handle<Object>> &instantiated, u32 object_id, u32 parent_id);
+    void instantiate_scene_recursive(const SceneCreateInfo &create_info, std::vector<Handle<Object>> &instantiated, u32 object_id, Handle<Object> parent_handle);
 
     glm::mat4 calculate_view_matrix(const Camera &camera) const;
     glm::mat4 calculate_proj_matrix(const Camera &camera) const;

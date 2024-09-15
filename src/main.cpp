@@ -25,46 +25,23 @@ int main(){
 
     World world{};
 
-    auto sponza_scene = render_path.load_gltf_scene(SceneLoadInfo {
-       .path = "res/Sponza/Main/SponzaMain.gltf",
-       .import_textures = false,
-       .import_materials = true
-    });
+    auto monkey_scene = render_path.load_gltf_scene(SceneLoadInfo {
+    .path = "res/monkey.gltf"
+});
 
-    sponza_scene.rotation = glm::angleAxis(glm::radians(-45.0f), glm::vec3(0.0f, 1.0f, 0.0f));
+    auto sponza_scene = render_path.load_gltf_scene(SceneLoadInfo {
+        .path = "res/Sponza/Main/SponzaMain.gltf",
+        .import_textures = false,
+        .import_materials = true
+    });
 
     auto sponza_handles = world.instantiate_scene(sponza_scene);
-
-    auto monkey_scene = render_path.load_gltf_scene(SceneLoadInfo {
-        .path = "res/monkey.gltf"
-    });
 
     monkey_scene.position = glm::vec3(4.0f, 0.5f, 0.0f);
     monkey_scene.rotation = glm::angleAxis(glm::radians(-45.0f), glm::vec3(0.0f, 1.0f, 0.0f)) * glm::angleAxis(glm::radians(-35.0f), glm::vec3(1.0f, 0.0f, 0.0f));
     world.instantiate_scene_object(monkey_scene, 0);
 
     std::srand(0xDEADBEEF);
-
-    /*
-    for(u32 x{}; x < 10u; ++x) {
-        for(u32 y{}; y < 10u; ++y) {
-            for(u32 z{}; z < 10u; ++z) {
-                glm::quat rotation_x = glm::angleAxis(glm::radians((std::rand() % 3600) / 10.0f), glm::vec3(1.0f, 0.0f, 0.0f));
-                glm::quat rotation_y = glm::angleAxis(glm::radians((std::rand() % 3600) / 10.0f), glm::vec3(0.0f, 1.0f, 0.0f));
-                glm::quat rotation_z = glm::angleAxis(glm::radians((std::rand() % 3600) / 10.0f), glm::vec3(0.0f, 0.0f, 1.0f));
-
-                world.create_object(ObjectCreateInfo{
-                    //.mesh = ((x + y + z) % 2 == 0) ? monkey_mesh_handle : sphere_mesh_handle,
-                    //.material = (((x + y + z) % 2 == 0) ? material_monkey_handle : material_handle),
-                    //.mesh = monkey_mesh_handle,
-                    //.material = material_monkey_handle,
-                    .position = glm::vec3(x * 3U, y * 2U, z * 3U),
-                    .rotation = rotation_x * rotation_y * rotation_z
-                });
-            }
-        }
-    }
-*/
 
     auto main_camera = world.create_camera(CameraCreateInfo{
         .viewport_size = glm::vec2(window.get_size()),

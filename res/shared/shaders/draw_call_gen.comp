@@ -56,7 +56,7 @@ void main() {
 
     Transform transform = global_transforms[object_id];
 
-    vec3 mesh_position = rotateVQ(mesh.center_offset, transform.rotation) * transform.scale + transform.position;
+    vec3 mesh_position = rotateVQ(mesh.center_offset * transform.scale, transform.rotation) + transform.position;
     // Distance to camera plane is cheaper than euclidean distance
     float mesh_dist = dot(mesh_position - camera.position, camera.forward);
     float cull_distance = mesh.cull_distance * global_cull_dist_multiplier;

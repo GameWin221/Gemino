@@ -38,7 +38,7 @@ void main() {
 
     Transform transform = global_transforms[object_id];
 
-    vec3 v_world_space = rotateVQ(v_position, transform.rotation) * transform.scale + transform.position;
+    vec3 v_world_space = rotateVQ(v_position * transform.scale, transform.rotation) + transform.position;
 
     gl_Position = camera.view_proj * vec4(v_world_space, 1.0);
 
