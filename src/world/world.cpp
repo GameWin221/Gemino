@@ -15,17 +15,8 @@ Handle<Object> World::create_object(const ObjectCreateInfo& create_info) {
         .max_scale = glm::max(glm::max(create_info.local_scale.x, create_info.local_scale.y), create_info.local_scale.z),
     };
 
+    // Global transform is updated automatically in the "update_objects()" function.
     Transform global_transform{};
-    if (object.parent != INVALID_HANDLE) {
-        const auto &parent_transform = m_global_transforms.get_element(object.parent);
-
-        global_transform.position = parent_transform.rotation * local_transform.position * parent_transform.scale + parent_transform.position;
-        global_transform.scale = local_transform.scale * parent_transform.scale;
-        global_transform.rotation = parent_transform.rotation * local_transform.rotation;
-        global_transform.max_scale = glm::max(glm::max(global_transform.scale.x, global_transform.scale.y), global_transform.scale.z);
-    } else {
-        global_transform = local_transform;
-    }
 
     Handle<Object> object_handle = m_objects.alloc(object);
     Handle<Transform> local_t_handle = m_local_transforms.alloc(local_transform);
@@ -61,7 +52,7 @@ Handle<Camera> World::create_camera(const CameraCreateInfo& create_info) {
     return m_cameras.alloc(camera);
 }
 
-void World::instantiate_scene_recursive(const SceneCreateInfo &create_info, std::vector<Handle<Object>> &instantiated, u32 object_id, Handle<Object> parent_handle) {
+Handle<Object> World::instantiate_scene_recursive(const SceneCreateInfo &create_info, u32 object_id, Handle<Object> parent_handle) {
 #if DEBUG_MODE
     if (create_info.objects.size() <= object_id) {
         DEBUG_PANIC("Scene object out of bounds! object_id = " << object_id)
@@ -74,35 +65,59 @@ void World::instantiate_scene_recursive(const SceneCreateInfo &create_info, std:
     ObjectCreateInfo obj = create_info.objects[object_id];
     obj.parent = parent_handle;
 
+    Transform obj_transform {
+        .position = obj.local_position,
+        .rotation = obj.local_rotation,
+        .scale = obj.local_scale,
+        .max_scale = glm::max(glm::max(obj.local_scale.x, obj.local_scale.y), obj.local_scale.z)
+    };
+
+    // create_info transform affects only scene roots
     if (parent_handle == INVALID_HANDLE) {
-        obj.local_position = create_info.rotation * obj.local_position * create_info.scale + create_info.position;
-        obj.local_scale *= create_info.scale;
-        obj.local_rotation = create_info.rotation * obj.local_rotation;
+        Transform create_info_transform {
+            .position = create_info.position,
+            .rotation = create_info.rotation,
+            .scale = create_info.scale,
+            .max_scale = glm::max(glm::max(create_info.scale.x, create_info.scale.y), create_info.scale.z)
+        };
+
+        Transform new_local_transform = calculate_global_transform(obj_transform, create_info_transform);
+        obj.local_position = new_local_transform.position;
+        obj.local_scale = new_local_transform.scale;
+        obj.local_rotation = new_local_transform.rotation;
     }
 
     Handle<Object> handle = create_object(obj);
 
-    instantiated.push_back(handle);
-
     for (const auto &child_id : create_info.children[object_id]) {
-        instantiate_scene_recursive(create_info, instantiated, child_id, handle);
-    }
-}
-std::vector<Handle<Object>> World::instantiate_scene(const SceneCreateInfo &create_info) {
-    std::vector<Handle<Object>> instantiated{};
-
-    for (const auto &root_node_id : create_info.root_objects) {
-        instantiate_scene_recursive(create_info, instantiated, root_node_id, INVALID_HANDLE);
+        instantiate_scene_recursive(create_info, child_id, handle);
     }
 
-    return instantiated;
+    return handle;
 }
-std::vector<Handle<Object>> World::instantiate_scene_object(const SceneCreateInfo &create_info, u32 object_id) {
-    std::vector<Handle<Object>> instantiated{};
 
-    instantiate_scene_recursive(create_info, instantiated, object_id, INVALID_HANDLE);
+Handle<Object> World::instantiate_scene(const SceneCreateInfo &create_info) {
+    if(create_info.root_objects.size() > 1) {
+        Handle<Object> new_root = create_object(ObjectCreateInfo {
+            .local_position = create_info.position,
+            .local_rotation = create_info.rotation,
+            .local_scale = create_info.scale,
+        });
 
-    return instantiated;
+        for (const auto &root_node_id : create_info.root_objects) {
+            instantiate_scene_recursive(create_info, root_node_id, new_root);
+        }
+
+        return new_root;
+    } else if(create_info.root_objects.size() == 1) {
+        return instantiate_scene_recursive(create_info, create_info.root_objects[0], INVALID_HANDLE);
+    } else {
+        DEBUG_PANIC("Cannot instantiate an empty scene!");
+        return INVALID_HANDLE;
+    }
+}
+Handle<Object> World::instantiate_scene_object(const SceneCreateInfo &create_info, u32 object_id) {
+    return instantiate_scene_recursive(create_info, object_id, INVALID_HANDLE);
 }
 
 void World::set_position(Handle<Object> object, glm::vec3 position) {
@@ -257,6 +272,50 @@ void World::update_frustum(Camera &camera) {
     camera.left_plane = glm::normalize(glm::cross(far_plane - (camera.right * half_x), camera.up));
     camera.top_plane =  glm::normalize(glm::cross(far_plane + (camera.up * half_y), camera.right));
     camera.bottom_plane = glm::normalize(glm::cross(camera.right, far_plane - (camera.up * half_y)));
+}
+
+Transform World::calculate_global_transform(const Transform &local_transform, const Transform &parent_global_transform) {
+    Transform global_transform{
+        .position = parent_global_transform.rotation * local_transform.position * parent_global_transform.scale + parent_global_transform.position,
+        .rotation = parent_global_transform.rotation * local_transform.rotation,
+        .scale = local_transform.scale * parent_global_transform.scale,
+    };
+
+    global_transform.max_scale = glm::max(glm::max(global_transform.scale.x, global_transform.scale.y), global_transform.scale.z);
+
+    return global_transform;
+}
+
+void World::update_objects() {
+    std::vector<Handle<Object>> changed_objects_copy{};
+    changed_objects_copy.reserve(m_changed_object_handles.size());
+
+    for (const auto &handle : m_changed_object_handles) {
+        changed_objects_copy.push_back(handle);
+    }
+
+    for (const auto &obj : changed_objects_copy) {
+        update_object_recursive(obj);
+    }
+}
+
+void World::update_object_recursive(Handle<Object> object_handle) {
+    const auto &object = m_objects.get_element(object_handle);
+    const auto &local_transform = m_local_transforms.get_element(object_handle);
+
+    m_changed_object_handles.insert(object_handle);
+
+    if (object.parent != INVALID_HANDLE) {
+        const auto &parent_transform = m_global_transforms.get_element(object.parent);
+
+        m_global_transforms.get_element_mutable(object_handle) = calculate_global_transform(local_transform, parent_transform);
+    } else {
+        m_global_transforms.get_element_mutable(object_handle) = local_transform;
+    }
+
+    for (const auto &child_obj : m_children.get_element(object_handle)) {
+        update_object_recursive(child_obj);
+    }
 }
 
 void World::_clear_updates() {

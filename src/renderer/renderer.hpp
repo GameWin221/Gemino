@@ -6,17 +6,6 @@
 #include <window/window.hpp>
 #include <common/utils.hpp>
 
-struct ObjectImportData {
-    std::string name{};
-
-    u32 mesh_id{};
-    u32 material_id{};
-
-    glm::vec3 position{};
-    glm::quat rotation{};
-    glm::vec3 scale = glm::vec3(1.0f);
-};
-
 struct SceneLoadInfo {
     std::string path{};
     bool import_textures = true;

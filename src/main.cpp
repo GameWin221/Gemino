@@ -21,25 +21,32 @@ int main(){
 
     InputManager input(window);
 
-    Renderer render_path(window, VSyncMode::Adaptive);
+    Renderer renderer(window, VSyncMode::Disabled);
 
     World world{};
 
-    auto monkey_scene = render_path.load_gltf_scene(SceneLoadInfo {
-    .path = "res/monkey.gltf"
-});
-
-    auto sponza_scene = render_path.load_gltf_scene(SceneLoadInfo {
+    auto sponza_scene = renderer.load_gltf_scene(SceneLoadInfo {
         .path = "res/Sponza/Main/SponzaMain.gltf",
         .import_textures = false,
         .import_materials = true
     });
 
-    auto sponza_handles = world.instantiate_scene(sponza_scene);
+    // Hide decals by default
+    for (auto &obj : sponza_scene.objects) {
+        if (obj.name.find("decals") != std::string::npos) {
+            obj.visible = false;
+        }
+    }
+
+    auto sponza_handle = world.instantiate_scene(sponza_scene);
+
+    auto monkey_scene = renderer.load_gltf_scene(SceneLoadInfo {
+        .path = "res/monkey.gltf"
+    });
 
     monkey_scene.position = glm::vec3(4.0f, 0.5f, 0.0f);
     monkey_scene.rotation = glm::angleAxis(glm::radians(-45.0f), glm::vec3(0.0f, 1.0f, 0.0f)) * glm::angleAxis(glm::radians(-35.0f), glm::vec3(1.0f, 0.0f, 0.0f));
-    world.instantiate_scene_object(monkey_scene, 0);
+    auto monkey_handle = world.instantiate_scene_object(monkey_scene, 0);
 
     std::srand(0xDEADBEEF);
 
@@ -102,16 +109,17 @@ int main(){
         world.set_camera_rotation(main_camera, main_camera_data.pitch - mouse_vel.y * camera_rotate_speed, main_camera_data.yaw + mouse_vel.x * camera_rotate_speed);
 
         f32 f_time = static_cast<f32>(time);
+        f32 f_dt = static_cast<f32>(dt);
 
         //world.set_camera_position(main_camera, glm::vec3(40.4874f, 7.70619f, 29.7653f));
         //world.set_camera_rotation(main_camera,glm::mix(19.1001f, 20.1001f, sinf(f_time)),glm::mix(-84.5997f, -85.5997f, sinf(f_time)));
 
         if(input.get_key(Key::R, InputState::Pressed)) {
-            render_path.set_config_enable_dynamic_lod(!render_path.get_config_enable_dynamic_lod());
-            DEBUG_LOG("dynamic_lod " << (render_path.get_config_enable_dynamic_lod() ? "enabled" : "disabled"))
+            renderer.set_config_enable_dynamic_lod(!renderer.get_config_enable_dynamic_lod());
+            DEBUG_LOG("dynamic_lod " << (renderer.get_config_enable_dynamic_lod() ? "enabled" : "disabled"))
         } else if(input.get_key(Key::T, InputState::Pressed)) {
-            render_path.set_config_enable_frustum_cull(!render_path.get_config_enable_frustum_cull());
-            DEBUG_LOG("frustum_cull " << (render_path.get_config_enable_frustum_cull() ? "enabled" : "disabled"))
+            renderer.set_config_enable_frustum_cull(!renderer.get_config_enable_frustum_cull());
+            DEBUG_LOG("frustum_cull " << (renderer.get_config_enable_frustum_cull() ? "enabled" : "disabled"))
         }
 
         if(input.get_key(Key::G, InputState::Pressed)) {
@@ -119,10 +127,7 @@ int main(){
             DEBUG_LOG("Rotation: " << main_camera_data.pitch << "f, " << main_camera_data.yaw << "f")
         }
 
-        //for(Handle<Object> handle{}; handle < static_cast<u32>(world.get_objects().size()); ++handle) {
-        //    Handle<Transform> t = world.get_object(handle).transform;
-        //    world.set_rotation(handle, world.get_transform(t).rotation + glm::vec3(static_cast<f32>(dt) * 40.0f, static_cast<f32>(dt) * 20.0f, 0.0f));
-        //}
+        world.update_objects();
 
         if(window.is_window_size_nonzero()) {
             if(window.was_resized_last_time()) {
@@ -132,9 +137,9 @@ int main(){
 
                 DEBUG_LOG("Resized to: " << window_size.x << " x " << window_size.y)
 
-                render_path.resize(window);
+                renderer.resize(window);
             } else {
-                render_path.render(world, main_camera);
+                renderer.render(world, main_camera);
             }
         }
 
@@ -144,7 +149,7 @@ int main(){
         dt = DEBUG_TIME_DIFF(last_frame, now);
         last_frame = now;
 
-        if(render_path.get_frames_since_init() % 512u == 0u) {
+        if(renderer.get_frames_since_init() % 512u == 0u) {
             DEBUG_LOG(1.0 / dt << "fps")
         }
 

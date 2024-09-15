@@ -38,6 +38,8 @@ static void process_gltf_node(SceneCreateInfo &scene, const tinygltf::Model &mod
 
     ObjectCreateInfo object{};
 
+    object.name = node.name;
+
     if (!node.translation.empty()) {
         object.local_position = glm::vec3(
             static_cast<f32>(node.translation[0]),
@@ -75,6 +77,8 @@ static void process_gltf_node(SceneCreateInfo &scene, const tinygltf::Model &mod
                 .mesh = scene.meshes[primitive],
                 .material = scene.meshes_default_materials[primitive],
             };
+
+            child_info.name = node.name + std::to_string(primitive);
 
             scene.objects.push_back(child_info);
             scene.children.emplace_back();
@@ -117,6 +121,7 @@ SceneCreateInfo Renderer::load_gltf_scene(const SceneLoadInfo &load_info) {
     }
 
     tinygltf::Scene &gltf_scene = model.scenes[model.defaultScene];
+
     //scene.name = gltf_scene.name;
 
     if (load_info.import_textures) {
@@ -141,7 +146,8 @@ SceneCreateInfo Renderer::load_gltf_scene(const SceneLoadInfo &load_info) {
 
                 scene.textures.push_back(load_u8_texture(TextureLoadInfo{
                     .path = directory + image.uri,
-                    .is_srgb = is_texture_srgb[tex_id++]
+                    .is_srgb = is_texture_srgb[tex_id++],
+                    .gen_mip_maps = true
                 }));
             } else {
                 DEBUG_PANIC("Failed to import image! No source URI provided!")

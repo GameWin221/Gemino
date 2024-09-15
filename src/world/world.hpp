@@ -87,6 +87,8 @@ struct alignas(16) Object {
 };
 
 struct ObjectCreateInfo{
+    std::string name{};
+
     Handle<Mesh> mesh = INVALID_HANDLE;
     Handle<Material> material = INVALID_HANDLE;
 
@@ -131,8 +133,8 @@ class World {
 public:
     Handle<Object> create_object(const ObjectCreateInfo &create_info);
     Handle<Camera> create_camera(const CameraCreateInfo &create_info);
-    std::vector<Handle<Object>> instantiate_scene(const SceneCreateInfo &create_info);
-    std::vector<Handle<Object>> instantiate_scene_object(const SceneCreateInfo &create_info, u32 object_id);
+    Handle<Object> instantiate_scene(const SceneCreateInfo &create_info);
+    Handle<Object> instantiate_scene_object(const SceneCreateInfo &create_info, u32 object_id);
 
     void set_position(Handle<Object> object, glm::vec3 position);
     void set_rotation(Handle<Object> object, glm::quat rotation);
@@ -165,10 +167,15 @@ public:
 
     const glm::vec3 WORLD_UP = glm::vec3(0.0f, 1.0f, 0.0f);
 
+    Transform calculate_global_transform(const Transform &local_transform, const Transform &parent_global_transform);
+
+    void update_objects();
+
     void _clear_updates();
 
 private:
-    void instantiate_scene_recursive(const SceneCreateInfo &create_info, std::vector<Handle<Object>> &instantiated, u32 object_id, Handle<Object> parent_handle);
+    Handle<Object> instantiate_scene_recursive(const SceneCreateInfo &create_info, u32 object_id, Handle<Object> parent_handle);
+    void update_object_recursive(Handle<Object> object_handle);
 
     glm::mat4 calculate_view_matrix(const Camera &camera) const;
     glm::mat4 calculate_proj_matrix(const Camera &camera) const;
