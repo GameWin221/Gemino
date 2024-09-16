@@ -56,7 +56,7 @@ file(GLOB_RECURSE GEMINO_SHADER_SRC_FILES
 )
 
 if(NOT MSVC)
-    target_link_options(${PROJECT_NAME} PRIVATE -s)
+    target_link_options(${PROJECT_NAME} PRIVATE -static)
 else()
 
 endif()
