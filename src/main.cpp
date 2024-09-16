@@ -127,6 +127,9 @@ int main(){
             DEBUG_LOG("Rotation: " << main_camera_data.pitch << "f, " << main_camera_data.yaw << "f")
         }
 
+        world.set_rotation(monkey_handle, glm::angleAxis(glm::radians(f_dt * 20.0f), world.WORLD_UP) * world.get_local_transform(monkey_handle).rotation);
+        world.set_position(monkey_handle, glm::vec3(glm::sin(f_time) * 2.0f, 0.5f, glm::cos(f_time) * 2.0f));
+
         world.update_objects();
 
         if(window.is_window_size_nonzero()) {

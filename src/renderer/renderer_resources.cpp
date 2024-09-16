@@ -102,6 +102,11 @@ SceneCreateInfo Renderer::load_gltf_scene(const SceneLoadInfo &load_info) {
     tinygltf::Model model{};
     std::string err{}, warn{};
 
+    // Set dummy image loader callback so that tinygltf doesn't complain
+    loader.SetImageLoader([](tinygltf::Image *, const i32, std::string *, std::string *, i32, i32, const uint8_t *, i32, void *) {
+        return true;
+    }, nullptr);
+
     if (!loader.LoadASCIIFromFile(&model, &err, &warn, load_info.path)) {
 
     }
@@ -146,12 +151,45 @@ SceneCreateInfo Renderer::load_gltf_scene(const SceneLoadInfo &load_info) {
 
                 scene.textures.push_back(load_u8_texture(TextureLoadInfo{
                     .path = directory + image.uri,
-                    .is_srgb = is_texture_srgb[tex_id++],
+                    .is_srgb = is_texture_srgb[tex_id],
                     .gen_mip_maps = true
                 }));
+            } else if (image.bufferView != -1) {
+                const auto &buffer_view = model.bufferViews[image.bufferView];
+                const auto &buffer = model.buffers[buffer_view.buffer];
+
+                i32 width, height, channels;
+                u8 *pixels = stbi_load_from_memory(
+                    reinterpret_cast<stbi_uc const *>(reinterpret_cast<usize>(buffer.data.data()) + buffer_view.byteOffset),
+                    static_cast<i32>(buffer_view.byteLength),
+                    &width,
+                    &height,
+                    &channels,
+                    4u
+                );
+
+                if(!pixels) {
+                    DEBUG_WARNING("LEN: " << static_cast<i32>(buffer.data.size()))
+                    DEBUG_PANIC("Failed to load image from buffer[" << image.bufferView << "]")
+                }
+
+                DEBUG_LOG("Loaded image \"" << image.name << "\" from buffer[" << buffer_view.buffer << "], bufferView[" << image.bufferView << "]")
+
+                scene.textures.push_back(create_u8_texture(TextureCreateInfo{
+                    .pixel_data = pixels,
+                    .width = static_cast<u32>(width),
+                    .height = static_cast<u32>(height),
+                    .bytes_per_pixel = 4u,
+                    .is_srgb = is_texture_srgb[tex_id],
+                    .gen_mip_maps = true
+                }));
+
+                stbi_image_free(pixels);
             } else {
-                DEBUG_PANIC("Failed to import image! No source URI provided!")
+                DEBUG_PANIC("Failed to import image! No source URI or bufferView provided!")
             }
+
+            tex_id += 1u;
         }
     }
 
