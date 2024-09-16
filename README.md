@@ -9,7 +9,6 @@ It's also my passion project for learning and experimenting with new graphics pr
 - Fully "bindless" and GPU driven - Minimal CPU overhead
 - Good performance for open worlds and indoor scenes
 - Support for most desktop devices
-- Friendly interface that also doesn't take away most of the control
 
 ## Major Features
 - Indirect draw with compute shader draw call generation (vkCmdDrawInstancedIndirectCount)
