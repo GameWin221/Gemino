@@ -54,6 +54,21 @@ void Renderer::init_scene_buffers() {
         .buffer_usage_flags = VK_BUFFER_USAGE_STORAGE_BUFFER_BIT | VK_BUFFER_USAGE_TRANSFER_DST_BIT,
         .memory_usage_flags = VMA_MEMORY_USAGE_GPU_ONLY
     });
+    m_scene_mesh_instance_buffer = m_api.m_resource_manager->create_buffer(BufferCreateInfo{
+        .size = sizeof(Mesh) * MAX_SCENE_MESH_INSTANCES,
+        .buffer_usage_flags = VK_BUFFER_USAGE_STORAGE_BUFFER_BIT | VK_BUFFER_USAGE_TRANSFER_DST_BIT,
+        .memory_usage_flags = VMA_MEMORY_USAGE_GPU_ONLY
+    });
+    m_scene_mesh_instance_materials_buffer = m_api.m_resource_manager->create_buffer(BufferCreateInfo{
+        .size = sizeof(Mesh) * MAX_SCENE_MESH_INSTANCES,
+        .buffer_usage_flags = VK_BUFFER_USAGE_STORAGE_BUFFER_BIT | VK_BUFFER_USAGE_TRANSFER_DST_BIT,
+        .memory_usage_flags = VMA_MEMORY_USAGE_GPU_ONLY
+    });
+    m_scene_primitive_buffer = m_api.m_resource_manager->create_buffer(BufferCreateInfo{
+        .size = sizeof(Primitive) * MAX_SCENE_PRIMITIVES,
+        .buffer_usage_flags = VK_BUFFER_USAGE_STORAGE_BUFFER_BIT | VK_BUFFER_USAGE_TRANSFER_DST_BIT,
+        .memory_usage_flags = VMA_MEMORY_USAGE_GPU_ONLY
+    });
     m_scene_object_buffer = m_api.m_resource_manager->create_buffer(BufferCreateInfo{
         .size = sizeof(Object) * MAX_SCENE_OBJECTS,
         .buffer_usage_flags = VK_BUFFER_USAGE_STORAGE_BUFFER_BIT | VK_BUFFER_USAGE_TRANSFER_DST_BIT,
@@ -133,12 +148,12 @@ void Renderer::init_descriptors(bool create_new) {
         m_draw_call_gen_descriptor = m_api.m_resource_manager->create_descriptor(DescriptorCreateInfo{
             .bindings {
                 DescriptorBindingCreateInfo{VK_DESCRIPTOR_TYPE_STORAGE_BUFFER}, // Mesh Buffer
+                DescriptorBindingCreateInfo{VK_DESCRIPTOR_TYPE_STORAGE_BUFFER}, // Mesh Instance Buffer
+                DescriptorBindingCreateInfo{VK_DESCRIPTOR_TYPE_STORAGE_BUFFER}, // Primitive Buffer
                 DescriptorBindingCreateInfo{VK_DESCRIPTOR_TYPE_STORAGE_BUFFER}, // Object Buffer
-                DescriptorBindingCreateInfo{VK_DESCRIPTOR_TYPE_STORAGE_BUFFER}, // Local transform Buffer
                 DescriptorBindingCreateInfo{VK_DESCRIPTOR_TYPE_STORAGE_BUFFER}, // Global transform Buffer
                 DescriptorBindingCreateInfo{VK_DESCRIPTOR_TYPE_STORAGE_BUFFER}, // Draw Commands
                 DescriptorBindingCreateInfo{VK_DESCRIPTOR_TYPE_STORAGE_BUFFER}, // Draw Commands Count
-                DescriptorBindingCreateInfo{VK_DESCRIPTOR_TYPE_STORAGE_BUFFER}, // Draw Commands Index
                 DescriptorBindingCreateInfo{VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER}, // Camera Buffer
             }
         });
@@ -155,37 +170,37 @@ void Renderer::init_descriptors(bool create_new) {
             DescriptorBindingUpdateInfo{
                 .binding_index = 1U,
                 .buffer_info {
-                    .buffer_handle = m_scene_object_buffer
+                    .buffer_handle = m_scene_mesh_instance_buffer
                 }
             },
             DescriptorBindingUpdateInfo{
                 .binding_index = 2U,
                 .buffer_info {
-                    .buffer_handle = m_scene_local_transform_buffer
+                    .buffer_handle = m_scene_primitive_buffer
                 }
             },
             DescriptorBindingUpdateInfo{
                 .binding_index = 3U,
                 .buffer_info {
-                    .buffer_handle = m_scene_global_transform_buffer
+                    .buffer_handle = m_scene_object_buffer
                 }
             },
             DescriptorBindingUpdateInfo{
                 .binding_index = 4U,
                 .buffer_info {
-                    .buffer_handle = m_scene_draw_buffer
+                    .buffer_handle = m_scene_global_transform_buffer
                 }
             },
             DescriptorBindingUpdateInfo{
                 .binding_index = 5U,
                 .buffer_info {
-                    .buffer_handle = m_scene_draw_count_buffer
+                    .buffer_handle = m_scene_draw_buffer
                 }
             },
             DescriptorBindingUpdateInfo{
                 .binding_index = 6U,
                 .buffer_info {
-                    .buffer_handle = m_scene_draw_index_buffer
+                    .buffer_handle = m_scene_draw_count_buffer
                 }
             },
             DescriptorBindingUpdateInfo{
@@ -201,12 +216,13 @@ void Renderer::init_descriptors(bool create_new) {
         m_forward_descriptor = m_api.m_resource_manager->create_descriptor(DescriptorCreateInfo{
             .bindings{
                 DescriptorBindingCreateInfo{VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER, static_cast<u32>(MAX_SCENE_TEXTURES)},
+                DescriptorBindingCreateInfo{VK_DESCRIPTOR_TYPE_STORAGE_BUFFER}, // Draw Command Buffer
                 DescriptorBindingCreateInfo{VK_DESCRIPTOR_TYPE_STORAGE_BUFFER}, // Scene Object Buffer
-                DescriptorBindingCreateInfo{VK_DESCRIPTOR_TYPE_STORAGE_BUFFER}, // Local transform Buffer
                 DescriptorBindingCreateInfo{VK_DESCRIPTOR_TYPE_STORAGE_BUFFER}, // Global transform Buffer
-                DescriptorBindingCreateInfo{VK_DESCRIPTOR_TYPE_STORAGE_BUFFER}, // Scene Material Buffer
-                DescriptorBindingCreateInfo{VK_DESCRIPTOR_TYPE_STORAGE_BUFFER}, // Scene Draw Index Buffer
-                DescriptorBindingCreateInfo{VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER}, // Scene Camera Buffer
+                DescriptorBindingCreateInfo{VK_DESCRIPTOR_TYPE_STORAGE_BUFFER}, // Material Buffer
+                DescriptorBindingCreateInfo{VK_DESCRIPTOR_TYPE_STORAGE_BUFFER}, // Mesh Instance Buffer
+                DescriptorBindingCreateInfo{VK_DESCRIPTOR_TYPE_STORAGE_BUFFER}, // Mesh Instance Materials Buffer
+                DescriptorBindingCreateInfo{VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER}, // Camera Buffer
             }
         });
     }
@@ -215,13 +231,13 @@ void Renderer::init_descriptors(bool create_new) {
             DescriptorBindingUpdateInfo{
                 .binding_index = 1U,
                 .buffer_info {
-                    .buffer_handle = m_scene_object_buffer
+                    .buffer_handle = m_scene_draw_buffer
                 }
             },
             DescriptorBindingUpdateInfo{
                 .binding_index = 2U,
                 .buffer_info {
-                    .buffer_handle = m_scene_local_transform_buffer
+                    .buffer_handle = m_scene_object_buffer
                 }
             },
             DescriptorBindingUpdateInfo{
@@ -239,11 +255,17 @@ void Renderer::init_descriptors(bool create_new) {
             DescriptorBindingUpdateInfo{
                 .binding_index = 5U,
                 .buffer_info {
-                    .buffer_handle = m_scene_draw_index_buffer
+                    .buffer_handle = m_scene_mesh_instance_buffer
                 }
             },
             DescriptorBindingUpdateInfo{
                 .binding_index = 6U,
+                .buffer_info {
+                    .buffer_handle = m_scene_mesh_instance_materials_buffer
+                }
+            },
+            DescriptorBindingUpdateInfo{
+                .binding_index = 7U,
                 .buffer_info {
                     .buffer_handle = m_scene_camera_buffer
                 }
@@ -379,6 +401,9 @@ void Renderer::destroy_scene_buffers() {
     m_api.m_resource_manager->destroy_buffer(m_scene_draw_index_buffer);
     m_api.m_resource_manager->destroy_buffer(m_scene_draw_count_buffer);
     m_api.m_resource_manager->destroy_buffer(m_scene_mesh_buffer);
+    m_api.m_resource_manager->destroy_buffer(m_scene_mesh_instance_materials_buffer);
+    m_api.m_resource_manager->destroy_buffer(m_scene_mesh_instance_buffer);
+    m_api.m_resource_manager->destroy_buffer(m_scene_primitive_buffer);
     m_api.m_resource_manager->destroy_buffer(m_scene_object_buffer);
     m_api.m_resource_manager->destroy_buffer(m_scene_local_transform_buffer);
     m_api.m_resource_manager->destroy_buffer(m_scene_global_transform_buffer);

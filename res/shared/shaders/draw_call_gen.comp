@@ -17,23 +17,23 @@ layout(push_constant) uniform PushConstant {
 layout(set = 0, binding = 0) readonly buffer MeshBuffer {
     Mesh meshes[];
 };
-layout(set = 0, binding = 1) readonly buffer ObjectBuffer {
+layout(set = 0, binding = 1) readonly buffer MeshInstanceBuffer {
+    MeshInstance mesh_instances[];
+};
+layout(set = 0, binding = 2) readonly buffer PrimitiveBuffer {
+    Primitive primitives[];
+};
+layout(set = 0, binding = 3) readonly buffer ObjectBuffer {
     Object objects[];
 };
-layout(set = 0, binding = 2) readonly buffer LocalTransformBuffer {
-    Transform local_transforms[];
-};
-layout(set = 0, binding = 3) readonly buffer GlobalTransformBuffer {
+layout(set = 0, binding = 4) readonly buffer GlobalTransformBuffer {
     Transform global_transforms[];
 };
-layout(set = 0, binding = 4) writeonly buffer DrawCommandBuffer {
+layout(set = 0, binding = 5) writeonly buffer DrawCommandBuffer {
     DrawCommand draw_commands[];
 };
-layout(set = 0, binding = 5) buffer DrawCommandCountBuffer {
+layout(set = 0, binding = 6) buffer DrawCommandCountBuffer {
     uint draw_command_count;
-};
-layout(set = 0, binding = 6) writeonly buffer DrawCommandIndexBuffer {
-    uint draw_command_indices[];
 };
 layout(set = 0, binding = 7) uniform CameraBuffer {
     Camera camera;
@@ -52,14 +52,14 @@ void main() {
         return;
     }
 
-    Mesh mesh = meshes[object.mesh];
+    Mesh mesh = meshes[mesh_instances[object.mesh_instance].mesh];
 
     Transform transform = global_transforms[object_id];
 
-    vec3 mesh_position = rotateVQ(mesh.center_offset * transform.scale, transform.rotation) + transform.position;
+    vec3 mesh_position = rotate_vq(mesh.center_offset * transform.scale, transform.rotation) + transform.position;
     // Distance to camera plane is cheaper than euclidean distance
     float mesh_dist = dot(mesh_position - camera.position, camera.forward);
-    float cull_distance = mesh.cull_distance * global_cull_dist_multiplier;
+    float cull_distance = 4000.0f * global_cull_dist_multiplier;
 
     // Frustum Culling
     if (ENABLE_FRUSTUM_CULL != 0u) {
@@ -79,23 +79,28 @@ void main() {
 
     // LOD Picking
     // https://www.desmos.com/calculator/igswt6rlwt
-    float lod_f;
-    if (ENABLE_DYNAMIC_LOD != 0u) {
-        lod_f = max(max(log2((1 << mesh.lod_count) * (mesh_dist / cull_distance) + (mesh_dist / LOD_DIV_CONSTANT)), 0.0) + global_lod_bias + mesh.lod_bias, 0.0);
-    } else {
-        lod_f = max(global_lod_bias + mesh.lod_bias, 0.0);
+    //float lod_f;
+    //if (ENABLE_DYNAMIC_LOD != 0u) {
+    //    lod_f = max(max(log2((1 << LOD_COUNT) * (mesh_dist / cull_distance) + (mesh_dist / LOD_DIV_CONSTANT)), 0.0) + global_lod_bias + mesh.lod_bias, 0.0);
+    //} else {
+    //    lod_f = max(global_lod_bias, 0.0);
+    //}
+    //uint lod_id = min(uint(lod_f), LOD_COUNT - 1u);
+    uint lod_id = 0u;
+
+    for (uint i = 0u; i < mesh.primitive_count; ++i) {
+        PrimitiveLOD lod = primitives[mesh.primitive_start + i].lods[lod_id];
+
+        DrawCommand cmd;
+        cmd.index_count = lod.index_count;
+        cmd.instance_count = 1u;
+        cmd.first_index = lod.first_index;
+        cmd.vertex_offset = lod.vertex_offset;
+        cmd.first_instance = 0u;
+        cmd.object_id = object_id;
+        cmd.primitive_id = i;
+
+        uint current_command_id = atomicAdd(draw_command_count, 1u);
+        draw_commands[current_command_id] = cmd;
     }
-    uint lod_id = min(uint(lod_f), mesh.lod_count - 1u);
-
-    MeshLOD lod = mesh.lods[lod_id];
-
-    uint current_command_id = atomicAdd(draw_command_count, 1u);
-
-    draw_command_indices[current_command_id] = object_id;
-
-    draw_commands[current_command_id].index_count = lod.index_count;
-    draw_commands[current_command_id].instance_count = 1u;
-    draw_commands[current_command_id].first_index = lod.first_index;
-    draw_commands[current_command_id].vertex_offset = lod.vertex_offset;
-    draw_commands[current_command_id].first_instance = 0u;
 }

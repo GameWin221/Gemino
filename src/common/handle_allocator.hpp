@@ -6,6 +6,9 @@
 #include <vector>
 #include <unordered_set>
 
+template<typename T>
+using Handle = u32;
+
 template <typename T>
 class HandleAllocator {
 public:
@@ -76,7 +79,7 @@ public:
         return m_valid_handles.contains(handle);
     }
 
-    // This method may copy a lot of data (every valid handle index) so never use when real-time performance is expected.
+    // This method may copy a lot of data (every valid handle index) so do not use it use when real-time performance is expected.
     std::vector<Handle<T>> get_valid_handles_copy() const {
         std::vector<Handle<T>> handles{};
         handles.reserve(m_valid_handles.size());
@@ -88,12 +91,12 @@ public:
         return handles;
     }
 
-    const std::unordered_set<Handle<T>>& get_valid_handles() const {
+    const std::unordered_set<Handle<T>> &get_valid_handles() const {
         return m_valid_handles;
     }
 
     // This will return ALL elements, even the invalid ones
-    const std::vector<T>& get_all_elements() const {
+    const std::vector<T> &get_all_elements() const {
         return m_elements;
     }
 

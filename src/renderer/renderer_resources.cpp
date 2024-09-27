@@ -10,20 +10,20 @@
 #define TINYGLTF_NO_INCLUDE_STB_IMAGE_WRITE
 #include <tiny_gltf.h>
 
-static glm::vec3 calculate_center_offset(const std::vector<Vertex> &vertices) {
+static glm::vec3 calculate_center_offset(const Vertex *vertices, u32 vertex_count) {
     glm::vec3 center_offset{};
-    for(const auto &v : vertices) {
-        center_offset += v.pos;
+    for(u32 i{}; i < vertex_count; ++i) {
+        center_offset += vertices[i].pos;
     }
 
-    center_offset /= (f32)vertices.size();
+    center_offset /= static_cast<f32>(vertex_count);
 
     return center_offset;
 }
-static f32 calculate_radius(const std::vector<Vertex> &vertices, const glm::vec3 &center_offset) {
+static f32 calculate_radius(const Vertex *vertices, u32 vertex_count, const glm::vec3 &center_offset) {
     f32 max_dist{};
-    for(const auto& vertex : vertices) {
-        f32 dist = glm::distance(center_offset, vertex.pos);
+    for(u32 i{}; i < vertex_count; ++i) {
+        f32 dist = glm::distance(center_offset, vertices[i].pos);
 
         if(dist > max_dist) {
             max_dist = dist;
@@ -37,8 +37,6 @@ static void process_gltf_node(SceneCreateInfo &scene, const tinygltf::Model &mod
     const tinygltf::Node &node = model.nodes[node_id];
 
     ObjectCreateInfo object{};
-
-    object.name = node.name;
 
     if (!node.translation.empty()) {
         object.local_position = glm::vec3(
@@ -65,26 +63,13 @@ static void process_gltf_node(SceneCreateInfo &scene, const tinygltf::Model &mod
         );
     }
 
+    if (node.mesh != -1) {
+        object.mesh_instance = scene.mesh_instances[node.mesh];
+    }
+
     u32 object_id = static_cast<u32>(scene.objects.size());
     scene.objects.push_back(object);
     scene.children.emplace_back();
-
-    if (node.mesh != -1) {
-        for (const auto &primitive : scene.meshes_primitives[node.mesh]) {
-            u32 child_object_id = static_cast<u32>(scene.objects.size());
-
-            ObjectCreateInfo child_info{
-                .mesh = scene.meshes[primitive],
-                .material = scene.meshes_default_materials[primitive],
-            };
-
-            child_info.name = node.name + std::to_string(primitive);
-
-            scene.objects.push_back(child_info);
-            scene.children.emplace_back();
-            scene.children[object_id].push_back(child_object_id);
-        }
-    }
 
     for(const auto &child_node_id : node.children) {
         u32 child_object_id = static_cast<u32>(scene.objects.size());
@@ -107,9 +92,7 @@ SceneCreateInfo Renderer::load_gltf_scene(const SceneLoadInfo &load_info) {
         return true;
     }, nullptr);
 
-    if (!loader.LoadASCIIFromFile(&model, &err, &warn, load_info.path)) {
-
-    }
+    loader.LoadASCIIFromFile(&model, &err, &warn, load_info.path);
 
     if (!warn.empty()) {
         DEBUG_WARNING("GLTF Import warning from \"" << load_info.path << "\": " << warn)
@@ -127,9 +110,7 @@ SceneCreateInfo Renderer::load_gltf_scene(const SceneLoadInfo &load_info) {
 
     tinygltf::Scene &gltf_scene = model.scenes[model.defaultScene];
 
-    //scene.name = gltf_scene.name;
-
-    if (load_info.import_textures) {
+    if (load_info.import_textures && load_info.import_materials) {
         std::vector<bool> is_texture_srgb(model.textures.size(), false);
         for (const auto &material : model.materials) {
             i32 albedo_texture_id = material.pbrMetallicRoughness.baseColorTexture.index;
@@ -140,20 +121,20 @@ SceneCreateInfo Renderer::load_gltf_scene(const SceneLoadInfo &load_info) {
             }
         }
 
-        u32 tex_id{};
-        for (const auto &texture : model.textures) {
+        scene.textures.resize(model.textures.size());
+        for (u32 texture_id{}; texture_id < static_cast<u32>(model.textures.size()); ++texture_id) {
             // TODO: Handle samplers
-
+            const auto &texture = model.textures[texture_id];
             const auto &image = model.images[texture.source];
 
             if (!image.uri.empty()) {
                 std::string directory = Utils::get_directory(load_info.path);
 
-                scene.textures.push_back(load_u8_texture(TextureLoadInfo{
+                scene.textures[texture_id] = load_u8_texture(TextureLoadInfo{
                     .path = directory + image.uri,
-                    .is_srgb = is_texture_srgb[tex_id],
+                    .is_srgb = is_texture_srgb[texture_id],
                     .gen_mip_maps = true
-                }));
+                });
             } else if (image.bufferView != -1) {
                 const auto &buffer_view = model.bufferViews[image.bufferView];
                 const auto &buffer = model.buffers[buffer_view.buffer];
@@ -175,45 +156,47 @@ SceneCreateInfo Renderer::load_gltf_scene(const SceneLoadInfo &load_info) {
 
                 DEBUG_LOG("Loaded image \"" << image.name << "\" from buffer[" << buffer_view.buffer << "], bufferView[" << image.bufferView << "]")
 
-                scene.textures.push_back(create_u8_texture(TextureCreateInfo{
+                scene.textures[texture_id] = create_u8_texture(TextureCreateInfo{
                     .pixel_data = pixels,
                     .width = static_cast<u32>(width),
                     .height = static_cast<u32>(height),
                     .bytes_per_pixel = 4u,
-                    .is_srgb = is_texture_srgb[tex_id],
+                    .is_srgb = is_texture_srgb[texture_id],
                     .gen_mip_maps = true
-                }));
+                });
 
                 stbi_image_free(pixels);
             } else {
                 DEBUG_PANIC("Failed to import image! No source URI or bufferView provided!")
             }
-
-            tex_id += 1u;
         }
     }
 
     if (load_info.import_materials) {
-        for (const auto &material : model.materials) {
+        scene.materials.resize(model.textures.size());
+        for (u32 material_id{}; material_id < static_cast<u32>(model.textures.size()); ++material_id) {
+            const auto &material = model.materials[material_id];
+
             i32 albedo_texture_id = material.pbrMetallicRoughness.baseColorTexture.index;
             i32 roughness_texture_id = material.pbrMetallicRoughness.metallicRoughnessTexture.index;
             i32 metalness_texture_id = material.pbrMetallicRoughness.metallicRoughnessTexture.index;
             i32 normal_texture_id = material.normalTexture.index;
 
             //.name = material.name;
-            scene.materials.push_back(create_material(MaterialCreateInfo {
+            scene.materials[material_id] = create_material(MaterialCreateInfo {
                 .albedo_texture = ((albedo_texture_id != -1 && load_info.import_textures) ? scene.textures[albedo_texture_id] : INVALID_HANDLE),
                 .roughness_texture = ((roughness_texture_id != -1 && load_info.import_textures) ? scene.textures[roughness_texture_id] : INVALID_HANDLE),
                 .metalness_texture = ((metalness_texture_id != -1 && load_info.import_textures) ? scene.textures[metalness_texture_id] : INVALID_HANDLE),
                 .normal_texture = ((normal_texture_id != -1 && load_info.import_textures) ? scene.textures[normal_texture_id] : INVALID_HANDLE),
                 //.metalness_factor = static_cast<f32>(material.pbrMetallicRoughness.metallicFactor),
                 //.roughness_factor = static_cast<f32>(material.pbrMetallicRoughness.roughnessFactor),
-                .color = glm::vec3(
+                .color = glm::vec4(
                     material.pbrMetallicRoughness.baseColorFactor[0],
                     material.pbrMetallicRoughness.baseColorFactor[1],
-                    material.pbrMetallicRoughness.baseColorFactor[2]
+                    material.pbrMetallicRoughness.baseColorFactor[2],
+                    material.pbrMetallicRoughness.baseColorFactor[3]
                 )
-            }));
+            });
 
             DEBUG_LOG("Loaded material \"" << material.name << "\" from \"" << load_info.path << "\"")
         }
@@ -221,12 +204,19 @@ SceneCreateInfo Renderer::load_gltf_scene(const SceneLoadInfo &load_info) {
         scene.materials.resize(model.materials.size(), m_default_material);
     }
 
-    scene.meshes_primitives.resize(model.meshes.size(), std::vector<u32>{});
+    scene.meshes.resize(model.meshes.size());
+    scene.mesh_instances.resize(model.meshes.size());
+    for (uint32_t mesh_id{}; mesh_id < static_cast<u32>(model.meshes.size()); ++mesh_id) {
+        const auto &mesh = model.meshes[mesh_id];
 
-    for (uint32_t i{}; i < static_cast<u32>(model.meshes.size()); ++i) {
-        const auto &mesh = model.meshes[i];
+        MeshCreateInfo mesh_create_info{};
 
-        for(const auto &primitive : mesh.primitives) {
+        std::vector<std::vector<Vertex>> mesh_vertices(mesh.primitives.size());
+        std::vector<std::vector<u32>> mesh_indices(mesh.primitives.size());
+
+        std::vector<Handle<Material>> primitives_default_materials(mesh.primitives.size());
+        for(uint32_t primitive_id{}; primitive_id < static_cast<u32>(mesh.primitives.size()); ++primitive_id) {
+            const auto &primitive = mesh.primitives[primitive_id];
             //.name = mesh.name + std::string("_") + std::to_string(primitive_id++);
 
             DEBUG_ASSERT(primitive.mode == TINYGLTF_MODE_TRIANGLES);
@@ -275,16 +265,12 @@ SceneCreateInfo Renderer::load_gltf_scene(const SceneLoadInfo &load_info) {
 
             DEBUG_ASSERT(positions.size() == normals.size() && normals.size() == texcoords.size())
 
-            std::vector<Vertex> vertices(positions.size());
-
-            for(usize i{}; i < positions.size(); ++i) {
-                vertices[i].pos = positions[i];
-                vertices[i].normal = normals[i];
-                vertices[i].texcoord = texcoords[i];
+            mesh_vertices[primitive_id].resize(positions.size());
+            for(usize j{}; j < positions.size(); ++j) {
+                mesh_vertices[primitive_id][j].pos = positions[j];
+                mesh_vertices[primitive_id][j].normal = normals[j];
+                mesh_vertices[primitive_id][j].texcoord = texcoords[j];
             }
-
-            glm::vec3 center_offset = calculate_center_offset(vertices);
-            f32 radius = calculate_radius(vertices, center_offset);
 
             const tinygltf::Accessor &index_accessor = model.accessors[primitive.indices];
             const tinygltf::BufferView &index_buffer_view = model.bufferViews[index_accessor.bufferView];
@@ -292,45 +278,39 @@ SceneCreateInfo Renderer::load_gltf_scene(const SceneLoadInfo &load_info) {
             u32 index_count = static_cast<u32>(index_accessor.count);
             i32 index_type = index_accessor.componentType;
 
-            std::vector<u32> indices(index_count);
+            mesh_indices[primitive_id].resize(index_count);
 
             if(index_type == TINYGLTF_COMPONENT_TYPE_UNSIGNED_BYTE) {
                 DEBUG_ASSERT(index_count * sizeof(u8) == index_buffer_view.byteLength)
-                for(usize offset = index_buffer_view.byteOffset, i{}; i < index_count; offset += sizeof(u8), ++i) {
-                    indices[i] = static_cast<u32>(*reinterpret_cast<u8*>(reinterpret_cast<usize>(index_buffer.data.data()) + offset));
+                for(usize offset = index_buffer_view.byteOffset, j{}; j < index_count; offset += sizeof(u8), ++j) {
+                    mesh_indices[primitive_id][j] = static_cast<u32>(*reinterpret_cast<u8*>(reinterpret_cast<usize>(index_buffer.data.data()) + offset));
                 }
             } else if(index_type == TINYGLTF_COMPONENT_TYPE_UNSIGNED_SHORT) {
                 DEBUG_ASSERT(index_count * sizeof(u16) == index_buffer_view.byteLength)
-                for(usize offset = index_buffer_view.byteOffset, i{}; i < index_count; offset += sizeof(u16), ++i) {
-                    indices[i] = static_cast<u32>(*reinterpret_cast<u16*>(reinterpret_cast<usize>(index_buffer.data.data()) + offset));
+                for(usize offset = index_buffer_view.byteOffset, j{}; j < index_count; offset += sizeof(u16), ++j) {
+                    mesh_indices[primitive_id][j] = static_cast<u32>(*reinterpret_cast<u16*>(reinterpret_cast<usize>(index_buffer.data.data()) + offset));
                 }
             } else if(index_type == TINYGLTF_COMPONENT_TYPE_UNSIGNED_INT) {
                 DEBUG_ASSERT(index_count * sizeof(u32) == index_buffer_view.byteLength)
-                std::memcpy(indices.data(), reinterpret_cast<void*>(reinterpret_cast<usize>(index_buffer.data.data()) + index_buffer_view.byteOffset), index_buffer_view.byteLength);
+                std::memcpy(mesh_indices[primitive_id].data(), reinterpret_cast<void*>(reinterpret_cast<usize>(index_buffer.data.data()) + index_buffer_view.byteOffset), index_buffer_view.byteLength);
             } else {
                 DEBUG_PANIC("Unsupported gltf indices component type for mesh \"" << mesh.name << "\"")
             }
 
-            auto primitive_mesh_handle = create_mesh(MeshCreateInfo {
-                .lods {
-                    MeshLODCreateInfo {
-                        .vertex_data = vertices.data(),
-                        .vertex_count = static_cast<u32>(vertices.size()),
-                        .index_data = indices.data(),
-                        .index_count = static_cast<u32>(indices.size()),
-                        .center_offset = center_offset,
-                        .radius = radius,
-                    }
-                },
-                .cull_distance = 4000.0f
+            primitives_default_materials[primitive_id] = scene.materials[primitive.material];
+            mesh_create_info.primitives.push_back(PrimitiveCreateInfo{
+                .vertex_data = mesh_vertices[primitive_id].data(),
+                .vertex_count = static_cast<u32>(mesh_vertices[primitive_id].size()),
+                .index_data = mesh_indices[primitive_id].data(),
+                .index_count = static_cast<u32>(mesh_indices[primitive_id].size())
             });
-
-            u32 mesh_id = static_cast<u32>(scene.meshes.size());
-            scene.meshes.push_back(primitive_mesh_handle);
-            scene.meshes_default_materials.push_back((primitive.material != -1 && load_info.import_materials) ? scene.materials[primitive.material] : m_default_material);
-
-            scene.meshes_primitives[i].push_back(mesh_id);
         }
+
+        scene.meshes[mesh_id] = create_mesh(mesh_create_info);
+        scene.mesh_instances[mesh_id] = create_mesh_instance(MeshInstanceCreateInfo{
+            .mesh = scene.meshes[mesh_id],
+            .materials = primitives_default_materials
+        });
 
         DEBUG_LOG("Loaded mesh \"" << mesh.name << "\" from \"" << load_info.path << "\"")
     }
@@ -349,113 +329,204 @@ SceneCreateInfo Renderer::load_gltf_scene(const SceneLoadInfo &load_info) {
 }
 
 Handle<Mesh> Renderer::create_mesh(const MeshCreateInfo &create_info) {
-    // TEMPORARY TEMPORARY TEMPORARY TEMPORARY
-    // TEMPORARY TEMPORARY TEMPORARY TEMPORARY
-    // TEMPORARY TEMPORARY TEMPORARY TEMPORARY
-    // TEMPORARY TEMPORARY TEMPORARY TEMPORARY
-    // TEMPORARY TEMPORARY TEMPORARY TEMPORARY
-    // TEMPORARY TEMPORARY TEMPORARY TEMPORARY
+    // Register primitives
+    u32 primitive_start = m_allocated_primitives;
+    u32 primitive_count = static_cast<u32>(create_info.primitives.size());
 
-    Mesh mesh {
-        .center_offset = glm::vec3{},
-        .radius = 0.0f,
-        .cull_distance = create_info.cull_distance,
-        .lod_bias = create_info.lod_bias,
-        .lod_count = static_cast<u32>(create_info.lods.size())
-    };
+    std::vector<glm::vec4> primitive_bounding_spheres(primitive_count);
 
-    if(mesh.lod_count == 0U) {
-        DEBUG_PANIC("Mesh must use more than 0 LODs!")
-    }
-    if(mesh.lod_count > 8U) {
-        DEBUG_PANIC("Mesh cannot use more than 8 LODs! lod_count = " << mesh.lod_count)
-    }
+    for (u32 primitive_id{}; primitive_id < primitive_count; ++primitive_id) {
+        const auto &primitive_info = create_info.primitives[primitive_id];
 
-    for(u32 lod_id{}; lod_id < mesh.lod_count; ++lod_id) {
-        const auto &lod_info = create_info.lods[lod_id];
-
-        mesh.lods[lod_id] = MeshLOD {
-            .index_count = lod_info.index_count,
+        // TODO: Implement automatic LOD creation
+        Primitive primitive_data{};
+        primitive_data.lods[0u] = PrimitiveLOD {
+            .index_count = primitive_info.index_count,
             .first_index = m_allocated_indices,
             .vertex_offset = static_cast<i32>(m_allocated_vertices)
         };
-
-        if (static_cast<VkDeviceSize>(m_allocated_vertices) + static_cast<VkDeviceSize>(lod_info.vertex_count) > MAX_SCENE_VERTICES) {
-            DEBUG_PANIC("Failed to allocate vertices! Allocating another " << lod_info.vertex_count << " vertices would result in a buffer overflow!")
-        }
-        if (static_cast<VkDeviceSize>(m_allocated_indices) + static_cast<VkDeviceSize>(lod_info.index_count) > MAX_SCENE_INDICES) {
-            DEBUG_PANIC("Failed to allocate indices! Allocating another " << lod_info.vertex_count << " indices would result in a buffer overflow!")
+        for(u32 i = 1u; i < static_cast<u32>(primitive_data.lods.size()); ++i) {
+            primitive_data.lods[i] = primitive_data.lods[0];
         }
 
-        // Pick the biggest bounding sphere out of all LODs
-        if (lod_info.radius > mesh.radius) {
-            mesh.radius = lod_info.radius;
-            mesh.center_offset = lod_info.center_offset;
-        }
+        glm::vec3 center_offset = calculate_center_offset(primitive_info.vertex_data, primitive_info.vertex_count);
+        f32 radius = calculate_radius(primitive_info.vertex_data, primitive_info.vertex_count, center_offset);
+        primitive_bounding_spheres[primitive_id] = glm::vec4(center_offset.x, center_offset.y, center_offset.z, radius);
 
-        Handle<Buffer> staging_buffer = m_api.m_resource_manager->create_buffer(BufferCreateInfo{
-            .size = (lod_info.vertex_count * sizeof(Vertex)) + (lod_info.index_count * sizeof(u32)) + sizeof(MeshLOD),
+        // When I eventually add LODs, then I'll have to sum the total amount of vertices and indices of each LOD
+        u32 total_primitive_vertex_count = primitive_info.vertex_count;
+        u32 total_primitive_index_count = primitive_info.index_count;
+
+        Handle<Buffer> staging = m_api.m_resource_manager->create_buffer(BufferCreateInfo {
+            .size = total_primitive_vertex_count * sizeof(Vertex) + total_primitive_index_count * sizeof(u32) + sizeof(Primitive),
             .buffer_usage_flags = VK_BUFFER_USAGE_TRANSFER_SRC_BIT,
             .memory_usage_flags = VMA_MEMORY_USAGE_CPU_TO_GPU
         });
+        void *mapped_staging = m_api.m_resource_manager->map_buffer(staging);
 
-        m_api.record_and_submit_once([this, &lod_info, staging_buffer](Handle<CommandList> cmd) {
-            m_api.m_resource_manager->memcpy_to_buffer_once(staging_buffer, lod_info.vertex_data, lod_info.vertex_count * sizeof(Vertex), 0);
-            m_api.copy_buffer_to_buffer(cmd, staging_buffer, m_scene_vertex_buffer, { VkBufferCopy{
-                .dstOffset = m_allocated_vertices * sizeof(Vertex),
-                .size = lod_info.vertex_count * sizeof(Vertex)
-            }});
+        std::vector<VkBufferCopy> vertex_copy_regions{};
+        std::vector<VkBufferCopy> index_copy_regions{};
+        VkBufferCopy primitive_copy_region{};
 
-            m_api.m_resource_manager->memcpy_to_buffer_once(staging_buffer, lod_info.index_data, lod_info.index_count * sizeof(u32), lod_info.vertex_count * sizeof(Vertex));
-            m_api.copy_buffer_to_buffer(cmd, staging_buffer, m_scene_index_buffer, { VkBufferCopy{
-                .srcOffset = lod_info.vertex_count * sizeof(Vertex),
-                .dstOffset = m_allocated_indices * sizeof(u32),
-                .size = lod_info.index_count * sizeof(u32)
-            }});
+        usize dst_offset = 0ull;
+        m_api.m_resource_manager->memcpy_to_buffer(mapped_staging, primitive_info.vertex_data, sizeof(Vertex) * static_cast<usize>(primitive_info.vertex_count), dst_offset);
+        vertex_copy_regions.push_back(VkBufferCopy{
+            .srcOffset = dst_offset,
+            .dstOffset = m_allocated_vertices * sizeof(Vertex),
+            .size = sizeof(Vertex) * static_cast<usize>(primitive_info.vertex_count)
         });
 
-        m_api.m_resource_manager->destroy_buffer(staging_buffer);
+        dst_offset += sizeof(Vertex) * static_cast<usize>(primitive_info.vertex_count);
+        m_api.m_resource_manager->memcpy_to_buffer(mapped_staging, primitive_info.index_data, sizeof(u32) * static_cast<usize>(primitive_info.index_count), dst_offset);
+        index_copy_regions.push_back(VkBufferCopy{
+            .srcOffset = dst_offset,
+            .dstOffset = m_allocated_indices * sizeof(u32),
+            .size = sizeof(u32) * static_cast<usize>(primitive_info.index_count)
+        });
 
-        m_allocated_vertices += lod_info.vertex_count;
-        m_allocated_indices += lod_info.index_count;
+        dst_offset += sizeof(u32) * static_cast<usize>(primitive_info.index_count);
+        m_api.m_resource_manager->memcpy_to_buffer(mapped_staging, &primitive_data, sizeof(primitive_data), dst_offset);
+        primitive_copy_region = VkBufferCopy {
+            .srcOffset = dst_offset,
+            .dstOffset = m_allocated_primitives * sizeof(Primitive),
+            .size = sizeof(Primitive)
+        };
+
+        dst_offset += sizeof(Primitive);
+
+        m_api.m_resource_manager->unmap_buffer(staging);
+
+        m_api.record_and_submit_once([this, staging, &vertex_copy_regions, &index_copy_regions, &primitive_copy_region](Handle<CommandList> cmd) {
+            m_api.copy_buffer_to_buffer(cmd, staging, m_scene_vertex_buffer, vertex_copy_regions);
+            m_api.copy_buffer_to_buffer(cmd, staging, m_scene_index_buffer, index_copy_regions);
+            m_api.copy_buffer_to_buffer(cmd, staging, m_scene_primitive_buffer, { primitive_copy_region });
+        });
+
+        m_api.m_resource_manager->destroy_buffer(staging);
+
+        m_allocated_vertices += total_primitive_vertex_count;
+        m_allocated_indices += total_primitive_index_count;
+        m_allocated_primitives++;
     }
 
-    Handle<Buffer> staging_buffer = m_api.m_resource_manager->create_buffer(BufferCreateInfo{
+    glm::vec3 avg_center{};
+    for(const auto &bound : primitive_bounding_spheres) {
+        avg_center += glm::vec3(bound.x, bound.y, bound.z);
+    }
+    avg_center /= static_cast<f32>(primitive_count);
+
+    f32 max_radius{};
+    for(const auto &bound : primitive_bounding_spheres) {
+        glm::vec3 point = glm::vec3(bound);
+        f32 radius = bound.w;
+
+        f32 d = glm::distance(avg_center, point) + radius;
+        if (d > max_radius) {
+            max_radius = d;
+        }
+    }
+
+    // Register mesh
+    Mesh mesh{
+        .center_offset = avg_center,
+        .radius = max_radius,
+        .primitive_count = primitive_count,
+        .primitive_start = primitive_start
+    };
+
+    Handle<Mesh> mesh_handle = m_mesh_allocator.alloc(mesh);
+
+    Handle<Buffer> staging = m_api.m_resource_manager->create_buffer(BufferCreateInfo{
         .size = sizeof(Mesh),
         .buffer_usage_flags = VK_BUFFER_USAGE_TRANSFER_SRC_BIT,
         .memory_usage_flags = VMA_MEMORY_USAGE_CPU_TO_GPU
     });
 
-    m_api.m_resource_manager->memcpy_to_buffer_once(staging_buffer, &mesh, sizeof(Mesh));
+    m_api.m_resource_manager->memcpy_to_buffer_once(staging, &mesh, sizeof(mesh));
 
-    Handle<Mesh> mesh_handle = m_mesh_allocator.alloc(mesh);
+    VkBufferCopy mesh_buffer_copy {
+        .dstOffset = mesh_handle * sizeof(Mesh),
+        .size = sizeof(Mesh)
+    };
 
-    m_api.record_and_submit_once([this, mesh_handle, staging_buffer](Handle<CommandList> cmd) {
-        m_api.copy_buffer_to_buffer(cmd, staging_buffer, m_scene_mesh_buffer, {VkBufferCopy{
-            .dstOffset = mesh_handle * sizeof(Mesh),
-            .size = sizeof(Mesh)
-        }});
+    m_api.record_and_submit_once([this, staging, &mesh_buffer_copy](Handle<CommandList> cmd) {
+       m_api.copy_buffer_to_buffer(cmd, staging, m_scene_mesh_buffer, { mesh_buffer_copy });
     });
 
-    m_api.m_resource_manager->destroy_buffer(staging_buffer);
+    m_api.m_resource_manager->destroy_buffer(staging);
 
     return mesh_handle;
 }
 void Renderer::destroy_mesh(Handle<Mesh> mesh_handle) {
-    // TEMPORARY TEMPORARY TEMPORARY TEMPORARY
-    // TEMPORARY TEMPORARY TEMPORARY TEMPORARY
-    // TEMPORARY TEMPORARY TEMPORARY TEMPORARY
-    // TEMPORARY TEMPORARY TEMPORARY TEMPORARY
-    // TEMPORARY TEMPORARY TEMPORARY TEMPORARY
-    // TEMPORARY TEMPORARY TEMPORARY TEMPORARY
-
     if(!m_mesh_allocator.is_handle_valid(mesh_handle)) {
         DEBUG_PANIC("Cannot delete mesh - Mesh with a handle id: = " << mesh_handle << ", does not exist!")
     }
 
     const Mesh &mesh = m_mesh_allocator.get_element(mesh_handle);
 
+    // Primitives, vertices and indices are not freed because there is no range allocator implemented yet
+
     m_mesh_allocator.free(mesh_handle);
+}
+
+Handle<MeshInstance> Renderer::create_mesh_instance(const MeshInstanceCreateInfo &create_info) {
+    u32 material_start = m_allocated_mesh_instance_materials;
+    u32 material_count = static_cast<u32>(create_info.materials.size());
+    
+    MeshInstance instance{
+        .mesh = create_info.mesh,
+        .material_count = material_count,
+        .material_start = material_start
+    };
+    
+    Handle<Buffer> staging = m_api.m_resource_manager->create_buffer(BufferCreateInfo{
+        .size = material_count * sizeof(Handle<Material>) + sizeof(MeshInstance),
+        .buffer_usage_flags = VK_BUFFER_USAGE_TRANSFER_SRC_BIT,
+        .memory_usage_flags = VMA_MEMORY_USAGE_CPU_TO_GPU
+    });
+
+    Handle<MeshInstance> instance_handle = m_mesh_instance_allocator.alloc(instance);
+
+    void *mapped_staging = m_api.m_resource_manager->map_buffer(staging);
+
+    usize dst_offset{};
+    m_api.m_resource_manager->memcpy_to_buffer(mapped_staging, create_info.materials.data(), material_count * sizeof(Handle<Material>), dst_offset);
+    VkBufferCopy material_copy {
+        .srcOffset = dst_offset,
+        .dstOffset = material_start * sizeof(Handle<Material>),
+        .size = material_count * sizeof(Handle<Material>)
+    };
+
+    dst_offset += material_count * sizeof(Handle<Material>);
+
+    m_api.m_resource_manager->memcpy_to_buffer(mapped_staging, &instance, sizeof(MeshInstance), dst_offset);
+    VkBufferCopy mesh_instance_copy {
+        .srcOffset = dst_offset,
+        .dstOffset = instance_handle * sizeof(MeshInstance),
+        .size = sizeof(MeshInstance)
+    };
+
+    dst_offset += sizeof(MeshInstance);
+
+    m_api.m_resource_manager->unmap_buffer(staging);
+
+    m_api.record_and_submit_once([this, staging, &material_copy, &mesh_instance_copy](Handle<CommandList> cmd) {
+       m_api.copy_buffer_to_buffer(cmd, staging, m_scene_mesh_instance_materials_buffer, { material_copy });
+       m_api.copy_buffer_to_buffer(cmd, staging, m_scene_mesh_instance_buffer, { mesh_instance_copy });
+    });
+
+    m_api.m_resource_manager->destroy_buffer(staging);
+
+    m_allocated_mesh_instance_materials += material_count;
+
+    return instance_handle;
+}
+void Renderer::destroy_mesh_instance(Handle<MeshInstance> mesh_instance_handle) {
+    if(!m_mesh_instance_allocator.is_handle_valid(mesh_instance_handle)) {
+        DEBUG_PANIC("Cannot delete mesh instance - Mesh instance with a handle id: = " << mesh_instance_handle << ", does not exist!")
+    }
+
+    m_mesh_instance_allocator.free(mesh_instance_handle);
 }
 
 Handle<Texture> Renderer::load_u8_texture(const TextureLoadInfo &load_info) {
@@ -663,8 +734,6 @@ void Renderer::destroy_material(Handle<Material> material_handle) {
     if(!m_material_allocator.is_handle_valid(material_handle)) {
         DEBUG_PANIC("Cannot delete material - Material with a handle id: = " << material_handle << ", does not exist!")
     }
-
-    const Material& material = m_material_allocator.get_element(material_handle);
 
     m_material_allocator.free(material_handle);
 }

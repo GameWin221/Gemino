@@ -2,8 +2,7 @@
 
 Handle<Object> World::create_object(const ObjectCreateInfo& create_info) {
     Object object{
-        .mesh = create_info.mesh,
-        .material = create_info.material,
+        .mesh_instance = create_info.mesh_instance,
         .parent = create_info.parent,
         .visible = static_cast<u32>(create_info.visible),
     };
@@ -81,7 +80,7 @@ Handle<Object> World::instantiate_scene_recursive(const SceneCreateInfo &create_
             .max_scale = glm::max(glm::max(create_info.scale.x, create_info.scale.y), create_info.scale.z)
         };
 
-        Transform new_local_transform = calculate_global_transform(obj_transform, create_info_transform);
+        Transform new_local_transform = calculate_child_transform(obj_transform, create_info_transform);
         obj.local_position = new_local_transform.position;
         obj.local_scale = new_local_transform.scale;
         obj.local_rotation = new_local_transform.rotation;
@@ -147,20 +146,12 @@ void World::set_scale(Handle<Object> object, glm::vec3 scale) {
     m_changed_object_handles.insert(object);
 }
 
-void World::set_mesh(Handle<Object> object, Handle<Mesh> mesh) {
+void World::set_mesh_instance(Handle<Object> object, Handle<MeshInstance> mesh_instance) {
     Object &target = m_objects.get_element_mutable(object);
 
-    if(target.mesh == mesh) return;
+    if(target.mesh_instance == mesh_instance) return;
 
-    target.mesh = mesh;
-    m_changed_object_handles.insert(object);
-}
-void World::set_material(Handle<Object> object, Handle<Material> material) {
-    Object &target = m_objects.get_element_mutable(object);
-
-    if(target.material == material) return;
-
-    target.material = material;
+    target.mesh_instance = mesh_instance;
     m_changed_object_handles.insert(object);
 }
 void World::set_visibility(Handle<Object> object, bool visible) {
@@ -270,20 +261,20 @@ void World::update_frustum(Camera &camera) {
 
     camera.right_plane = glm::normalize(glm::cross(camera.up, far_plane + camera.right * half_x));
     camera.left_plane = glm::normalize(glm::cross(far_plane - (camera.right * half_x), camera.up));
-    camera.top_plane =  glm::normalize(glm::cross(far_plane + (camera.up * half_y), camera.right));
+    camera.top_plane = glm::normalize(glm::cross(far_plane + (camera.up * half_y), camera.right));
     camera.bottom_plane = glm::normalize(glm::cross(camera.right, far_plane - (camera.up * half_y)));
 }
 
-Transform World::calculate_global_transform(const Transform &local_transform, const Transform &parent_global_transform) {
-    Transform global_transform{
-        .position = parent_global_transform.rotation * local_transform.position * parent_global_transform.scale + parent_global_transform.position,
-        .rotation = parent_global_transform.rotation * local_transform.rotation,
-        .scale = local_transform.scale * parent_global_transform.scale,
+Transform World::calculate_child_transform(const Transform &local_transform, const Transform &parent_transform) {
+    Transform child_transform{
+        .position = parent_transform.rotation * local_transform.position * parent_transform.scale + parent_transform.position,
+        .rotation = parent_transform.rotation * local_transform.rotation,
+        .scale = local_transform.scale * parent_transform.scale,
     };
 
-    global_transform.max_scale = glm::max(glm::max(global_transform.scale.x, global_transform.scale.y), global_transform.scale.z);
+    child_transform.max_scale = glm::max(glm::max(child_transform.scale.x, child_transform.scale.y), child_transform.scale.z);
 
-    return global_transform;
+    return child_transform;
 }
 
 void World::update_objects() {
@@ -308,7 +299,7 @@ void World::update_object_recursive(Handle<Object> object_handle) {
     if (object.parent != INVALID_HANDLE) {
         const auto &parent_transform = m_global_transforms.get_element(object.parent);
 
-        m_global_transforms.get_element_mutable(object_handle) = calculate_global_transform(local_transform, parent_transform);
+        m_global_transforms.get_element_mutable(object_handle) = calculate_child_transform(local_transform, parent_transform);
     } else {
         m_global_transforms.get_element_mutable(object_handle) = local_transform;
     }

@@ -60,7 +60,7 @@ void Renderer::begin_recording_frame() {
     if(result == VK_ERROR_OUT_OF_DATE_KHR) {
         DEBUG_ERROR("VK_ERROR_OUT_OF_DATE_KHR") // This message shouldn't be ever visible because a resize always occurs before rendering
     } else if (result != VK_SUCCESS && result != VK_SUBOPTIMAL_KHR) {
-        DEBUG_PANIC("Failed to acquire a swapchain image!")
+        DEBUG_PANIC("Failed to acquire a swapchain image! result=" << result)
     }
 
     m_api.reset_fence(frame.fence);
@@ -92,12 +92,8 @@ void Renderer::update_world(World &world, Handle<Camera> camera) {
         }
 
         target = world.get_object(handle);
-        if (target.mesh == INVALID_HANDLE) {
+        if (target.mesh_instance == INVALID_HANDLE) {
             target.visible = false;
-        }
-
-        if (target.material == INVALID_HANDLE) {
-            target.material = m_default_material;
         }
 
         object_copy_regions.push_back(VkBufferCopy{
@@ -252,8 +248,9 @@ void Renderer::end_recording_frame() {
     m_api.end_recording_commands(frame.command_list);
     m_api.submit_commands(frame.command_list, submit);
 
-    if (m_api.present_swapchain(frame.render_semaphore, m_swapchain_target_index) != VK_SUCCESS) {
-        DEBUG_PANIC("Failed to present swap chain image!")
+    VkResult result = m_api.present_swapchain(frame.render_semaphore, m_swapchain_target_index);
+    if (result != VK_SUCCESS) {
+        DEBUG_PANIC("Failed to present swap chain image! result=" << result)
     }
 
     m_frame_in_flight_index = (m_frame_in_flight_index + 1) % FRAMES_IN_FLIGHT;
@@ -278,16 +275,11 @@ void Renderer::render_pass_draw_call_gen(u32 scene_objects_count, const DrawCall
     m_api.push_compute_constants(frame.command_list, m_draw_call_gen_pipeline, &draw_call_gen_pc);
     m_api.dispatch_compute_pipeline(frame.command_list, glm::uvec3(Utils::div_ceil(scene_objects_count, m_api.m_instance->get_physical_device_preferred_warp_size()), 1u, 1u));
 
-    m_api.buffer_barrier(frame.command_list, VK_PIPELINE_STAGE_COMPUTE_SHADER_BIT, VK_PIPELINE_STAGE_DRAW_INDIRECT_BIT, {
+    m_api.buffer_barrier(frame.command_list, VK_PIPELINE_STAGE_COMPUTE_SHADER_BIT, VK_PIPELINE_STAGE_DRAW_INDIRECT_BIT | VK_PIPELINE_STAGE_VERTEX_SHADER_BIT, {
         BufferBarrier{
             .buffer_handle = m_scene_draw_buffer,
             .src_access_mask = VK_ACCESS_SHADER_WRITE_BIT,
-            .dst_access_mask = VK_ACCESS_INDIRECT_COMMAND_READ_BIT,
-        },
-        BufferBarrier{
-            .buffer_handle = m_scene_draw_index_buffer,
-            .src_access_mask = VK_ACCESS_SHADER_WRITE_BIT,
-            .dst_access_mask = VK_ACCESS_INDIRECT_COMMAND_READ_BIT,
+            .dst_access_mask = VK_ACCESS_INDIRECT_COMMAND_READ_BIT | VK_ACCESS_SHADER_READ_BIT,
         },
         BufferBarrier{
             .buffer_handle = m_scene_draw_count_buffer,
@@ -317,7 +309,7 @@ void Renderer::render_pass_geometry(u32 scene_objects_count) {
     m_api.bind_graphics_descriptor(frame.command_list, m_forward_pipeline, m_forward_descriptor, 0U);
     m_api.bind_vertex_buffer(frame.command_list, m_scene_vertex_buffer);
     m_api.bind_index_buffer(frame.command_list, m_scene_index_buffer);
-    m_api.draw_indexed_indirect_count(frame.command_list,m_scene_draw_buffer, m_scene_draw_count_buffer,scene_objects_count, sizeof(VkDrawIndexedIndirectCommand));
+    m_api.draw_indexed_indirect_count(frame.command_list,m_scene_draw_buffer, m_scene_draw_count_buffer,scene_objects_count, sizeof(VkDrawIndexedIndirectCommand) + sizeof(u32) * 2u);
 
     m_api.end_graphics_pipeline(frame.command_list, m_forward_pipeline);
 }

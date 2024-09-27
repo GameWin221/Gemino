@@ -5,6 +5,7 @@
 #include <vk_mem_alloc.h>
 #include <common/types.hpp>
 #include <common/handle_allocator.hpp>
+#include <common/range_allocator.hpp>
 
 struct Buffer {
     VkBuffer buffer{};

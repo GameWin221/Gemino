@@ -25,6 +25,7 @@ int main(){
 
     World world{};
 
+    /*
     auto sponza_scene = renderer.load_gltf_scene(SceneLoadInfo {
         .path = "res/Sponza/Main/SponzaMain.gltf",
         .import_textures = false,
@@ -47,6 +48,22 @@ int main(){
     monkey_scene.position = glm::vec3(4.0f, 0.5f, 0.0f);
     monkey_scene.rotation = glm::angleAxis(glm::radians(-45.0f), glm::vec3(0.0f, 1.0f, 0.0f)) * glm::angleAxis(glm::radians(-35.0f), glm::vec3(1.0f, 0.0f, 0.0f));
     auto monkey_handle = world.instantiate_scene_object(monkey_scene, 0);
+    */
+
+    auto monkey_gltf_scene = renderer.load_gltf_scene(SceneLoadInfo{
+        .path = "res/monkey.gltf",
+        .import_textures = true,
+        .import_materials = true
+    });
+
+    for (u32 y{}; y < 100u; ++y) {
+        for (u32 x{}; x < 100u; ++x) {
+            for (u32 z{}; z < 100u; ++z) {
+                monkey_gltf_scene.position = glm::vec3(x * 2u, y * 2u, z * 2u);
+                auto monkey_handle = world.instantiate_scene_object(monkey_gltf_scene, 0u);
+            }
+        }
+    }
 
     std::srand(0xDEADBEEF);
 
@@ -127,8 +144,8 @@ int main(){
             DEBUG_LOG("Rotation: " << main_camera_data.pitch << "f, " << main_camera_data.yaw << "f")
         }
 
-        world.set_rotation(monkey_handle, glm::angleAxis(glm::radians(f_dt * 20.0f), world.WORLD_UP) * world.get_local_transform(monkey_handle).rotation);
-        world.set_position(monkey_handle, glm::vec3(glm::sin(f_time) * 2.0f, 0.5f, glm::cos(f_time) * 2.0f));
+        //world.set_rotation(monkey_handle, glm::angleAxis(glm::radians(f_dt * 20.0f), world.WORLD_UP) * world.get_local_transform(monkey_handle).rotation);
+        //world.set_position(monkey_handle, glm::vec3(glm::sin(f_time) * 2.0f, 0.5f, glm::cos(f_time) * 2.0f));
 
         world.update_objects();
 

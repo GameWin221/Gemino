@@ -21,9 +21,6 @@ using f64 = double;
 
 #define INVALID_HANDLE UINT32_MAX
 
-template<typename T>
-using Handle = u32;
-
 using Proxy = void*;
 
 template <typename T>

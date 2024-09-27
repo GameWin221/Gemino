@@ -5,6 +5,7 @@
 
 #include <array>
 #include <common/handle_allocator.hpp>
+#include <common/range_allocator.hpp>
 #include <glm/glm.hpp>
 #include <glm/gtc/matrix_transform.hpp>
 #include <glm/gtc/quaternion.hpp>
@@ -32,25 +33,31 @@ struct alignas(16) Camera {
     alignas(16) glm::vec3 right_plane{};
     alignas(16) glm::vec3 top_plane{};
     alignas(16) glm::vec3 bottom_plane{};
+
     alignas(16) glm::vec4 _pad0{};
     alignas(16) glm::vec4 _pad1{};
 };
 
-struct MeshLOD {
+struct PrimitiveLOD {
     u32 index_count{};
     u32 first_index{};
     i32 vertex_offset{};
+    u32 _pad0{};
 };
-// std430
+struct Primitive {
+    std::array<PrimitiveLOD, 8> lods{};
+};
 struct alignas(16) Mesh {
     glm::vec3 center_offset{};
     f32 radius{};
 
-    f32 cull_distance = 1000.0f;
-    f32 lod_bias{};
-
-    u32 lod_count{};
-    std::array<MeshLOD, 8> lods{};
+    u32 primitive_count{};
+    u32 primitive_start{};
+};
+struct MeshInstance {
+    Handle<Mesh> mesh = INVALID_HANDLE;
+    u32 material_count{};
+    u32 material_start{};
 };
 struct alignas(16) Texture {
     alignas(4) u32 width{};
@@ -62,36 +69,28 @@ struct alignas(16) Texture {
     alignas(4) Handle<u32> image{};
     alignas(4) Handle<u32> sampler{};
 };
-// std140
 struct alignas(16) Material {
     alignas(4) Handle<Texture> albedo_texture = INVALID_HANDLE;
     alignas(4) Handle<Texture> roughness_texture = INVALID_HANDLE;
     alignas(4) Handle<Texture> metalness_texture = INVALID_HANDLE;
     alignas(4) Handle<Texture> normal_texture = INVALID_HANDLE;
-    alignas(16) glm::vec3 color = glm::vec3(1.0f);
+    alignas(16) glm::vec4 color = glm::vec4(1.0f);
 };
-// std140
 struct alignas(16) Transform {
     alignas(16) glm::vec3 position{};
     alignas(16) glm::quat rotation = glm::quat(1.0f, 0.0f, 0.0f, 0.0f);
     alignas(16) glm::vec3 scale = glm::vec3(1.0f);
     alignas(4) f32 max_scale = 1.0f;
 };
-// std140
-struct alignas(16) Object {
+struct Object {
     // Global transform and local transform are both allocated at the same handle as object
-    alignas(4) Handle<Mesh> mesh = INVALID_HANDLE;
-    alignas(4) Handle<Material> material = INVALID_HANDLE;
+    alignas(4) Handle<MeshInstance> mesh_instance = INVALID_HANDLE;
     alignas(4) Handle<Object> parent = INVALID_HANDLE;
     alignas(4) u32 visible = 1U;
 };
 
 struct ObjectCreateInfo{
-    std::string name{};
-
-    Handle<Mesh> mesh = INVALID_HANDLE;
-    Handle<Material> material = INVALID_HANDLE;
-
+    Handle<MeshInstance> mesh_instance = INVALID_HANDLE;
     Handle<Object> parent = INVALID_HANDLE;
 
     bool visible = true;
@@ -113,11 +112,9 @@ struct CameraCreateInfo{
 };
 struct SceneCreateInfo {
     std::vector<Handle<Mesh>> meshes{};
+    std::vector<Handle<MeshInstance>> mesh_instances{};
     std::vector<Handle<Material>> materials{};
     std::vector<Handle<Texture>> textures{};
-
-    std::vector<u32> meshes_default_materials{};
-    std::vector<std::vector<u32>> meshes_primitives{};
 
     std::vector<ObjectCreateInfo> objects{};
     std::vector<std::vector<u32>> children{};
@@ -140,8 +137,7 @@ public:
     void set_rotation(Handle<Object> object, glm::quat rotation);
     void set_scale(Handle<Object> object, glm::vec3 scale);
 
-    void set_mesh(Handle<Object> object, Handle<Mesh> mesh);
-    void set_material(Handle<Object> object, Handle<Material> material);
+    void set_mesh_instance(Handle<Object> object, Handle<MeshInstance> mesh_instance);
     void set_visibility(Handle<Object> object, bool visible);
     void set_parent(Handle<Object> object, Handle<Object> new_parent);
 
@@ -167,7 +163,7 @@ public:
 
     const glm::vec3 WORLD_UP = glm::vec3(0.0f, 1.0f, 0.0f);
 
-    Transform calculate_global_transform(const Transform &local_transform, const Transform &parent_global_transform);
+    Transform calculate_child_transform(const Transform &local_transform, const Transform &parent_transform);
 
     void update_objects();
 

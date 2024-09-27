@@ -34,23 +34,21 @@ struct MaterialCreateInfo {
     Handle<Texture> metalness_texture = INVALID_HANDLE;
     Handle<Texture> normal_texture = INVALID_HANDLE;
 
-    glm::vec3 color = glm::vec3(1.0f);
+    glm::vec4 color = glm::vec4(1.0f);
 };
-struct MeshLODCreateInfo {
+struct PrimitiveCreateInfo {
     const Vertex* vertex_data{};
     u32 vertex_count{};
 
     const u32* index_data{};
     u32 index_count{};
-
-    glm::vec3 center_offset{};
-    f32 radius{};
 };
 struct MeshCreateInfo {
-    std::vector<MeshLODCreateInfo> lods{};
-
-    f32 lod_bias{};
-    f32 cull_distance = 1000.0f;
+    std::vector<PrimitiveCreateInfo> primitives{};
+};
+struct MeshInstanceCreateInfo {
+    Handle<Mesh> mesh = INVALID_HANDLE;
+    std::vector<Handle<Material>> materials{};
 };
 
 struct DrawCallGenPC {
@@ -74,6 +72,9 @@ public:
 
     Handle<Mesh> create_mesh(const MeshCreateInfo &create_info);
     void destroy_mesh(Handle<Mesh> mesh_handle);
+
+    Handle<MeshInstance> create_mesh_instance(const MeshInstanceCreateInfo &create_info);
+    void destroy_mesh_instance(Handle<MeshInstance> mesh_instance_handle);
 
     Handle<Texture> load_u8_texture(const TextureLoadInfo &load_info);
     Handle<Texture> create_u8_texture(const TextureCreateInfo &create_info);
@@ -108,12 +109,15 @@ public:
     const VkDeviceSize MAX_SCENE_MATERIALS = 65535ull; // (device memory)
     const VkDeviceSize MAX_SCENE_VERTICES = (128ull * 1024ull * 1024ull) / sizeof(Vertex); // (device memory)
     const VkDeviceSize MAX_SCENE_INDICES = (64ull * 1024ull * 1024ull) / sizeof(u32); // (device memory)
-    const VkDeviceSize MAX_SCENE_MESHES = 4096ull; // (device memory)
+    const VkDeviceSize MAX_SCENE_MESHES = 2048ull; // (device memory)
+    const VkDeviceSize MAX_SCENE_MESH_INSTANCES = MAX_SCENE_MESHES * 2ull; // (device memory)
+    const VkDeviceSize MAX_SCENE_MESH_INSTANCE_MATERIALS = MAX_SCENE_MESH_INSTANCES * 4u; // (device memory)
+    const VkDeviceSize MAX_SCENE_PRIMITIVES = MAX_SCENE_MESHES * 4ull; // (device memory)
     const VkDeviceSize MAX_SCENE_DRAWS = 1ull * 1024ull * 1024ull; // (device memory)
     const VkDeviceSize MAX_SCENE_OBJECTS = MAX_SCENE_DRAWS; // (device memory)
 
     // I know it's huge for a per-frame buffer but until I don't implement batch uploading it's ok I guess
-    const VkDeviceSize PER_FRAME_UPLOAD_BUFFER_SIZE = 16ull * 1024ull * 1024ull; // (host memory)
+    const VkDeviceSize PER_FRAME_UPLOAD_BUFFER_SIZE = 160ull * 1024ull * 1024ull; // (host memory)
 
 private:
     void begin_recording_frame();
@@ -180,6 +184,7 @@ private:
     std::vector<Frame> m_frames{};
 
     HandleAllocator<Mesh> m_mesh_allocator{};
+    HandleAllocator<MeshInstance> m_mesh_instance_allocator{};
     HandleAllocator<Texture> m_texture_allocator{};
     HandleAllocator<Material> m_material_allocator{};
 
@@ -203,12 +208,17 @@ private:
     Handle<Texture> m_default_white_srgb_texture{};
     Handle<Texture> m_default_grey_unorm_texture{};
 
+    u32 m_allocated_mesh_instance_materials{};
+    u32 m_allocated_primitives{};
     u32 m_allocated_vertices{};
     u32 m_allocated_indices{};
 
     Handle<Buffer> m_scene_vertex_buffer{};
     Handle<Buffer> m_scene_index_buffer{};
+    Handle<Buffer> m_scene_primitive_buffer{};
     Handle<Buffer> m_scene_mesh_buffer{};
+    Handle<Buffer> m_scene_mesh_instance_buffer{};
+    Handle<Buffer> m_scene_mesh_instance_materials_buffer{};
     Handle<Buffer> m_scene_object_buffer{};
     Handle<Buffer> m_scene_local_transform_buffer{};
     Handle<Buffer> m_scene_global_transform_buffer{};
