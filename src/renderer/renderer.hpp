@@ -52,9 +52,15 @@ struct MeshInstanceCreateInfo {
 };
 
 struct DrawCallGenPC {
-    u32 draw_count_pre_cull{};
+    u32 object_count_pre_cull{};
     f32 global_lod_bias{};
     f32 global_cull_dist_multiplier{};
+};
+
+struct DrawCommand {
+    VkDrawIndexedIndirectCommand vk_cmd{};
+    u32 object_id{};
+    u32 primitive_id{};
 };
 
 class Renderer {
@@ -105,7 +111,7 @@ public:
 
     const u32 FRAMES_IN_FLIGHT = 2U;
 
-    const VkDeviceSize MAX_SCENE_TEXTURES = 4096ull; // (device memory)
+    const VkDeviceSize MAX_SCENE_TEXTURES = 2048ull; // (device memory)
     const VkDeviceSize MAX_SCENE_MATERIALS = 65535ull; // (device memory)
     const VkDeviceSize MAX_SCENE_VERTICES = (128ull * 1024ull * 1024ull) / sizeof(Vertex); // (device memory)
     const VkDeviceSize MAX_SCENE_INDICES = (64ull * 1024ull * 1024ull) / sizeof(u32); // (device memory)
@@ -113,8 +119,8 @@ public:
     const VkDeviceSize MAX_SCENE_MESH_INSTANCES = MAX_SCENE_MESHES * 2ull; // (device memory)
     const VkDeviceSize MAX_SCENE_MESH_INSTANCE_MATERIALS = MAX_SCENE_MESH_INSTANCES * 4u; // (device memory)
     const VkDeviceSize MAX_SCENE_PRIMITIVES = MAX_SCENE_MESHES * 4ull; // (device memory)
-    const VkDeviceSize MAX_SCENE_DRAWS = 1ull * 1024ull * 1024ull; // (device memory)
-    const VkDeviceSize MAX_SCENE_OBJECTS = MAX_SCENE_DRAWS; // (device memory)
+    const VkDeviceSize MAX_SCENE_OBJECTS = 1ull * 1024ull * 1024ull; // (device memory)
+    const VkDeviceSize MAX_SCENE_DRAWS = MAX_SCENE_OBJECTS * 2ull; // (device memory)
 
     // I know it's huge for a per-frame buffer but until I don't implement batch uploading it's ok I guess
     const VkDeviceSize PER_FRAME_UPLOAD_BUFFER_SIZE = 160ull * 1024ull * 1024ull; // (host memory)
@@ -126,7 +132,7 @@ private:
     void end_recording_frame();
 
     void render_pass_draw_call_gen(u32 scene_objects_count, const DrawCallGenPC &draw_call_gen_pc);
-    void render_pass_geometry(u32 scene_objects_count);
+    void render_pass_geometry();
     void render_pass_offscreen_rt_to_swapchain();
 
     void init_scene_buffers();

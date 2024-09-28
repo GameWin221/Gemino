@@ -37,6 +37,7 @@ static void process_gltf_node(SceneCreateInfo &scene, const tinygltf::Model &mod
     const tinygltf::Node &node = model.nodes[node_id];
 
     ObjectCreateInfo object{};
+    object.name = node.name;
 
     if (!node.translation.empty()) {
         object.local_position = glm::vec3(
@@ -173,8 +174,8 @@ SceneCreateInfo Renderer::load_gltf_scene(const SceneLoadInfo &load_info) {
     }
 
     if (load_info.import_materials) {
-        scene.materials.resize(model.textures.size());
-        for (u32 material_id{}; material_id < static_cast<u32>(model.textures.size()); ++material_id) {
+        scene.materials.resize(model.materials.size());
+        for (u32 material_id{}; material_id < static_cast<u32>(model.materials.size()); ++material_id) {
             const auto &material = model.materials[material_id];
 
             i32 albedo_texture_id = material.pbrMetallicRoughness.baseColorTexture.index;
@@ -230,23 +231,38 @@ SceneCreateInfo Renderer::load_gltf_scene(const SceneLoadInfo &load_info) {
                 const tinygltf::BufferView &buffer_view = model.bufferViews[accessor.bufferView];
                 const tinygltf::Buffer &buffer = model.buffers[buffer_view.buffer];
 
-                usize element_count = accessor.count;
                 if (attrib_name == "POSITION") {
-                    positions.resize(accessor.count);
+                    if(accessor.componentType == TINYGLTF_COMPONENT_TYPE_FLOAT) {
+                        positions.resize(accessor.count);
 
-                    DEBUG_ASSERT(element_count * sizeof(float) * 3 == buffer_view.byteLength)
-                    std::memcpy(positions.data(), reinterpret_cast<void*>(reinterpret_cast<usize>(buffer.data.data()) + buffer_view.byteOffset), buffer_view.byteLength);
+                        DEBUG_ASSERT(accessor.type == TINYGLTF_TYPE_VEC3)
+                        usize data_size = accessor.count * sizeof(float) * 3;
+
+                        std::memcpy(positions.data(), reinterpret_cast<void*>(reinterpret_cast<usize>(buffer.data.data()) + accessor.byteOffset + buffer_view.byteOffset), data_size);
+                    } else {
+                        DEBUG_PANIC("Unsupported gltf POSITION attribute component type for mesh \"" << mesh.name << "\"")
+                    }
                 } else if (attrib_name == "NORMAL") {
-                    normals.resize(element_count);
+                    if(accessor.componentType == TINYGLTF_COMPONENT_TYPE_FLOAT) {
+                        normals.resize(accessor.count);
 
-                    DEBUG_ASSERT(element_count * sizeof(float) * 3 == buffer_view.byteLength)
-                    std::memcpy(normals.data(), reinterpret_cast<void*>(reinterpret_cast<usize>(buffer.data.data()) + buffer_view.byteOffset), buffer_view.byteLength);
+                        DEBUG_ASSERT(accessor.type == TINYGLTF_TYPE_VEC3)
+
+                        usize data_size = accessor.count * sizeof(float) * 3;
+
+                        std::memcpy(normals.data(), reinterpret_cast<void*>(reinterpret_cast<usize>(buffer.data.data()) + accessor.byteOffset + buffer_view.byteOffset), data_size);
+                    } else {
+                        DEBUG_PANIC("Unsupported gltf NORMAL attribute component type for mesh \"" << mesh.name << "\"")
+                    }
                 } else if (attrib_name == "TEXCOORD_0") {
                     if(accessor.componentType == TINYGLTF_COMPONENT_TYPE_FLOAT) {
-                        texcoords.resize(element_count);
+                        texcoords.resize(accessor.count);
 
-                        DEBUG_ASSERT(element_count * sizeof(float) * 2 == buffer_view.byteLength)
-                        std::memcpy(texcoords.data(), reinterpret_cast<void*>(reinterpret_cast<usize>(buffer.data.data()) + buffer_view.byteOffset), buffer_view.byteLength);
+                        DEBUG_ASSERT(accessor.type == TINYGLTF_TYPE_VEC2)
+
+                        usize data_size = accessor.count * sizeof(float) * 2;
+
+                        std::memcpy(texcoords.data(), reinterpret_cast<void*>(reinterpret_cast<usize>(buffer.data.data()) + accessor.byteOffset + buffer_view.byteOffset), data_size);
                     } else {
                         DEBUG_PANIC("Unsupported gltf TEXCOORD_0 attribute component type for mesh \"" << mesh.name << "\"")
                     }
@@ -275,24 +291,20 @@ SceneCreateInfo Renderer::load_gltf_scene(const SceneLoadInfo &load_info) {
             const tinygltf::Accessor &index_accessor = model.accessors[primitive.indices];
             const tinygltf::BufferView &index_buffer_view = model.bufferViews[index_accessor.bufferView];
             const tinygltf::Buffer &index_buffer = model.buffers[index_buffer_view.buffer];
-            u32 index_count = static_cast<u32>(index_accessor.count);
-            i32 index_type = index_accessor.componentType;
 
-            mesh_indices[primitive_id].resize(index_count);
+            mesh_indices[primitive_id].resize(index_accessor.count);
 
-            if(index_type == TINYGLTF_COMPONENT_TYPE_UNSIGNED_BYTE) {
-                DEBUG_ASSERT(index_count * sizeof(u8) == index_buffer_view.byteLength)
-                for(usize offset = index_buffer_view.byteOffset, j{}; j < index_count; offset += sizeof(u8), ++j) {
+            if(index_accessor.componentType == TINYGLTF_COMPONENT_TYPE_UNSIGNED_BYTE) {
+                for(usize offset = index_accessor.byteOffset + index_buffer_view.byteOffset, j{}; j < index_accessor.count; offset += sizeof(u8), ++j) {
                     mesh_indices[primitive_id][j] = static_cast<u32>(*reinterpret_cast<u8*>(reinterpret_cast<usize>(index_buffer.data.data()) + offset));
                 }
-            } else if(index_type == TINYGLTF_COMPONENT_TYPE_UNSIGNED_SHORT) {
-                DEBUG_ASSERT(index_count * sizeof(u16) == index_buffer_view.byteLength)
-                for(usize offset = index_buffer_view.byteOffset, j{}; j < index_count; offset += sizeof(u16), ++j) {
+            } else if(index_accessor.componentType == TINYGLTF_COMPONENT_TYPE_UNSIGNED_SHORT) {
+                for(usize offset = index_accessor.byteOffset + index_buffer_view.byteOffset, j{}; j < index_accessor.count; offset += sizeof(u16), ++j) {
                     mesh_indices[primitive_id][j] = static_cast<u32>(*reinterpret_cast<u16*>(reinterpret_cast<usize>(index_buffer.data.data()) + offset));
                 }
-            } else if(index_type == TINYGLTF_COMPONENT_TYPE_UNSIGNED_INT) {
-                DEBUG_ASSERT(index_count * sizeof(u32) == index_buffer_view.byteLength)
-                std::memcpy(mesh_indices[primitive_id].data(), reinterpret_cast<void*>(reinterpret_cast<usize>(index_buffer.data.data()) + index_buffer_view.byteOffset), index_buffer_view.byteLength);
+            } else if(index_accessor.componentType == TINYGLTF_COMPONENT_TYPE_UNSIGNED_INT) {
+                usize data_size = index_accessor.count * sizeof(u32);
+                std::memcpy(mesh_indices[primitive_id].data(), reinterpret_cast<void*>(reinterpret_cast<usize>(index_buffer.data.data()) + index_accessor.byteOffset + index_buffer_view.byteOffset), data_size);
             } else {
                 DEBUG_PANIC("Unsupported gltf indices component type for mesh \"" << mesh.name << "\"")
             }
@@ -472,7 +484,12 @@ void Renderer::destroy_mesh(Handle<Mesh> mesh_handle) {
 Handle<MeshInstance> Renderer::create_mesh_instance(const MeshInstanceCreateInfo &create_info) {
     u32 material_start = m_allocated_mesh_instance_materials;
     u32 material_count = static_cast<u32>(create_info.materials.size());
-    
+
+    const Mesh &mesh_data = m_mesh_allocator.get_element(create_info.mesh);
+    if (mesh_data.primitive_count != material_count) {
+        DEBUG_PANIC("Failed to create a MeshInstance! create_info.materials.size() must be equal to primitive_count of the specified mesh.");
+    }
+
     MeshInstance instance{
         .mesh = create_info.mesh,
         .material_count = material_count,

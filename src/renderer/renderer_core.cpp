@@ -35,7 +35,7 @@ void Renderer::init_scene_buffers() {
         .memory_usage_flags = VMA_MEMORY_USAGE_GPU_ONLY
     });
     m_scene_draw_buffer = m_api.m_resource_manager->create_buffer(BufferCreateInfo{
-        .size = sizeof(VkDrawIndexedIndirectCommand) * MAX_SCENE_DRAWS,
+        .size = sizeof(DrawCommand) * MAX_SCENE_DRAWS,
         .buffer_usage_flags = VK_BUFFER_USAGE_STORAGE_BUFFER_BIT | VK_BUFFER_USAGE_INDIRECT_BUFFER_BIT,
         .memory_usage_flags = VMA_MEMORY_USAGE_GPU_ONLY
     });

@@ -81,7 +81,7 @@ void Renderer::update_world(World &world, Handle<Camera> camera) {
     usize upload_buffer_size = m_api.m_resource_manager->get_buffer_data(frame.upload_buffer).size;
 
     usize upload_offset{};
-    for(const auto& handle : world.get_changed_object_handles()) {
+    for(const auto &handle : world.get_changed_object_handles()) {
         auto &target = *frame.access_upload<Object>(upload_offset);
 
         if(upload_offset + sizeof(target) >= upload_buffer_size) {
@@ -102,10 +102,10 @@ void Renderer::update_world(World &world, Handle<Camera> camera) {
             .size = sizeof(target)
         });
 
-        upload_offset += sizeof(target);
+        upload_offset += Utils::align(16u, sizeof(target));
     }
 
-    for(const auto& handle : world.get_changed_object_handles()) {
+    for(const auto &handle : world.get_changed_object_handles()) {
         auto &target = *frame.access_upload<Transform>(upload_offset);
 
         if(upload_offset + sizeof(target) >= upload_buffer_size) {
@@ -123,10 +123,10 @@ void Renderer::update_world(World &world, Handle<Camera> camera) {
             .size = sizeof(target)
         });
 
-        upload_offset += sizeof(target);
+        upload_offset += Utils::align(16u, sizeof(target));
     }
 
-    for(const auto& handle : world.get_changed_object_handles()) {
+    for(const auto &handle : world.get_changed_object_handles()) {
         auto &target = *frame.access_upload<Transform>(upload_offset);
 
         if(upload_offset + sizeof(target) >= upload_buffer_size) {
@@ -144,7 +144,7 @@ void Renderer::update_world(World &world, Handle<Camera> camera) {
             .size = sizeof(target)
         });
 
-        upload_offset += sizeof(target);
+        upload_offset += Utils::align(16u, sizeof(target));
     }
 
     if(upload_offset + sizeof(Camera) >= upload_buffer_size) {
@@ -160,7 +160,7 @@ void Renderer::update_world(World &world, Handle<Camera> camera) {
             .size = sizeof(Camera)
         });
 
-        upload_offset += sizeof(Camera);
+        upload_offset += Utils::align(16u, sizeof(Camera));
     }
 
     m_api.m_resource_manager->flush_mapped_buffer(frame.upload_buffer, upload_offset);
@@ -225,13 +225,13 @@ void Renderer::render_world(const World &world, Handle<Camera> camera) {
     u32 scene_objects_count = static_cast<u32>(world.get_objects().size());
 
     DrawCallGenPC draw_call_gen_pc{
-        .draw_count_pre_cull = scene_objects_count,
+        .object_count_pre_cull = scene_objects_count,
         .global_lod_bias = m_config_global_lod_bias,
         .global_cull_dist_multiplier = m_config_global_cull_dist_multiplier
     };
 
     render_pass_draw_call_gen(scene_objects_count, draw_call_gen_pc);
-    render_pass_geometry(scene_objects_count);
+    render_pass_geometry();
 
     render_pass_offscreen_rt_to_swapchain();
 }
@@ -288,7 +288,7 @@ void Renderer::render_pass_draw_call_gen(u32 scene_objects_count, const DrawCall
         },
     });
 }
-void Renderer::render_pass_geometry(u32 scene_objects_count) {
+void Renderer::render_pass_geometry() {
     const Frame &frame = m_frames[m_frame_in_flight_index];
 
     m_api.image_barrier(frame.command_list, VK_PIPELINE_STAGE_FRAGMENT_SHADER_BIT, VK_PIPELINE_STAGE_COLOR_ATTACHMENT_OUTPUT_BIT, {
@@ -309,7 +309,7 @@ void Renderer::render_pass_geometry(u32 scene_objects_count) {
     m_api.bind_graphics_descriptor(frame.command_list, m_forward_pipeline, m_forward_descriptor, 0U);
     m_api.bind_vertex_buffer(frame.command_list, m_scene_vertex_buffer);
     m_api.bind_index_buffer(frame.command_list, m_scene_index_buffer);
-    m_api.draw_indexed_indirect_count(frame.command_list,m_scene_draw_buffer, m_scene_draw_count_buffer,scene_objects_count, sizeof(VkDrawIndexedIndirectCommand) + sizeof(u32) * 2u);
+    m_api.draw_indexed_indirect_count(frame.command_list,m_scene_draw_buffer, m_scene_draw_count_buffer, MAX_SCENE_DRAWS, sizeof(DrawCommand));
 
     m_api.end_graphics_pipeline(frame.command_list, m_forward_pipeline);
 }

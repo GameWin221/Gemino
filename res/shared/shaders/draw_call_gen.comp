@@ -9,7 +9,7 @@ layout (constant_id = 2) const int WARP_SIZE = 32;
 layout(local_size_x_id = 2) in;
 
 layout(push_constant) uniform PushConstant {
-    uint draw_count_pre_cull;
+    uint object_count_pre_cull;
     float global_lod_bias;
     float global_cull_dist_multiplier;
 };
@@ -41,19 +41,18 @@ layout(set = 0, binding = 7) uniform CameraBuffer {
 
 void main() {
     uint object_id = gl_GlobalInvocationID.x;
-
-    if (object_id >= draw_count_pre_cull) {
+    if (object_id >= object_count_pre_cull) {
         return;
     }
 
-    Object object = objects[object_id];
+    bool should_draw = true;
 
+    Object object = objects[object_id];
     if (object.visible == 0u) {
-        return;
+        should_draw = false;
     }
 
     Mesh mesh = meshes[mesh_instances[object.mesh_instance].mesh];
-
     Transform transform = global_transforms[object_id];
 
     vec3 mesh_position = rotate_vq(mesh.center_offset * transform.scale, transform.rotation) + transform.position;
@@ -66,15 +65,11 @@ void main() {
         vec3 mesh_pos_camera_diff = mesh_position - camera.position;
         float mesh_radius = mesh.radius * transform.max_scale;
 
-        bool in_frustum = true;
-        in_frustum = in_frustum && (mesh_dist <= cull_distance);
-        in_frustum = in_frustum && (dot(camera.right_plane, mesh_pos_camera_diff) > -mesh_radius);
-        in_frustum = in_frustum && (dot(camera.left_plane, mesh_pos_camera_diff) > -mesh_radius);
-        in_frustum = in_frustum && (dot(camera.bottom_plane, mesh_pos_camera_diff) > -mesh_radius);
-        in_frustum = in_frustum && (dot(camera.top_plane, mesh_pos_camera_diff) > -mesh_radius);
-        if(!in_frustum) {
-            return;
-        }
+        should_draw = should_draw && (mesh_dist <= cull_distance);
+        should_draw = should_draw && (dot(camera.right_plane, mesh_pos_camera_diff) > -mesh_radius);
+        should_draw = should_draw && (dot(camera.left_plane, mesh_pos_camera_diff) > -mesh_radius);
+        should_draw = should_draw && (dot(camera.bottom_plane, mesh_pos_camera_diff) > -mesh_radius);
+        should_draw = should_draw && (dot(camera.top_plane, mesh_pos_camera_diff) > -mesh_radius);
     }
 
     // LOD Picking
@@ -88,19 +83,21 @@ void main() {
     //uint lod_id = min(uint(lod_f), LOD_COUNT - 1u);
     uint lod_id = 0u;
 
-    for (uint i = 0u; i < mesh.primitive_count; ++i) {
-        PrimitiveLOD lod = primitives[mesh.primitive_start + i].lods[lod_id];
+    if (should_draw) {
+        for (uint i = 0u; i < mesh.primitive_count; ++i) {
+            PrimitiveLOD lod = primitives[mesh.primitive_start + i].lods[lod_id];
 
-        DrawCommand cmd;
-        cmd.index_count = lod.index_count;
-        cmd.instance_count = 1u;
-        cmd.first_index = lod.first_index;
-        cmd.vertex_offset = lod.vertex_offset;
-        cmd.first_instance = 0u;
-        cmd.object_id = object_id;
-        cmd.primitive_id = i;
+            DrawCommand cmd;
+            cmd.index_count = lod.index_count;
+            cmd.instance_count = 1u;
+            cmd.first_index = lod.first_index;
+            cmd.vertex_offset = lod.vertex_offset;
+            cmd.first_instance = 0u;
+            cmd.object_id = object_id;
+            cmd.primitive_id = i;
 
-        uint current_command_id = atomicAdd(draw_command_count, 1u);
-        draw_commands[current_command_id] = cmd;
+            uint current_command_id = atomicAdd(draw_command_count, 1u);
+            draw_commands[current_command_id] = cmd;
+        }
     }
 }

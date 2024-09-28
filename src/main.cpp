@@ -25,9 +25,8 @@ int main(){
 
     World world{};
 
-    /*
     auto sponza_scene = renderer.load_gltf_scene(SceneLoadInfo {
-        .path = "res/Sponza/Main/SponzaMain.gltf",
+        .path = "C:/Dev/Resources/Meshes/main1_sponza/NewSponza_Main_glTF_003.gltf",
         .import_textures = false,
         .import_materials = true
     });
@@ -48,8 +47,8 @@ int main(){
     monkey_scene.position = glm::vec3(4.0f, 0.5f, 0.0f);
     monkey_scene.rotation = glm::angleAxis(glm::radians(-45.0f), glm::vec3(0.0f, 1.0f, 0.0f)) * glm::angleAxis(glm::radians(-35.0f), glm::vec3(1.0f, 0.0f, 0.0f));
     auto monkey_handle = world.instantiate_scene_object(monkey_scene, 0);
-    */
 
+    /*
     auto monkey_gltf_scene = renderer.load_gltf_scene(SceneLoadInfo{
         .path = "res/monkey.gltf",
         .import_textures = true,
@@ -64,6 +63,7 @@ int main(){
             }
         }
     }
+    */
 
     std::srand(0xDEADBEEF);
 

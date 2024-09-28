@@ -59,7 +59,7 @@ struct MeshInstance {
     u32 material_count{};
     u32 material_start{};
 };
-struct alignas(16) Texture {
+struct Texture {
     alignas(4) u32 width{};
     alignas(4) u32 height{};
     alignas(4) u32 bytes_per_pixel{};
@@ -69,7 +69,7 @@ struct alignas(16) Texture {
     alignas(4) Handle<u32> image{};
     alignas(4) Handle<u32> sampler{};
 };
-struct alignas(16) Material {
+struct Material {
     alignas(4) Handle<Texture> albedo_texture = INVALID_HANDLE;
     alignas(4) Handle<Texture> roughness_texture = INVALID_HANDLE;
     alignas(4) Handle<Texture> metalness_texture = INVALID_HANDLE;
@@ -90,6 +90,7 @@ struct Object {
 };
 
 struct ObjectCreateInfo{
+    std::string name{};
     Handle<MeshInstance> mesh_instance = INVALID_HANDLE;
     Handle<Object> parent = INVALID_HANDLE;
 
