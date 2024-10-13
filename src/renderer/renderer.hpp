@@ -122,8 +122,7 @@ public:
     const VkDeviceSize MAX_SCENE_OBJECTS = 1ull * 1024ull * 1024ull; // (device memory)
     const VkDeviceSize MAX_SCENE_DRAWS = MAX_SCENE_OBJECTS * 2ull; // (device memory)
 
-    // I know it's huge for a per-frame buffer but until I don't implement batch uploading it's ok I guess
-    const VkDeviceSize PER_FRAME_UPLOAD_BUFFER_SIZE = 160ull * 1024ull * 1024ull; // (host memory)
+    const VkDeviceSize PER_FRAME_UPLOAD_BUFFER_SIZE = 16ull * 1024ull * 1024ull; // (host memory)
 
 private:
     void begin_recording_frame();

@@ -547,7 +547,7 @@ Handle<MeshInstance> Renderer::create_mesh_instance(const MeshInstanceCreateInfo
 }
 void Renderer::destroy_mesh_instance(Handle<MeshInstance> mesh_instance_handle) {
     if(!m_mesh_instance_allocator.is_handle_valid(mesh_instance_handle)) {
-        DEBUG_PANIC("Cannot delete mesh instance - Mesh instance with a handle id: = " << mesh_instance_handle << ", does not exist!")
+        DEBUG_PANIC("Cannot delete mesh instance - Mesh instance with a handle id: " << mesh_instance_handle << ", does not exist!")
     }
 
     const auto &mesh_instance = m_mesh_instance_allocator.get_element(mesh_instance_handle);
@@ -695,7 +695,7 @@ Handle<Texture> Renderer::create_u8_texture(const TextureCreateInfo &create_info
 }
 void Renderer::destroy_texture(Handle<Texture> texture_handle) {
     if(!m_texture_allocator.is_handle_valid(texture_handle)) {
-        DEBUG_PANIC("Cannot delete texture - Texture with a handle id: = " << texture_handle << ", does not exist!")
+        DEBUG_PANIC("Cannot delete texture - Texture with a handle id: " << texture_handle << ", does not exist!")
     }
 
     const Texture &texture = m_texture_allocator.get_element(texture_handle);
@@ -739,7 +739,7 @@ Handle<Material> Renderer::create_material(const MaterialCreateInfo &create_info
 }
 void Renderer::destroy_material(Handle<Material> material_handle) {
     if(!m_material_allocator.is_handle_valid(material_handle)) {
-        DEBUG_PANIC("Cannot delete material - Material with a handle id: = " << material_handle << ", does not exist!")
+        DEBUG_PANIC("Cannot delete material - Material with a handle id: " << material_handle << ", does not exist!")
     }
 
     m_material_allocator.free(material_handle);

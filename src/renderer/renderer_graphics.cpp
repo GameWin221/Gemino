@@ -22,6 +22,10 @@ void Renderer::resize(const Window &window) {
     m_api.wait_for_device_idle();
 }
 void Renderer::render(World &world, Handle<Camera> camera) {
+    if (!world.get_valid_camera_handles().contains(camera)) {
+        DEBUG_PANIC("Cannot render the world from the given camera! - Camera with handle id: " << camera << " is invalid.")
+    }
+
     if (m_reload_pipelines_queued) {
         DEBUG_LOG("Reloading pipelines...")
 
@@ -81,55 +85,7 @@ void Renderer::update_world(World &world, Handle<Camera> camera) {
     usize upload_buffer_size = m_api.m_resource_manager->get_buffer_data(frame.upload_buffer).size;
 
     usize upload_offset{};
-    for(const auto &handle : world.get_changed_object_handles()) {
-        auto &target = *frame.access_upload<Object>(upload_offset);
-
-        if(upload_offset + sizeof(target) >= upload_buffer_size) {
-            DEBUG_PANIC("UPLOAD SOURCE BUFFER OVERFLOW")
-        }
-        if(handle >= MAX_SCENE_OBJECTS) {
-            DEBUG_PANIC("UPLOAD DESTINATION BUFFER OVERFLOW")
-        }
-
-        target = world.get_object(handle);
-        if (target.mesh_instance == INVALID_HANDLE) {
-            target.visible = false;
-        }
-
-        object_copy_regions.push_back(VkBufferCopy{
-            .srcOffset = upload_offset,
-            .dstOffset = static_cast<VkDeviceSize>(handle) * sizeof(target),
-            .size = sizeof(target)
-        });
-
-        upload_offset += Utils::align(16u, sizeof(target));
-    }
-
-    for(const auto &handle : world.get_changed_object_handles()) {
-        auto &target = *frame.access_upload<Transform>(upload_offset);
-
-        if(upload_offset + sizeof(target) >= upload_buffer_size) {
-            DEBUG_PANIC("UPLOAD SOURCE BUFFER OVERFLOW")
-        }
-        if(handle >= MAX_SCENE_OBJECTS) {
-            DEBUG_PANIC("UPLOAD DESTINATION BUFFER OVERFLOW")
-        }
-
-        target = world.get_global_transform(handle);
-
-        global_transforms_copy_regions.push_back(VkBufferCopy{
-            .srcOffset = upload_offset,
-            .dstOffset = static_cast<VkDeviceSize>(handle) * sizeof(target),
-            .size = sizeof(target)
-        });
-
-        upload_offset += Utils::align(16u, sizeof(target));
-    }
-
-    if(upload_offset + sizeof(Camera) >= upload_buffer_size) {
-        DEBUG_PANIC("UPLOAD SOURCE BUFFER OVERFLOW")
-    }
-
+    // Make sure that camera is always uploaded, no matter what
     if(camera != INVALID_HANDLE) {
         *frame.access_upload<Camera>(upload_offset) = world.get_camera(camera);
 
@@ -142,9 +98,52 @@ void Renderer::update_world(World &world, Handle<Camera> camera) {
         upload_offset += Utils::align(16u, sizeof(Camera));
     }
 
+    std::vector<Handle<Object>> handles_to_clear{};
+    for(const auto &handle : world.get_changed_object_handles()) {
+        if(handle >= MAX_SCENE_OBJECTS) {
+            DEBUG_PANIC("Failed to upload object with handle id: " << handle << "! MAX_SCENE_OBJECTS: " << MAX_SCENE_OBJECTS)
+        }
+
+        auto &object = *frame.access_upload<Object>(upload_offset);
+        if(upload_offset + sizeof(object) >= upload_buffer_size) {
+            DEBUG_PANIC("Upload source buffer falling behind!")
+            break;
+        }
+
+        object = world.get_object(handle);
+        if (object.mesh_instance == INVALID_HANDLE) {
+            object.visible = false;
+        }
+
+        object_copy_regions.push_back(VkBufferCopy{
+            .srcOffset = upload_offset,
+            .dstOffset = static_cast<VkDeviceSize>(handle) * sizeof(object),
+            .size = sizeof(object)
+        });
+
+        upload_offset += Utils::align(16u, sizeof(object));
+
+        auto &transform = *frame.access_upload<Transform>(upload_offset);
+        if(upload_offset + sizeof(transform) >= upload_buffer_size) {
+            DEBUG_WARNING("Upload source buffer falling behind!")
+            break;
+        }
+
+        transform = world.get_global_transform(handle);
+
+        global_transforms_copy_regions.push_back(VkBufferCopy{
+            .srcOffset = upload_offset,
+            .dstOffset = static_cast<VkDeviceSize>(handle) * sizeof(transform),
+            .size = sizeof(transform)
+        });
+
+        upload_offset += Utils::align(16u, sizeof(transform));
+        handles_to_clear.push_back(handle);
+    }
+
     m_api.m_resource_manager->flush_mapped_buffer(frame.upload_buffer, upload_offset);
 
-    world._clear_updates();
+    world._clear_updates(handles_to_clear);
 
     // Ensure that other m_frames don't use these global buffers
     m_api.buffer_barrier(frame.command_list, VK_PIPELINE_STAGE_VERTEX_SHADER_BIT | VK_PIPELINE_STAGE_FRAGMENT_SHADER_BIT, VK_PIPELINE_STAGE_TRANSFER_BIT, {
@@ -200,7 +199,6 @@ void Renderer::render_world(const World &world, Handle<Camera> camera) {
     
     render_pass_draw_call_gen(scene_objects_count, draw_call_gen_pc);
     render_pass_geometry();
-
     render_pass_offscreen_rt_to_swapchain();
 }
 void Renderer::end_recording_frame() {

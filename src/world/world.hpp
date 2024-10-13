@@ -128,11 +128,16 @@ struct SceneCreateInfo {
 };
 
 class World {
+    friend class Renderer;
+
 public:
     Handle<Object> create_object(const ObjectCreateInfo &create_info);
     Handle<Camera> create_camera(const CameraCreateInfo &create_info);
     Handle<Object> instantiate_scene(const SceneCreateInfo &create_info);
     Handle<Object> instantiate_scene_object(const SceneCreateInfo &create_info, u32 object_id);
+
+    void destroy_object(Handle<Object> object);
+    void destroy_camera(Handle<Camera> camera);
 
     void set_position(Handle<Object> object, glm::vec3 position);
     void set_rotation(Handle<Object> object, glm::quat rotation);
@@ -168,9 +173,9 @@ public:
 
     void update_objects();
 
-    void _clear_updates();
-
 private:
+    void _clear_updates(const std::vector<Handle<Object>> &handles_to_clear);
+
     Handle<Object> instantiate_scene_recursive(const SceneCreateInfo &create_info, u32 object_id, Handle<Object> parent_handle);
     void update_object_recursive(Handle<Object> object_handle);
 
@@ -183,7 +188,7 @@ private:
     HandleAllocator<Transform> m_global_transforms{};
     HandleAllocator<Object> m_objects{};
     HandleAllocator<Camera> m_cameras{};
-    HandleAllocator<std::vector<u32>> m_children{};
+    HandleAllocator<std::vector<Handle<Object>>> m_children{};
 
     std::unordered_set<Handle<Object>> m_changed_object_handles{};
 };

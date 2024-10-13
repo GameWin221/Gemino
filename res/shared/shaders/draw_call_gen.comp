@@ -45,15 +45,15 @@ void main() {
         return;
     }
 
-    bool should_draw = true;
-
     Object object = objects[object_id];
     if (object.visible == 0u) {
-        should_draw = false;
+        return;
     }
 
     Mesh mesh = meshes[mesh_instances[object.mesh_instance].mesh];
     Transform transform = global_transforms[object_id];
+
+    bool should_draw = true;
 
     vec3 mesh_position = rotate_vq(mesh.center_offset * transform.scale, transform.rotation) + transform.position;
     // Distance to camera plane is cheaper than euclidean distance

@@ -20,7 +20,7 @@ Handle<Object> World::create_object(const ObjectCreateInfo& create_info) {
     Handle<Object> object_handle = m_objects.alloc(object);
     Handle<Transform> local_t_handle = m_local_transforms.alloc(local_transform);
     Handle<Transform> global_t_handle = m_global_transforms.alloc(global_transform);
-    Handle<std::vector<u32>> children_handle = m_children.alloc_in_place();
+    Handle<std::vector<Handle<Object>>> children_handle = m_children.alloc_in_place();
 
     DEBUG_ASSERT(object_handle == children_handle && object_handle == local_t_handle && local_t_handle == global_t_handle)
 
@@ -117,6 +117,31 @@ Handle<Object> World::instantiate_scene(const SceneCreateInfo &create_info) {
 }
 Handle<Object> World::instantiate_scene_object(const SceneCreateInfo &create_info, u32 object_id) {
     return instantiate_scene_recursive(create_info, object_id, INVALID_HANDLE);
+}
+
+void World::destroy_object(Handle<Object> object) {
+    for (const auto &child_handle : m_children.get_element(object)) {
+        destroy_object(child_handle);
+    }
+
+    Object &obj = m_objects.get_element_mutable(object);
+    obj.mesh_instance = INVALID_HANDLE;
+    obj.parent = INVALID_HANDLE;
+    obj.visible = 0u;
+    m_changed_object_handles.insert(object);
+
+    m_children.get_element_mutable(object).clear();
+    m_children.free(object);
+    m_global_transforms.free(object);
+    m_local_transforms.free(object);
+    m_objects.free(object);
+}
+void World::destroy_camera(Handle<Camera> camera) {
+    if(!m_cameras.is_handle_valid(camera)) {
+        DEBUG_PANIC("Cannot delete camera - Camera with a handle id: " << camera << ", does not exist!")
+    }
+
+    m_cameras.free(camera);
 }
 
 void World::set_position(Handle<Object> object, glm::vec3 position) {
@@ -309,6 +334,8 @@ void World::update_object_recursive(Handle<Object> object_handle) {
     }
 }
 
-void World::_clear_updates() {
-    m_changed_object_handles.clear();
+void World::_clear_updates(const std::vector<Handle<Object>> &handles_to_clear) {
+    for (const auto &h : handles_to_clear) {
+        m_changed_object_handles.erase(h);
+    }
 }
