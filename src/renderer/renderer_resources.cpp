@@ -124,9 +124,16 @@ SceneCreateInfo Renderer::load_gltf_scene(const SceneLoadInfo &load_info) {
 
         scene.textures.resize(model.textures.size());
         for (u32 texture_id{}; texture_id < static_cast<u32>(model.textures.size()); ++texture_id) {
-            // TODO: Handle samplers
             const auto &texture = model.textures[texture_id];
             const auto &image = model.images[texture.source];
+            const auto &sampler = model.samplers[texture.sampler];
+
+            // sampler.magFilter = TINYGLTF_TEXTURE_FILTER_NEAREST | TINYGLTF_TEXTURE_FILTER_LINEAR
+            // sampler.minFilter = TINYGLTF_TEXTURE_FILTER_NEAREST | TINYGLTF_TEXTURE_FILTER_LINEAR | TINYGLTF_TEXTURE_FILTER_NEAREST_MIPMAP_NEAREST |
+            // TINYGLTF_TEXTURE_FILTER_LINEAR_MIPMAP_NEAREST | TINYGLTF_TEXTURE_FILTER_NEAREST_MIPMAP_LINEAR | TINYGLTF_TEXTURE_FILTER_LINEAR_MIPMAP_LINEAR
+
+            // sampler.wrapS = TINYGLTF_TEXTURE_WRAP_REPEAT | TINYGLTF_TEXTURE_WRAP_CLAMP_TO_EDGE | TINYGLTF_TEXTURE_WRAP_MIRRORED_REPEAT
+            // sampler.wrapT = TINYGLTF_TEXTURE_WRAP_REPEAT | TINYGLTF_TEXTURE_WRAP_CLAMP_TO_EDGE | TINYGLTF_TEXTURE_WRAP_MIRRORED_REPEAT
 
             if (!image.uri.empty()) {
                 std::string directory = Utils::get_directory(load_info.path);
@@ -682,7 +689,7 @@ Handle<Texture> Renderer::create_u8_texture(const TextureCreateInfo &create_info
         .bindings{
             DescriptorBindingUpdateInfo{
                 .binding_index = 0U,
-                .array_index = static_cast<u32>(handle),
+                .array_index = handle,
                 .image_info {
                     .image_handle = texture.image,
                     .image_sampler = texture.sampler

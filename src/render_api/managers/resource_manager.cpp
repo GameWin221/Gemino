@@ -5,8 +5,8 @@ ResourceManager::ResourceManager(VkDevice device, VmaAllocator allocator) : VK_D
     std::vector<VkDescriptorPoolSize> pool_sizes {
         VkDescriptorPoolSize { VK_DESCRIPTOR_TYPE_SAMPLER, 128U },
         VkDescriptorPoolSize { VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER, 4096U },
-        VkDescriptorPoolSize { VK_DESCRIPTOR_TYPE_SAMPLED_IMAGE, 4096U },
-        VkDescriptorPoolSize { VK_DESCRIPTOR_TYPE_STORAGE_IMAGE, 1024U },
+        VkDescriptorPoolSize { VK_DESCRIPTOR_TYPE_SAMPLED_IMAGE, 2048U },
+        VkDescriptorPoolSize { VK_DESCRIPTOR_TYPE_STORAGE_IMAGE, 256U },
         //VkDescriptorPoolSize { VK_DESCRIPTOR_TYPE_UNIFORM_TEXEL_BUFFER, 0U },
         //VkDescriptorPoolSize { VK_DESCRIPTOR_TYPE_STORAGE_TEXEL_BUFFER, 0U },
         VkDescriptorPoolSize { VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER, 256U },

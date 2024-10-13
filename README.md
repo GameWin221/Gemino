@@ -10,12 +10,16 @@ It's also my passion project for learning and experimenting with new graphics pr
 - Good performance for open worlds and indoor scenes
 - Support for most desktop devices
 
-## Major Features
+## Implemented Features
 - Indirect draw with compute shader draw call generation (vkCmdDrawInstancedIndirectCount)
 - Compute shader frustum culling
 - Compute shader LOD system
-- Handle based **Resource Managers**
+- Handle and Range based resource management
+- Transforms based on `vec3, quat, vec3` instead of `mat4` to save memory and lower computation time
+- Per-frame Host to Device upload buffers designed to work well with frames in flight 
 - Compatible with all Vulkan 1.2 devices
+- Simple parent<->children scene graph and scene management
+- GLTF Import
 
 # Build Instructions
 [See BUILD.md](BUILD.md)
