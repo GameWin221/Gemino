@@ -106,7 +106,7 @@ void Renderer::update_world(World &world, Handle<Camera> camera) {
 
         auto &object = *frame.access_upload<Object>(upload_offset);
         if(upload_offset + sizeof(object) >= upload_buffer_size) {
-            DEBUG_PANIC("Upload source buffer falling behind!")
+            DEBUG_WARNING("Upload buffer falling behind!")
             break;
         }
 

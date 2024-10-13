@@ -49,17 +49,11 @@ int main(){
     auto monkey_handle = world.instantiate_scene_object(monkey_scene, 0);
 
     /*
-    auto monkey_gltf_scene = renderer.load_gltf_scene(SceneLoadInfo{
-        .path = "res/monkey.gltf",
-        .import_textures = true,
-        .import_materials = true
-    });
-
-    for (u32 y{}; y < 100u; ++y) {
-        for (u32 x{}; x < 100u; ++x) {
-            for (u32 z{}; z < 100u; ++z) {
-                monkey_gltf_scene.position = glm::vec3(x * 2u, y * 2u, z * 2u);
-                auto monkey_handle = world.instantiate_scene_object(monkey_gltf_scene, 0u);
+    for (u32 y{}; y < 50u; ++y) {
+        for (u32 x{}; x < 50u; ++x) {
+            for (u32 z{}; z < 50u; ++z) {
+                monkey_scene.position = glm::vec3(x * 2u, y * 2u, z * 2u);
+                auto monkey_handle = world.instantiate_scene_object(monkey_scene, 0u);
             }
         }
     }
