@@ -39,11 +39,6 @@ void Renderer::init_scene_buffers() {
         .buffer_usage_flags = VK_BUFFER_USAGE_STORAGE_BUFFER_BIT | VK_BUFFER_USAGE_INDIRECT_BUFFER_BIT,
         .memory_usage_flags = VMA_MEMORY_USAGE_GPU_ONLY
     });
-    m_scene_draw_index_buffer = m_api.m_resource_manager->create_buffer(BufferCreateInfo{
-        .size = sizeof(u32) * MAX_SCENE_DRAWS,
-        .buffer_usage_flags = VK_BUFFER_USAGE_STORAGE_BUFFER_BIT,
-        .memory_usage_flags = VMA_MEMORY_USAGE_GPU_ONLY
-    });
     m_scene_draw_count_buffer = m_api.m_resource_manager->create_buffer(BufferCreateInfo{
         .size = sizeof(u32),
         .buffer_usage_flags = VK_BUFFER_USAGE_STORAGE_BUFFER_BIT | VK_BUFFER_USAGE_INDIRECT_BUFFER_BIT | VK_BUFFER_USAGE_TRANSFER_DST_BIT,
@@ -55,12 +50,12 @@ void Renderer::init_scene_buffers() {
         .memory_usage_flags = VMA_MEMORY_USAGE_GPU_ONLY
     });
     m_scene_mesh_instance_buffer = m_api.m_resource_manager->create_buffer(BufferCreateInfo{
-        .size = sizeof(Mesh) * MAX_SCENE_MESH_INSTANCES,
+        .size = sizeof(MeshInstance) * MAX_SCENE_MESH_INSTANCES,
         .buffer_usage_flags = VK_BUFFER_USAGE_STORAGE_BUFFER_BIT | VK_BUFFER_USAGE_TRANSFER_DST_BIT,
         .memory_usage_flags = VMA_MEMORY_USAGE_GPU_ONLY
     });
     m_scene_mesh_instance_materials_buffer = m_api.m_resource_manager->create_buffer(BufferCreateInfo{
-        .size = sizeof(Mesh) * MAX_SCENE_MESH_INSTANCES,
+        .size = sizeof(Handle<Material>) * MAX_SCENE_MESH_INSTANCE_MATERIALS,
         .buffer_usage_flags = VK_BUFFER_USAGE_STORAGE_BUFFER_BIT | VK_BUFFER_USAGE_TRANSFER_DST_BIT,
         .memory_usage_flags = VMA_MEMORY_USAGE_GPU_ONLY
     });
@@ -71,11 +66,6 @@ void Renderer::init_scene_buffers() {
     });
     m_scene_object_buffer = m_api.m_resource_manager->create_buffer(BufferCreateInfo{
         .size = sizeof(Object) * MAX_SCENE_OBJECTS,
-        .buffer_usage_flags = VK_BUFFER_USAGE_STORAGE_BUFFER_BIT | VK_BUFFER_USAGE_TRANSFER_DST_BIT,
-        .memory_usage_flags = VMA_MEMORY_USAGE_GPU_ONLY
-    });
-    m_scene_local_transform_buffer = m_api.m_resource_manager->create_buffer(BufferCreateInfo{
-        .size = sizeof(Transform) * MAX_SCENE_OBJECTS,
         .buffer_usage_flags = VK_BUFFER_USAGE_STORAGE_BUFFER_BIT | VK_BUFFER_USAGE_TRANSFER_DST_BIT,
         .memory_usage_flags = VMA_MEMORY_USAGE_GPU_ONLY
     });
@@ -398,14 +388,12 @@ void Renderer::init_defaults() {
 void Renderer::destroy_scene_buffers() {
     m_api.m_resource_manager->destroy_buffer(m_scene_material_buffer);
     m_api.m_resource_manager->destroy_buffer(m_scene_draw_buffer);
-    m_api.m_resource_manager->destroy_buffer(m_scene_draw_index_buffer);
     m_api.m_resource_manager->destroy_buffer(m_scene_draw_count_buffer);
     m_api.m_resource_manager->destroy_buffer(m_scene_mesh_buffer);
     m_api.m_resource_manager->destroy_buffer(m_scene_mesh_instance_materials_buffer);
     m_api.m_resource_manager->destroy_buffer(m_scene_mesh_instance_buffer);
     m_api.m_resource_manager->destroy_buffer(m_scene_primitive_buffer);
     m_api.m_resource_manager->destroy_buffer(m_scene_object_buffer);
-    m_api.m_resource_manager->destroy_buffer(m_scene_local_transform_buffer);
     m_api.m_resource_manager->destroy_buffer(m_scene_global_transform_buffer);
     m_api.m_resource_manager->destroy_buffer(m_scene_camera_buffer);
     m_api.m_resource_manager->destroy_buffer(m_scene_vertex_buffer);

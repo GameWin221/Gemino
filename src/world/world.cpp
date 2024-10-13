@@ -251,11 +251,11 @@ void World::update_vectors(Camera &camera) {
     camera.up = glm::normalize(glm::cross(camera.right, camera.forward));
 }
 void World::update_frustum(Camera &camera) {
-    float real_far = std::max(camera.near, camera.far);
+    f32 real_far = std::max(camera.near, camera.far);
 
-    float aspect = camera.viewport_size.x / camera.viewport_size.y;
-    float half_y = real_far * std::tan(glm::radians(camera.fov * 0.5f));
-    float half_x = half_y * aspect;
+    f32 aspect = camera.viewport_size.x / camera.viewport_size.y;
+    f32 half_y = real_far * std::tan(glm::radians(camera.fov * 0.5f));
+    f32 half_x = half_y * aspect;
 
     glm::vec3 far_plane = real_far * camera.forward;
 

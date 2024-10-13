@@ -71,11 +71,11 @@ void Renderer::update_world(World &world, Handle<Camera> camera) {
     Frame &frame = m_frames[m_frame_in_flight_index];
 
     std::vector<VkBufferCopy> object_copy_regions{};
-    std::vector<VkBufferCopy> local_transforms_copy_regions{};
     std::vector<VkBufferCopy> global_transforms_copy_regions{};
     std::vector<VkBufferCopy> camera_copy_regions{};
 
     object_copy_regions.reserve(world.get_changed_object_handles().size());
+    global_transforms_copy_regions.reserve(world.get_changed_object_handles().size());
     //camera_copy_regions.reserve(world.get_changed_camera_handles().size());
 
     usize upload_buffer_size = m_api.m_resource_manager->get_buffer_data(frame.upload_buffer).size;
@@ -97,27 +97,6 @@ void Renderer::update_world(World &world, Handle<Camera> camera) {
         }
 
         object_copy_regions.push_back(VkBufferCopy{
-            .srcOffset = upload_offset,
-            .dstOffset = static_cast<VkDeviceSize>(handle) * sizeof(target),
-            .size = sizeof(target)
-        });
-
-        upload_offset += Utils::align(16u, sizeof(target));
-    }
-
-    for(const auto &handle : world.get_changed_object_handles()) {
-        auto &target = *frame.access_upload<Transform>(upload_offset);
-
-        if(upload_offset + sizeof(target) >= upload_buffer_size) {
-            DEBUG_PANIC("UPLOAD SOURCE BUFFER OVERFLOW")
-        }
-        if(handle >= MAX_SCENE_OBJECTS) {
-            DEBUG_PANIC("UPLOAD DESTINATION BUFFER OVERFLOW")
-        }
-
-        target = world.get_local_transform(handle);
-
-        local_transforms_copy_regions.push_back(VkBufferCopy{
             .srcOffset = upload_offset,
             .dstOffset = static_cast<VkDeviceSize>(handle) * sizeof(target),
             .size = sizeof(target)
@@ -175,11 +154,6 @@ void Renderer::update_world(World &world, Handle<Camera> camera) {
             .dst_access_mask = VK_ACCESS_TRANSFER_WRITE_BIT
         },
         BufferBarrier{
-            .buffer_handle = m_scene_local_transform_buffer,
-            .src_access_mask = VK_ACCESS_SHADER_READ_BIT,
-            .dst_access_mask = VK_ACCESS_TRANSFER_WRITE_BIT
-        },
-        BufferBarrier{
             .buffer_handle = m_scene_global_transform_buffer,
             .src_access_mask = VK_ACCESS_SHADER_READ_BIT,
             .dst_access_mask = VK_ACCESS_TRANSFER_WRITE_BIT
@@ -192,18 +166,12 @@ void Renderer::update_world(World &world, Handle<Camera> camera) {
     });
 
     m_api.copy_buffer_to_buffer(frame.command_list, frame.upload_buffer, m_scene_object_buffer, object_copy_regions);
-    m_api.copy_buffer_to_buffer(frame.command_list, frame.upload_buffer, m_scene_local_transform_buffer, local_transforms_copy_regions);
     m_api.copy_buffer_to_buffer(frame.command_list, frame.upload_buffer, m_scene_global_transform_buffer, global_transforms_copy_regions);
     m_api.copy_buffer_to_buffer(frame.command_list, frame.upload_buffer, m_scene_camera_buffer, camera_copy_regions);
 
     m_api.buffer_barrier(frame.command_list, VK_PIPELINE_STAGE_TRANSFER_BIT, VK_PIPELINE_STAGE_COMPUTE_SHADER_BIT | VK_PIPELINE_STAGE_VERTEX_SHADER_BIT | VK_PIPELINE_STAGE_FRAGMENT_SHADER_BIT, {
         BufferBarrier{
             .buffer_handle = m_scene_object_buffer,
-            .src_access_mask = VK_ACCESS_TRANSFER_WRITE_BIT,
-            .dst_access_mask = VK_ACCESS_SHADER_READ_BIT
-        },
-        BufferBarrier{
-            .buffer_handle = m_scene_local_transform_buffer,
             .src_access_mask = VK_ACCESS_TRANSFER_WRITE_BIT,
             .dst_access_mask = VK_ACCESS_SHADER_READ_BIT
         },
@@ -229,7 +197,7 @@ void Renderer::render_world(const World &world, Handle<Camera> camera) {
         .global_lod_bias = m_config_global_lod_bias,
         .global_cull_dist_multiplier = m_config_global_cull_dist_multiplier
     };
-
+    
     render_pass_draw_call_gen(scene_objects_count, draw_call_gen_pc);
     render_pass_geometry();
 
@@ -309,7 +277,7 @@ void Renderer::render_pass_geometry() {
     m_api.bind_graphics_descriptor(frame.command_list, m_forward_pipeline, m_forward_descriptor, 0U);
     m_api.bind_vertex_buffer(frame.command_list, m_scene_vertex_buffer);
     m_api.bind_index_buffer(frame.command_list, m_scene_index_buffer);
-    m_api.draw_indexed_indirect_count(frame.command_list,m_scene_draw_buffer, m_scene_draw_count_buffer, MAX_SCENE_DRAWS, sizeof(DrawCommand));
+    m_api.draw_indexed_indirect_count(frame.command_list,m_scene_draw_buffer, m_scene_draw_count_buffer, MAX_SCENE_DRAWS, static_cast<u32>(sizeof(DrawCommand)));
 
     m_api.end_graphics_pipeline(frame.command_list, m_forward_pipeline);
 }

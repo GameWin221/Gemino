@@ -39,10 +39,10 @@ struct alignas(16) Camera {
 };
 
 struct PrimitiveLOD {
+    u32 index_start{};
     u32 index_count{};
-    u32 first_index{};
-    i32 vertex_offset{};
-    u32 _pad0{};
+    i32 vertex_start{};
+    u32 vertex_count{};
 };
 struct Primitive {
     std::array<PrimitiveLOD, 8> lods{};

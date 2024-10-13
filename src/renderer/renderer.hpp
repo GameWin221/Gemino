@@ -194,6 +194,11 @@ private:
     HandleAllocator<Texture> m_texture_allocator{};
     HandleAllocator<Material> m_material_allocator{};
 
+    RangeAllocator<Handle<Material>, RangeAllocatorType::InPlace> m_mesh_instance_materials_allocator{};
+    RangeAllocator<Primitive, RangeAllocatorType::InPlace> m_primitive_allocator{};
+    RangeAllocator<Vertex, RangeAllocatorType::External> m_vertex_allocator{};
+    RangeAllocator<u32, RangeAllocatorType::External> m_index_allocator{};
+
     Handle<Descriptor> m_draw_call_gen_descriptor{};
     Handle<ComputePipeline> m_draw_call_gen_pipeline{};
 
@@ -214,11 +219,6 @@ private:
     Handle<Texture> m_default_white_srgb_texture{};
     Handle<Texture> m_default_grey_unorm_texture{};
 
-    u32 m_allocated_mesh_instance_materials{};
-    u32 m_allocated_primitives{};
-    u32 m_allocated_vertices{};
-    u32 m_allocated_indices{};
-
     Handle<Buffer> m_scene_vertex_buffer{};
     Handle<Buffer> m_scene_index_buffer{};
     Handle<Buffer> m_scene_primitive_buffer{};
@@ -226,12 +226,10 @@ private:
     Handle<Buffer> m_scene_mesh_instance_buffer{};
     Handle<Buffer> m_scene_mesh_instance_materials_buffer{};
     Handle<Buffer> m_scene_object_buffer{};
-    Handle<Buffer> m_scene_local_transform_buffer{};
     Handle<Buffer> m_scene_global_transform_buffer{};
     Handle<Buffer> m_scene_material_buffer{};
     Handle<Buffer> m_scene_camera_buffer{};
     Handle<Buffer> m_scene_draw_buffer{};
-    Handle<Buffer> m_scene_draw_index_buffer{};
     Handle<Buffer> m_scene_draw_count_buffer{};
 };
 

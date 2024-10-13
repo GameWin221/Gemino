@@ -29,10 +29,10 @@ struct Camera {
     vec4 _pad1;
 };
 struct PrimitiveLOD {
+    uint index_start;
     uint index_count;
-    uint first_index;
-    int vertex_offset;
-    uint _pad0;
+    int vertex_start;
+    uint vertex_count;
 };
 struct Primitive {
     PrimitiveLOD lods[LOD_COUNT];

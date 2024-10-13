@@ -321,7 +321,7 @@ SceneCreateInfo Renderer::load_gltf_scene(const SceneLoadInfo &load_info) {
         scene.meshes[mesh_id] = create_mesh(mesh_create_info);
         scene.mesh_instances[mesh_id] = create_mesh_instance(MeshInstanceCreateInfo{
             .mesh = scene.meshes[mesh_id],
-            .materials = primitives_default_materials
+             .materials = primitives_default_materials
         });
 
         DEBUG_LOG("Loaded mesh \"" << mesh.name << "\" from \"" << load_info.path << "\"")
@@ -341,36 +341,37 @@ SceneCreateInfo Renderer::load_gltf_scene(const SceneLoadInfo &load_info) {
 }
 
 Handle<Mesh> Renderer::create_mesh(const MeshCreateInfo &create_info) {
-    // Register primitives
-    u32 primitive_start = m_allocated_primitives;
-    u32 primitive_count = static_cast<u32>(create_info.primitives.size());
+    Range<Primitive> primitive_range = m_primitive_allocator.alloc(static_cast<u32>(create_info.primitives.size()));
+    std::vector<glm::vec4> primitive_bounding_spheres(primitive_range.count);
 
-    std::vector<glm::vec4> primitive_bounding_spheres(primitive_count);
-
-    for (u32 primitive_id{}; primitive_id < primitive_count; ++primitive_id) {
+    for (u32 primitive_id{}; primitive_id < primitive_range.count; ++primitive_id) {
         const auto &primitive_info = create_info.primitives[primitive_id];
 
         // TODO: Implement automatic LOD creation
         Primitive primitive_data{};
+
+        Range<Vertex> vertex_range = m_vertex_allocator.alloc(primitive_info.vertex_count);
+        Range<u32> index_range = m_index_allocator.alloc(primitive_info.index_count);
+
         primitive_data.lods[0u] = PrimitiveLOD {
-            .index_count = primitive_info.index_count,
-            .first_index = m_allocated_indices,
-            .vertex_offset = static_cast<i32>(m_allocated_vertices)
+            .index_start = index_range.start,
+            .index_count = index_range.count,
+            .vertex_start = static_cast<i32>(vertex_range.start),
+            .vertex_count = vertex_range.count
         };
         for(u32 i = 1u; i < static_cast<u32>(primitive_data.lods.size()); ++i) {
             primitive_data.lods[i] = primitive_data.lods[0];
         }
 
-        glm::vec3 center_offset = calculate_center_offset(primitive_info.vertex_data, primitive_info.vertex_count);
-        f32 radius = calculate_radius(primitive_info.vertex_data, primitive_info.vertex_count, center_offset);
+        m_primitive_allocator.get_element_mutable(primitive_range.start + primitive_id) = primitive_data;
+
+        glm::vec3 center_offset = calculate_center_offset(primitive_info.vertex_data, vertex_range.count);
+        f32 radius = calculate_radius(primitive_info.vertex_data, vertex_range.count, center_offset);
         primitive_bounding_spheres[primitive_id] = glm::vec4(center_offset.x, center_offset.y, center_offset.z, radius);
 
         // When I eventually add LODs, then I'll have to sum the total amount of vertices and indices of each LOD
-        u32 total_primitive_vertex_count = primitive_info.vertex_count;
-        u32 total_primitive_index_count = primitive_info.index_count;
-
         Handle<Buffer> staging = m_api.m_resource_manager->create_buffer(BufferCreateInfo {
-            .size = total_primitive_vertex_count * sizeof(Vertex) + total_primitive_index_count * sizeof(u32) + sizeof(Primitive),
+            .size = vertex_range.count * sizeof(Vertex) + index_range.count * sizeof(u32) + sizeof(Primitive),
             .buffer_usage_flags = VK_BUFFER_USAGE_TRANSFER_SRC_BIT,
             .memory_usage_flags = VMA_MEMORY_USAGE_CPU_TO_GPU
         });
@@ -381,26 +382,26 @@ Handle<Mesh> Renderer::create_mesh(const MeshCreateInfo &create_info) {
         VkBufferCopy primitive_copy_region{};
 
         usize dst_offset = 0ull;
-        m_api.m_resource_manager->memcpy_to_buffer(mapped_staging, primitive_info.vertex_data, sizeof(Vertex) * static_cast<usize>(primitive_info.vertex_count), dst_offset);
+        m_api.m_resource_manager->memcpy_to_buffer(mapped_staging, primitive_info.vertex_data, sizeof(Vertex) * static_cast<usize>(vertex_range.count), dst_offset);
         vertex_copy_regions.push_back(VkBufferCopy{
             .srcOffset = dst_offset,
-            .dstOffset = m_allocated_vertices * sizeof(Vertex),
-            .size = sizeof(Vertex) * static_cast<usize>(primitive_info.vertex_count)
+            .dstOffset = vertex_range.start * sizeof(Vertex),
+            .size = sizeof(Vertex) * static_cast<usize>(vertex_range.count)
         });
 
-        dst_offset += sizeof(Vertex) * static_cast<usize>(primitive_info.vertex_count);
-        m_api.m_resource_manager->memcpy_to_buffer(mapped_staging, primitive_info.index_data, sizeof(u32) * static_cast<usize>(primitive_info.index_count), dst_offset);
+        dst_offset += sizeof(Vertex) * static_cast<usize>(vertex_range.count);
+        m_api.m_resource_manager->memcpy_to_buffer(mapped_staging, primitive_info.index_data, sizeof(u32) * static_cast<usize>(index_range.count), dst_offset);
         index_copy_regions.push_back(VkBufferCopy{
             .srcOffset = dst_offset,
-            .dstOffset = m_allocated_indices * sizeof(u32),
-            .size = sizeof(u32) * static_cast<usize>(primitive_info.index_count)
+            .dstOffset = index_range.start * sizeof(u32),
+            .size = sizeof(u32) * static_cast<usize>(index_range.count)
         });
 
-        dst_offset += sizeof(u32) * static_cast<usize>(primitive_info.index_count);
+        dst_offset += sizeof(u32) * static_cast<usize>(index_range.count);
         m_api.m_resource_manager->memcpy_to_buffer(mapped_staging, &primitive_data, sizeof(primitive_data), dst_offset);
         primitive_copy_region = VkBufferCopy {
             .srcOffset = dst_offset,
-            .dstOffset = m_allocated_primitives * sizeof(Primitive),
+            .dstOffset = (primitive_range.start + primitive_id) * sizeof(Primitive),
             .size = sizeof(Primitive)
         };
 
@@ -415,17 +416,13 @@ Handle<Mesh> Renderer::create_mesh(const MeshCreateInfo &create_info) {
         });
 
         m_api.m_resource_manager->destroy_buffer(staging);
-
-        m_allocated_vertices += total_primitive_vertex_count;
-        m_allocated_indices += total_primitive_index_count;
-        m_allocated_primitives++;
     }
 
     glm::vec3 avg_center{};
     for(const auto &bound : primitive_bounding_spheres) {
         avg_center += glm::vec3(bound.x, bound.y, bound.z);
     }
-    avg_center /= static_cast<f32>(primitive_count);
+    avg_center /= static_cast<f32>(primitive_range.count);
 
     f32 max_radius{};
     for(const auto &bound : primitive_bounding_spheres) {
@@ -442,8 +439,8 @@ Handle<Mesh> Renderer::create_mesh(const MeshCreateInfo &create_info) {
     Mesh mesh{
         .center_offset = avg_center,
         .radius = max_radius,
-        .primitive_count = primitive_count,
-        .primitive_start = primitive_start
+        .primitive_count = primitive_range.count,
+        .primitive_start = primitive_range.start
     };
 
     Handle<Mesh> mesh_handle = m_mesh_allocator.alloc(mesh);
@@ -476,28 +473,40 @@ void Renderer::destroy_mesh(Handle<Mesh> mesh_handle) {
 
     const Mesh &mesh = m_mesh_allocator.get_element(mesh_handle);
 
-    // Primitives, vertices and indices are not freed because there is no range allocator implemented yet
+    Range<Primitive> primitive_range{ mesh.primitive_start, mesh.primitive_count };
+    if(!m_primitive_allocator.is_range_valid(primitive_range)) {
+        DEBUG_PANIC("Cannot delete primitives - Primitives at Range{ start: " << primitive_range.start << ", count: " << primitive_range.count << " }, does not exist!")
+    }
+
+    for (u32 i{}; i < primitive_range.count; ++i) {
+        const Primitive &prim = m_primitive_allocator.get_element(primitive_range.start + i);
+        for (u32 lod_id{}; lod_id < static_cast<u32>(prim.lods.size()); ++lod_id) {
+            const PrimitiveLOD &lod = prim.lods[lod_id];
+            m_vertex_allocator.free(Range<Vertex>{static_cast<u32>(lod.vertex_start), lod.vertex_count});
+            m_index_allocator.free(Range<u32>{lod.index_start, lod.index_count});
+        }
+    }
 
     m_mesh_allocator.free(mesh_handle);
+    m_primitive_allocator.free(primitive_range);
 }
 
 Handle<MeshInstance> Renderer::create_mesh_instance(const MeshInstanceCreateInfo &create_info) {
-    u32 material_start = m_allocated_mesh_instance_materials;
-    u32 material_count = static_cast<u32>(create_info.materials.size());
+    Range<Handle<Material>> material_range = m_mesh_instance_materials_allocator.alloc(static_cast<u32>(create_info.materials.size()), create_info.materials.data());
 
     const Mesh &mesh_data = m_mesh_allocator.get_element(create_info.mesh);
-    if (mesh_data.primitive_count != material_count) {
+    if (mesh_data.primitive_count != material_range.count) {
         DEBUG_PANIC("Failed to create a MeshInstance! create_info.materials.size() must be equal to primitive_count of the specified mesh.");
     }
 
     MeshInstance instance{
         .mesh = create_info.mesh,
-        .material_count = material_count,
-        .material_start = material_start
+        .material_count = material_range.count,
+        .material_start = material_range.start
     };
     
     Handle<Buffer> staging = m_api.m_resource_manager->create_buffer(BufferCreateInfo{
-        .size = material_count * sizeof(Handle<Material>) + sizeof(MeshInstance),
+        .size = material_range.count * sizeof(Handle<Material>) + sizeof(MeshInstance),
         .buffer_usage_flags = VK_BUFFER_USAGE_TRANSFER_SRC_BIT,
         .memory_usage_flags = VMA_MEMORY_USAGE_CPU_TO_GPU
     });
@@ -507,14 +516,14 @@ Handle<MeshInstance> Renderer::create_mesh_instance(const MeshInstanceCreateInfo
     void *mapped_staging = m_api.m_resource_manager->map_buffer(staging);
 
     usize dst_offset{};
-    m_api.m_resource_manager->memcpy_to_buffer(mapped_staging, create_info.materials.data(), material_count * sizeof(Handle<Material>), dst_offset);
+    m_api.m_resource_manager->memcpy_to_buffer(mapped_staging, create_info.materials.data(), material_range.count * sizeof(Handle<Material>), dst_offset);
     VkBufferCopy material_copy {
         .srcOffset = dst_offset,
-        .dstOffset = material_start * sizeof(Handle<Material>),
-        .size = material_count * sizeof(Handle<Material>)
+        .dstOffset = material_range.start * sizeof(Handle<Material>),
+        .size = material_range.count * sizeof(Handle<Material>)
     };
 
-    dst_offset += material_count * sizeof(Handle<Material>);
+    dst_offset += material_range.count * sizeof(Handle<Material>);
 
     m_api.m_resource_manager->memcpy_to_buffer(mapped_staging, &instance, sizeof(MeshInstance), dst_offset);
     VkBufferCopy mesh_instance_copy {
@@ -534,8 +543,6 @@ Handle<MeshInstance> Renderer::create_mesh_instance(const MeshInstanceCreateInfo
 
     m_api.m_resource_manager->destroy_buffer(staging);
 
-    m_allocated_mesh_instance_materials += material_count;
-
     return instance_handle;
 }
 void Renderer::destroy_mesh_instance(Handle<MeshInstance> mesh_instance_handle) {
@@ -543,7 +550,16 @@ void Renderer::destroy_mesh_instance(Handle<MeshInstance> mesh_instance_handle) 
         DEBUG_PANIC("Cannot delete mesh instance - Mesh instance with a handle id: = " << mesh_instance_handle << ", does not exist!")
     }
 
+    const auto &mesh_instance = m_mesh_instance_allocator.get_element(mesh_instance_handle);
+
+    Range<Handle<Material>> mat_range{ mesh_instance.material_start, mesh_instance.material_count };
+
+    if(!m_mesh_instance_materials_allocator.is_range_valid(mat_range)) {
+        DEBUG_PANIC("Cannot delete mesh instance materials - Mesh instance materials at Range{ start: " << mat_range.start << ", count: " << mat_range.count << " }, does not exist!")
+    }
+
     m_mesh_instance_allocator.free(mesh_instance_handle);
+    m_mesh_instance_materials_allocator.free(mat_range);
 }
 
 Handle<Texture> Renderer::load_u8_texture(const TextureLoadInfo &load_info) {
@@ -625,19 +641,6 @@ Handle<Texture> Renderer::create_u8_texture(const TextureCreateInfo &create_info
         .anisotropy = static_cast<f32>(m_config_texture_anisotropy)
     });
 
-    // TEMPORARY TEMPORARY TEMPORARY TEMPORARY
-    // TEMPORARY TEMPORARY TEMPORARY TEMPORARY
-    // TEMPORARY TEMPORARY TEMPORARY TEMPORARY
-    // TEMPORARY TEMPORARY TEMPORARY TEMPORARY
-    // TEMPORARY TEMPORARY TEMPORARY TEMPORARY
-    // TEMPORARY TEMPORARY TEMPORARY TEMPORARY
-    // TEMPORARY TEMPORARY TEMPORARY TEMPORARY
-    // TEMPORARY TEMPORARY TEMPORARY TEMPORARY
-    // TEMPORARY TEMPORARY TEMPORARY TEMPORARY
-    // TEMPORARY TEMPORARY TEMPORARY TEMPORARY
-    // TEMPORARY TEMPORARY TEMPORARY TEMPORARY
-    // TEMPORARY TEMPORARY TEMPORARY TEMPORARY
-
     Handle<Buffer> staging_buffer = m_api.m_resource_manager->create_buffer(BufferCreateInfo{
         .size = create_info.width * create_info.height * create_info.bytes_per_pixel,
         .buffer_usage_flags = VK_BUFFER_USAGE_TRANSFER_SRC_BIT,
@@ -710,19 +713,6 @@ Handle<Material> Renderer::create_material(const MaterialCreateInfo &create_info
         .normal_texture = (create_info.normal_texture == INVALID_HANDLE) ? m_default_grey_unorm_texture : create_info.normal_texture,
         .color = create_info.color
     };
-
-    // TEMPORARY TEMPORARY TEMPORARY TEMPORARY
-    // TEMPORARY TEMPORARY TEMPORARY TEMPORARY
-    // TEMPORARY TEMPORARY TEMPORARY TEMPORARY
-    // TEMPORARY TEMPORARY TEMPORARY TEMPORARY
-    // TEMPORARY TEMPORARY TEMPORARY TEMPORARY
-    // TEMPORARY TEMPORARY TEMPORARY TEMPORARY
-    // TEMPORARY TEMPORARY TEMPORARY TEMPORARY
-    // TEMPORARY TEMPORARY TEMPORARY TEMPORARY
-    // TEMPORARY TEMPORARY TEMPORARY TEMPORARY
-    // TEMPORARY TEMPORARY TEMPORARY TEMPORARY
-    // TEMPORARY TEMPORARY TEMPORARY TEMPORARY
-    // TEMPORARY TEMPORARY TEMPORARY TEMPORARY
 
     Handle<Buffer> staging_buffer = m_api.m_resource_manager->create_buffer(BufferCreateInfo{
         .size = sizeof(Material),

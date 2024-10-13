@@ -72,6 +72,7 @@ void main() {
         should_draw = should_draw && (dot(camera.top_plane, mesh_pos_camera_diff) > -mesh_radius);
     }
 
+    // TODO: Re-implement
     // LOD Picking
     // https://www.desmos.com/calculator/igswt6rlwt
     //float lod_f;
@@ -90,8 +91,8 @@ void main() {
             DrawCommand cmd;
             cmd.index_count = lod.index_count;
             cmd.instance_count = 1u;
-            cmd.first_index = lod.first_index;
-            cmd.vertex_offset = lod.vertex_offset;
+            cmd.first_index = lod.index_start;
+            cmd.vertex_offset = lod.vertex_start;
             cmd.first_instance = 0u;
             cmd.object_id = object_id;
             cmd.primitive_id = i;
