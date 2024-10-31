@@ -272,10 +272,10 @@ void Renderer::render_pass_geometry() {
         .depth = 0.0f
     });
 
+    // No vertex buffer bound because of programmable vertex fetching
     m_api.bind_graphics_descriptor(frame.command_list, m_forward_pipeline, m_forward_descriptor, 0U);
-    m_api.bind_vertex_buffer(frame.command_list, m_scene_vertex_buffer);
     m_api.bind_index_buffer(frame.command_list, m_scene_index_buffer);
-    m_api.draw_indexed_indirect_count(frame.command_list,m_scene_draw_buffer, m_scene_draw_count_buffer, MAX_SCENE_DRAWS, static_cast<u32>(sizeof(DrawCommand)));
+    m_api.draw_indexed_indirect_count(frame.command_list,m_scene_draw_buffer, m_scene_draw_count_buffer, MAX_SCENE_DRAWS, sizeof(DrawCommand));
 
     m_api.end_graphics_pipeline(frame.command_list, m_forward_pipeline);
 }

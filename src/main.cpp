@@ -25,6 +25,12 @@ int main(){
 
     World world{};
 
+    renderer.load_gltf_scene(SceneLoadInfo {
+        .path = "C:/Dev/Resources/Meshes/SubDSuzanne.gltf",
+        .import_textures = false,
+        .import_materials = false,
+    });
+
     auto sponza_scene = renderer.load_gltf_scene(SceneLoadInfo {
         .path = "C:/Dev/Resources/Meshes/main1_sponza/NewSponza_Main_glTF_003.gltf",
         .import_textures = false,
@@ -47,8 +53,7 @@ int main(){
     monkey_scene.position = glm::vec3(4.0f, 0.5f, 0.0f);
     monkey_scene.rotation = glm::angleAxis(glm::radians(-45.0f), glm::vec3(0.0f, 1.0f, 0.0f)) * glm::angleAxis(glm::radians(-35.0f), glm::vec3(1.0f, 0.0f, 0.0f));
     auto monkey_handle = world.instantiate_scene_object(monkey_scene, 0);
-
-    /*
+/*
     for (u32 y{}; y < 50u; ++y) {
         for (u32 x{}; x < 50u; ++x) {
             for (u32 z{}; z < 50u; ++z) {
@@ -57,8 +62,7 @@ int main(){
             }
         }
     }
-    */
-
+*/
     std::srand(0xDEADBEEF);
 
     auto main_camera = world.create_camera(CameraCreateInfo{
@@ -74,6 +78,7 @@ int main(){
     double dt = 1.0, time{};
 
     DEBUG_TIMESTAMP(last_frame);
+
 
     input.set_cursor_mode(CursorMode::Locked);
 
@@ -122,9 +127,6 @@ int main(){
         f32 f_time = static_cast<f32>(time);
         f32 f_dt = static_cast<f32>(dt);
 
-        //world.set_camera_position(main_camera, glm::vec3(40.4874f, 7.70619f, 29.7653f));
-        //world.set_camera_rotation(main_camera,glm::mix(19.1001f, 20.1001f, sinf(f_time)),glm::mix(-84.5997f, -85.5997f, sinf(f_time)));
-
         if(input.get_key(Key::R, InputState::Pressed)) {
             renderer.set_config_enable_dynamic_lod(!renderer.get_config_enable_dynamic_lod());
             DEBUG_LOG("dynamic_lod " << (renderer.get_config_enable_dynamic_lod() ? "enabled" : "disabled"))
@@ -133,13 +135,11 @@ int main(){
             DEBUG_LOG("frustum_cull " << (renderer.get_config_enable_frustum_cull() ? "enabled" : "disabled"))
         }
 
+
         if(input.get_key(Key::G, InputState::Pressed)) {
             DEBUG_LOG("Position: " << main_camera_data.position.x << "f, " << main_camera_data.position.y << "f, " << main_camera_data.position.z << "f")
             DEBUG_LOG("Rotation: " << main_camera_data.pitch << "f, " << main_camera_data.yaw << "f")
         }
-
-        //world.set_rotation(monkey_handle, glm::angleAxis(glm::radians(f_dt * 20.0f), world.WORLD_UP) * world.get_local_transform(monkey_handle).rotation);
-        //world.set_position(monkey_handle, glm::vec3(glm::sin(f_time) * 2.0f, 0.5f, glm::cos(f_time) * 2.0f));
 
         world.update_objects();
 

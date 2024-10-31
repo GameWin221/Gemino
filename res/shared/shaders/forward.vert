@@ -1,13 +1,9 @@
 #version 450
 
 #extension GL_ARB_shader_draw_parameters : require
-#extension GL_EXT_nonuniform_qualifier : require
+#extension GL_EXT_scalar_block_layout : require
 
 #include "forward.glsl"
-
-layout(location = 0) in vec3 v_position;
-layout(location = 1) in vec3 v_normal;
-layout(location = 2) in vec2 v_texcoord;
 
 layout(location = 0) out vec3 f_position;
 layout(location = 1) out vec3 f_normal;
@@ -36,13 +32,19 @@ layout(set = 0, binding = 6) readonly buffer MeshInstanceMaterialsBuffer {
 layout(set = 0, binding = 7) uniform CameraBuffer {
     Camera camera;
 };
+layout(scalar, set = 0, binding = 8) readonly buffer VertexBuffer {
+    Vertex vertices[];
+};
 
 void main() {
     uint object_id = draw_commands[gl_DrawIDARB].object_id;
     uint primitive_id = draw_commands[gl_DrawIDARB].primitive_id;
 
-    Transform transform = global_transforms[object_id];
+    vec3 v_position = vertices[gl_VertexIndex].position;
+    vec3 v_normal = vec3(ivec3(vertices[gl_VertexIndex].normal)) / 127.0f;
+    vec2 v_texcoord = vec2(vertices[gl_VertexIndex].texcoord);
 
+    Transform transform = global_transforms[object_id];
     vec3 v_world_space = rotate_vq(v_position * transform.scale, transform.rotation) + transform.position;
 
     gl_Position = camera.view_proj * vec4(v_world_space, 1.0);

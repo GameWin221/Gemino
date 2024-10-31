@@ -19,6 +19,8 @@ static constexpr std::array<const char*, 1> REQUESTED_DEVICE_EXTENSION_NAMES {
 static constexpr VkPhysicalDeviceVulkan12Features REQUESTED_DEVICE_FEATURES_VK_1_2 {
     .sType = VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_VULKAN_1_2_FEATURES,
     .drawIndirectCount = true,
+    .storageBuffer8BitAccess = true,
+    .uniformAndStorageBuffer8BitAccess = true,
     .descriptorIndexing = true,
     .shaderSampledImageArrayNonUniformIndexing = true,
     .descriptorBindingUniformBufferUpdateAfterBind = true,
@@ -31,12 +33,15 @@ static constexpr VkPhysicalDeviceVulkan12Features REQUESTED_DEVICE_FEATURES_VK_1
     .descriptorBindingPartiallyBound = true,
     //.descriptorBindingVariableDescriptorCount = true,
     .runtimeDescriptorArray = true,
-    .samplerFilterMinmax = true
+    .samplerFilterMinmax = true,
+    .scalarBlockLayout = true,
 };
 
 static constexpr VkPhysicalDeviceVulkan11Features REQUESTED_DEVICE_FEATURES_VK_1_1 {
     .sType = VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_VULKAN_1_1_FEATURES,
     .pNext = (void*)&REQUESTED_DEVICE_FEATURES_VK_1_2,
+    .storageBuffer16BitAccess = true,
+    .uniformAndStorageBuffer16BitAccess = true,
     .shaderDrawParameters = true
 };
 
@@ -450,12 +455,36 @@ bool Instance::check_device_feature_support(VkPhysicalDevice device) {
         DEBUG_WARNING("The physical device doesn't support Vulkan 1.0 feature: multiDrawIndirect")
         return false;
     }
+    if(!supported_features_vk_1_1.storageBuffer16BitAccess) {
+        DEBUG_WARNING("The physical device doesn't support Vulkan 1.1 feature: storageBuffer16BitAccess")
+        return false;
+    }
+    if(!supported_features_vk_1_1.uniformAndStorageBuffer16BitAccess) {
+        DEBUG_WARNING("The physical device doesn't support Vulkan 1.1 feature: uniformAndStorageBuffer16BitAccess")
+        return false;
+    }
     if(!supported_features_vk_1_1.shaderDrawParameters) {
         DEBUG_WARNING("The physical device doesn't support Vulkan 1.1 feature: shaderDrawParameters")
         return false;
     }
+    if(!supported_features_vk_1_2.storageBuffer8BitAccess) {
+        DEBUG_WARNING("The physical device doesn't support Vulkan 1.2 feature: storageBuffer8BitAccess")
+        return false;
+    }
+    if(!supported_features_vk_1_2.uniformAndStorageBuffer8BitAccess) {
+        DEBUG_WARNING("The physical device doesn't support Vulkan 1.2 feature: uniformAndStorageBuffer8BitAccess")
+        return false;
+    }
     if(!supported_features_vk_1_2.drawIndirectCount) {
         DEBUG_WARNING("The physical device doesn't support Vulkan 1.2 feature: drawIndirectCount")
+        return false;
+    }
+    if(!supported_features_vk_1_2.shaderFloat16) {
+        DEBUG_WARNING("The physical device doesn't support Vulkan 1.2 feature: shaderFloat16")
+        return false;
+    }
+    if(!supported_features_vk_1_2.shaderInt8) {
+        DEBUG_WARNING("The physical device doesn't support Vulkan 1.2 feature: shaderInt8")
         return false;
     }
     if(!supported_features_vk_1_2.descriptorIndexing) {
@@ -500,6 +529,10 @@ bool Instance::check_device_feature_support(VkPhysicalDevice device) {
     }
     if(!supported_features_vk_1_2.samplerFilterMinmax) {
         DEBUG_WARNING("The physical device doesn't support Vulkan 1.2 feature: samplerFilterMinmax")
+        return false;
+    }
+    if(!supported_features_vk_1_2.scalarBlockLayout) {
+        DEBUG_WARNING("The physical device doesn't support Vulkan 1.2 feature: scalarBlockLayout")
         return false;
     }
 

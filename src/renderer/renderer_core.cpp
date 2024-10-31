@@ -81,7 +81,7 @@ void Renderer::init_scene_buffers() {
     });
     m_scene_vertex_buffer = m_api.m_resource_manager->create_buffer(BufferCreateInfo{
         .size = sizeof(Vertex) * MAX_SCENE_VERTICES,
-        .buffer_usage_flags = VK_BUFFER_USAGE_VERTEX_BUFFER_BIT | VK_BUFFER_USAGE_TRANSFER_DST_BIT,
+        .buffer_usage_flags = VK_BUFFER_USAGE_STORAGE_BUFFER_BIT | VK_BUFFER_USAGE_TRANSFER_DST_BIT,
         .memory_usage_flags = VMA_MEMORY_USAGE_GPU_ONLY
     });
     m_scene_index_buffer = m_api.m_resource_manager->create_buffer(BufferCreateInfo{
@@ -213,6 +213,7 @@ void Renderer::init_descriptors(bool create_new) {
                 DescriptorBindingCreateInfo{VK_DESCRIPTOR_TYPE_STORAGE_BUFFER}, // Mesh Instance Buffer
                 DescriptorBindingCreateInfo{VK_DESCRIPTOR_TYPE_STORAGE_BUFFER}, // Mesh Instance Materials Buffer
                 DescriptorBindingCreateInfo{VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER}, // Camera Buffer
+                DescriptorBindingCreateInfo{VK_DESCRIPTOR_TYPE_STORAGE_BUFFER}, // Vertex Buffer
             }
         });
     }
@@ -258,6 +259,12 @@ void Renderer::init_descriptors(bool create_new) {
                 .binding_index = 7U,
                 .buffer_info {
                     .buffer_handle = m_scene_camera_buffer
+                }
+            },
+            DescriptorBindingUpdateInfo{
+                .binding_index = 8U,
+                .buffer_info {
+                    .buffer_handle = m_scene_vertex_buffer
                 }
             }
         }
@@ -313,8 +320,6 @@ void Renderer::init_pipelines() {
         .enable_depth_write = true,
 
         .depth_compare_op = VK_COMPARE_OP_GREATER,
-
-        .enable_vertex_input = true,
     });
 
     m_offscreen_rt_to_swapchain_pipeline = m_api.m_pipeline_manager->create_graphics_pipeline(GraphicsPipelineCreateInfo{

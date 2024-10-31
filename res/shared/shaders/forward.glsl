@@ -1,6 +1,10 @@
 #define LOD_DIV_CONSTANT 50.0
 #define LOD_COUNT 8
 
+#extension GL_EXT_shader_16bit_storage : require
+#extension GL_EXT_shader_8bit_storage : require
+
+
 struct Camera {
     mat4 view;
     mat4 proj;
@@ -28,6 +32,12 @@ struct Camera {
     vec4 _pad0;
     vec4 _pad1;
 };
+
+struct Vertex {
+    vec3 position;
+    i8vec4 normal;
+    f16vec2 texcoord;
+};
 struct PrimitiveLOD {
     uint index_start;
     uint index_count;
@@ -49,6 +59,7 @@ struct MeshInstance {
     uint material_count;
     uint material_start;
 };
+
 struct Material {
     uint albedo_texture;
     uint roughness_texture;
@@ -68,6 +79,7 @@ struct Object {
     uint parent;
     uint visible;
 };
+
 struct DrawCommand {
     uint index_count;
     uint instance_count;
@@ -77,6 +89,7 @@ struct DrawCommand {
     uint object_id;
     uint primitive_id;
 };
+
 
 vec3 rotate_vq(vec3 v, vec4 q) {
     // wxyz quaterions

@@ -102,6 +102,8 @@ public:
     bool get_config_enable_frustum_cull() const { return m_config_enable_frustum_cull; }
 
     const HandleAllocator<Mesh> &get_mesh_allocator() const { return m_mesh_allocator; }
+    const RangeAllocator<Primitive, RangeAllocatorType::InPlace> &get_primitive_allocator() const { return m_primitive_allocator; }
+    const HandleAllocator<MeshInstance> &get_mesh_instance_allocator() const { return m_mesh_instance_allocator; }
     const HandleAllocator<Texture> &get_texture_allocator() const { return m_texture_allocator; }
     const HandleAllocator<Material> &get_material_allocator() const { return m_material_allocator; }
 

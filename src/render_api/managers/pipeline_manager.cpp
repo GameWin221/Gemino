@@ -124,13 +124,6 @@ Handle<GraphicsPipeline> PipelineManager::create_graphics_pipeline(const Graphic
         .sType = VK_STRUCTURE_TYPE_PIPELINE_VERTEX_INPUT_STATE_CREATE_INFO
     };
 
-    if(info.enable_vertex_input) {
-        vertex_input_state.vertexBindingDescriptionCount = static_cast<u32>(info.vertex_binding_description.size());
-        vertex_input_state.pVertexBindingDescriptions = info.vertex_binding_description.data();
-        vertex_input_state.vertexAttributeDescriptionCount = static_cast<u32>(info.vertex_attribute_description.size());
-        vertex_input_state.pVertexAttributeDescriptions = info.vertex_attribute_description.data();
-    }
-
     VkPipelineInputAssemblyStateCreateInfo input_assembly{
         .sType = VK_STRUCTURE_TYPE_PIPELINE_INPUT_ASSEMBLY_STATE_CREATE_INFO,
         .topology = VK_PRIMITIVE_TOPOLOGY_TRIANGLE_LIST,

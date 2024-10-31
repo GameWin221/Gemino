@@ -50,14 +50,10 @@ struct GraphicsPipelineCreateInfo {
     bool enable_depth_test = false;
     bool enable_depth_write = false;
     VkCompareOp depth_compare_op = VK_COMPARE_OP_LESS;
-
-    bool enable_vertex_input = false;
+    
     bool enable_blending = false;
     VkPolygonMode polygon_mode = VK_POLYGON_MODE_FILL;
     VkCullModeFlags cull_mode = VK_CULL_MODE_BACK_BIT;
-
-    std::vector<VkVertexInputAttributeDescription> vertex_attribute_description = Vertex::get_attribute_descriptions();
-    std::vector<VkVertexInputBindingDescription> vertex_binding_description = Vertex::get_binding_description();
 };
 struct GraphicsPipeline {
     VkPipeline pipeline{};

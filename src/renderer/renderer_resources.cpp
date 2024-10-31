@@ -112,6 +112,8 @@ SceneCreateInfo Renderer::load_gltf_scene(const SceneLoadInfo &load_info) {
     tinygltf::Scene &gltf_scene = model.scenes[model.defaultScene];
 
     if (load_info.import_textures && load_info.import_materials) {
+        scene.textures.resize(model.textures.size());
+
         std::vector<bool> is_texture_srgb(model.textures.size(), false);
         for (const auto &material : model.materials) {
             i32 albedo_texture_id = material.pbrMetallicRoughness.baseColorTexture.index;
@@ -122,7 +124,6 @@ SceneCreateInfo Renderer::load_gltf_scene(const SceneLoadInfo &load_info) {
             }
         }
 
-        scene.textures.resize(model.textures.size());
         for (u32 texture_id{}; texture_id < static_cast<u32>(model.textures.size()); ++texture_id) {
             const auto &texture = model.textures[texture_id];
             const auto &image = model.images[texture.source];
@@ -180,8 +181,8 @@ SceneCreateInfo Renderer::load_gltf_scene(const SceneLoadInfo &load_info) {
         }
     }
 
+    scene.materials.resize(model.materials.size(), m_default_material);
     if (load_info.import_materials) {
-        scene.materials.resize(model.materials.size());
         for (u32 material_id{}; material_id < static_cast<u32>(model.materials.size()); ++material_id) {
             const auto &material = model.materials[material_id];
 
@@ -208,8 +209,6 @@ SceneCreateInfo Renderer::load_gltf_scene(const SceneLoadInfo &load_info) {
 
             DEBUG_LOG("Loaded material \"" << material.name << "\" from \"" << load_info.path << "\"")
         }
-    } else {
-        scene.materials.resize(model.materials.size(), m_default_material);
     }
 
     scene.meshes.resize(model.meshes.size());
@@ -289,11 +288,44 @@ SceneCreateInfo Renderer::load_gltf_scene(const SceneLoadInfo &load_info) {
             DEBUG_ASSERT(positions.size() == normals.size() && normals.size() == texcoords.size())
 
             mesh_vertices[primitive_id].resize(positions.size());
+
+            f32 avg_dot{}, max_dot = -1.0f, min_dot = 1.0f;
+            f32 avg_dot_norm{}, max_dot_norm = -1.0f, min_dot_norm = 1.0f;
+            f32 avg_length_diff{}, max_length_diff = -1e9, min_length_diff = 1e9;
             for(usize j{}; j < positions.size(); ++j) {
                 mesh_vertices[primitive_id][j].pos = positions[j];
-                mesh_vertices[primitive_id][j].normal = normals[j];
-                mesh_vertices[primitive_id][j].texcoord = texcoords[j];
+                mesh_vertices[primitive_id][j].normal = glm::i8vec4(glm::normalize(normals[j]) * 127.0f, 0.0f);
+
+                glm::vec3 full(normals[j].x, normals[j].y, normals[j].z);
+                glm::vec3 packed = glm::vec3(mesh_vertices[primitive_id][j].normal) / 127.0f;
+
+                f32 dot = glm::dot(full, packed);
+                f32 dot_norm = glm::dot(full, glm::normalize(packed));
+                f32 length_diff = abs(glm::length(packed) - glm::length(full));
+
+                avg_dot += dot;
+                avg_dot_norm += dot_norm;
+                avg_length_diff += length_diff;
+
+                max_dot = glm::max(max_dot, dot);
+                min_dot = glm::min(min_dot, dot);
+                max_dot_norm = glm::max(max_dot_norm, dot_norm);
+                min_dot_norm = glm::min(min_dot_norm, dot_norm);
+                max_length_diff = glm::max(max_length_diff, length_diff);
+                min_length_diff = glm::min(min_length_diff, length_diff);
+
+                mesh_vertices[primitive_id][j].texcoord = glm::u16vec2(Utils::f32_to_f16(texcoords[j].x), Utils::f32_to_f16(texcoords[j].y));
             }
+
+            DEBUG_LOG("Average dot product (Raw): " << (avg_dot / positions.size()));
+            DEBUG_LOG("Max dot product (Raw): " << max_dot);
+            DEBUG_LOG("Min dot product (Raw): " << min_dot);
+            DEBUG_LOG("Average dot product (Normalized): " << (avg_dot_norm / positions.size()));
+            DEBUG_LOG("Max dot product (Normalized): " << max_dot_norm);
+            DEBUG_LOG("Min dot product (Normalized): " << min_dot_norm);
+            DEBUG_LOG("Average length difference: " << (avg_length_diff / positions.size()));
+            DEBUG_LOG("Max length difference: " << max_length_diff);
+            DEBUG_LOG("Min length difference: " << min_length_diff);
 
             const tinygltf::Accessor &index_accessor = model.accessors[primitive.indices];
             const tinygltf::BufferView &index_buffer_view = model.bufferViews[index_accessor.bufferView];
@@ -316,7 +348,12 @@ SceneCreateInfo Renderer::load_gltf_scene(const SceneLoadInfo &load_info) {
                 DEBUG_PANIC("Unsupported gltf indices component type for mesh \"" << mesh.name << "\"")
             }
 
-            primitives_default_materials[primitive_id] = scene.materials[primitive.material];
+            if (primitive.material >= 0) {
+                primitives_default_materials[primitive_id] = scene.materials[primitive.material];
+            } else {
+                primitives_default_materials[primitive_id] = m_default_material;
+            }
+
             mesh_create_info.primitives.push_back(PrimitiveCreateInfo{
                 .vertex_data = mesh_vertices[primitive_id].data(),
                 .vertex_count = static_cast<u32>(mesh_vertices[primitive_id].size()),
