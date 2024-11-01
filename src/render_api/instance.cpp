@@ -8,11 +8,11 @@
 #include <vulkan/vulkan.h>
 #include <GLFW/glfw3.h>
 
-static constexpr std::array<const char*, 1> REQUESTED_VALIDATION_LAYER_NAMES {
+static constexpr std::array REQUESTED_VALIDATION_LAYER_NAMES {
     "VK_LAYER_KHRONOS_validation"
 };
 
-static constexpr std::array<const char*, 1> REQUESTED_DEVICE_EXTENSION_NAMES {
+static constexpr std::array REQUESTED_DEVICE_EXTENSION_NAMES {
     VK_KHR_SWAPCHAIN_EXTENSION_NAME
 };
 
@@ -33,7 +33,6 @@ static constexpr VkPhysicalDeviceVulkan12Features REQUESTED_DEVICE_FEATURES_VK_1
     .descriptorBindingPartiallyBound = true,
     //.descriptorBindingVariableDescriptorCount = true,
     .runtimeDescriptorArray = true,
-    .samplerFilterMinmax = true,
     .scalarBlockLayout = true,
 };
 
@@ -86,7 +85,6 @@ Instance::Instance(Proxy window_handle) {
     create_logical_device();
     create_allocator();
 }
-
 Instance::~Instance() {
     vkDeviceWaitIdle(m_device);
 
@@ -103,6 +101,124 @@ Instance::~Instance() {
 #endif
 
     vkDestroyInstance(m_instance, nullptr);
+}
+
+bool Instance::check_is_device_suitable(VkPhysicalDevice device) {
+    QueueFamilyIndices indices = get_device_queue_family_indices(device);
+
+    if(!check_device_extension_support(device)) {
+        return false;
+    }
+    if(!check_device_feature_support(device)) {
+        return false;
+    }
+    if(!check_device_swapchain_support(device)) {
+        return false;
+    }
+    if(!indices.graphics.has_value()) {
+        return false;
+    }
+
+    return true;
+}
+bool Instance::check_device_feature_support(VkPhysicalDevice device) {
+    VkPhysicalDeviceVulkan12Features supported_features_vk_1_2{ VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_VULKAN_1_2_FEATURES };
+    VkPhysicalDeviceVulkan11Features supported_features_vk_1_1{ VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_VULKAN_1_1_FEATURES };
+    VkPhysicalDeviceFeatures2 supported_features_vk_1_0{ VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_FEATURES_2 };
+
+    supported_features_vk_1_0.pNext = reinterpret_cast<void *>(&supported_features_vk_1_1);
+    vkGetPhysicalDeviceFeatures2(device, &supported_features_vk_1_0);
+
+    supported_features_vk_1_0.pNext = reinterpret_cast<void *>(&supported_features_vk_1_2);
+    vkGetPhysicalDeviceFeatures2(device, &supported_features_vk_1_0);
+
+    std::vector<std::string> unsupported_features{};
+
+    #define REQUIRE_FEATURE(structure, feature) if(!(structure).feature) unsupported_features.emplace_back(#feature)
+
+    REQUIRE_FEATURE(supported_features_vk_1_0.features, samplerAnisotropy);
+    REQUIRE_FEATURE(supported_features_vk_1_0.features, multiDrawIndirect);
+    REQUIRE_FEATURE(supported_features_vk_1_1, storageBuffer16BitAccess);
+    REQUIRE_FEATURE(supported_features_vk_1_1, uniformAndStorageBuffer16BitAccess);
+    REQUIRE_FEATURE(supported_features_vk_1_1, shaderDrawParameters);
+    REQUIRE_FEATURE(supported_features_vk_1_2, storageBuffer8BitAccess);
+    REQUIRE_FEATURE(supported_features_vk_1_2, uniformAndStorageBuffer8BitAccess);
+    REQUIRE_FEATURE(supported_features_vk_1_2, descriptorIndexing);
+    REQUIRE_FEATURE(supported_features_vk_1_2, shaderSampledImageArrayNonUniformIndexing);
+    REQUIRE_FEATURE(supported_features_vk_1_2, descriptorBindingUniformBufferUpdateAfterBind);
+    REQUIRE_FEATURE(supported_features_vk_1_2, descriptorBindingSampledImageUpdateAfterBind);
+    REQUIRE_FEATURE(supported_features_vk_1_2, descriptorBindingStorageImageUpdateAfterBind);
+    REQUIRE_FEATURE(supported_features_vk_1_2, descriptorBindingStorageBufferUpdateAfterBind);
+    REQUIRE_FEATURE(supported_features_vk_1_2, descriptorBindingUpdateUnusedWhilePending);
+    REQUIRE_FEATURE(supported_features_vk_1_2, descriptorBindingPartiallyBound);
+    REQUIRE_FEATURE(supported_features_vk_1_2, runtimeDescriptorArray);
+    REQUIRE_FEATURE(supported_features_vk_1_2, scalarBlockLayout);
+
+    if (!unsupported_features.empty()) {
+        DEBUG_WARNING("The physical device doesn't support the following required features: ")
+        for (const auto &extension : unsupported_features) {
+            DEBUG_WARNING("\t" << extension)
+        }
+
+        return false;
+    }
+
+    return true;
+}
+bool Instance::check_device_extension_support(VkPhysicalDevice device) {
+    uint32_t extension_count{};
+    vkEnumerateDeviceExtensionProperties(device, nullptr, &extension_count, nullptr);
+
+    std::vector<VkExtensionProperties> available_extensions(static_cast<usize>(extension_count));
+    vkEnumerateDeviceExtensionProperties(device, nullptr, &extension_count, available_extensions.data());
+
+    std::set<std::string> required_extensions(REQUESTED_DEVICE_EXTENSION_NAMES.begin(), REQUESTED_DEVICE_EXTENSION_NAMES.end());
+
+    for (const auto &extension : available_extensions) {
+        required_extensions.erase(extension.extensionName);
+    }
+
+    if (!required_extensions.empty()) {
+        DEBUG_WARNING("The physical device doesn't support the following extensions: ")
+        for (const auto &extension : required_extensions) {
+            DEBUG_WARNING("\t" << extension)
+        }
+
+        return false;
+    }
+
+    return true;
+}
+bool Instance::check_device_swapchain_support(VkPhysicalDevice device) {
+    VkSurfaceCapabilitiesKHR capabilities{};
+    std::vector<VkSurfaceFormatKHR> formats{};
+    std::vector<VkPresentModeKHR> present_modes{};
+
+    vkGetPhysicalDeviceSurfaceCapabilitiesKHR(device, m_surface, &capabilities);
+
+    u32 format_count{};
+    vkGetPhysicalDeviceSurfaceFormatsKHR(device, m_surface, &format_count, nullptr);
+
+    if(format_count == 0U) {
+        DEBUG_WARNING("There are no supported swapchain formats on this physical device!")
+        return false;
+    }
+
+    formats.resize(format_count);
+    vkGetPhysicalDeviceSurfaceFormatsKHR(device, m_surface, &format_count, formats.data());
+
+    u32 present_mode_count{};
+    vkGetPhysicalDeviceSurfacePresentModesKHR(device, m_surface, &present_mode_count, nullptr);
+
+    if(present_mode_count == 0U) {
+        DEBUG_WARNING("There are no supported present modes on this physical device!")
+        return false;
+    }
+
+    present_modes.resize(present_mode_count);
+    vkGetPhysicalDeviceSurfacePresentModesKHR(device, m_surface, &present_mode_count, present_modes.data());
+
+    return true;
 }
 
 void Instance::create_instance() {
@@ -175,7 +291,6 @@ void Instance::create_instance() {
 
     DEBUG_ASSERT(vkCreateInstance(&create_info, nullptr, &m_instance) == VK_SUCCESS)
 }
-
 void Instance::create_debug_messenger() {
 #ifdef ENABLE_VALIDATION_DEFINE
     auto CreateDebugUtilsMessengerEXT = reinterpret_cast<PFN_vkCreateDebugUtilsMessengerEXT>(vkGetInstanceProcAddr(m_instance, "vkCreateDebugUtilsMessengerEXT"));
@@ -185,11 +300,9 @@ void Instance::create_debug_messenger() {
     DEBUG_ASSERT(CreateDebugUtilsMessengerEXT(m_instance, &DEBUG_MESSENGER_CREATE_INFO, nullptr, &m_debug_messenger) == VK_SUCCESS)
 #endif
 }
-
 void Instance::create_window_surface(Proxy window_handle) {
     DEBUG_ASSERT(glfwCreateWindowSurface(m_instance, reinterpret_cast<GLFWwindow*>(window_handle), nullptr, &m_surface) == VK_SUCCESS)
 }
-
 void Instance::create_physical_device() {
     uint32_t device_count{};
     vkEnumeratePhysicalDevices(m_instance, &device_count, nullptr);
@@ -251,7 +364,6 @@ void Instance::create_physical_device() {
     DEBUG_LOG("Compute queue index: " << m_queue_indices.compute.value() << ", async compute will " << (async_compute_possible ? "" : "not ") << "be possible.")
     DEBUG_LOG("Preferred warp size: " << m_preferred_warp_size)
 }
-
 void Instance::create_logical_device() {
     std::set<u32> unique_queue_indices {
         m_queue_indices.graphics.value(),
@@ -292,7 +404,6 @@ void Instance::create_logical_device() {
     vkGetDeviceQueue(m_device, m_queue_indices.transfer.value(), 0U, &m_queue_transfer);
     vkGetDeviceQueue(m_device, m_queue_indices.compute.value(), 0U, &m_queue_compute);
 }
-
 void Instance::create_allocator() {
     VmaAllocatorCreateInfo create_info {
         .physicalDevice = m_physical_device,
@@ -390,187 +501,6 @@ QueueFamilyIndices Instance::get_device_queue_family_indices(VkPhysicalDevice de
     return indices;
 }
 
-bool Instance::check_is_device_suitable(VkPhysicalDevice device) {
-    QueueFamilyIndices indices = get_device_queue_family_indices(device);
-
-    bool extensions_supported = check_device_extension_support(device);
-    bool features_supported = check_device_feature_support(device);
-
-    if(!extensions_supported || !features_supported) {
-        return false;
-    }
-
-    bool swapchain_supported = check_device_swapchain_support(device);
-
-    return swapchain_supported;
-}
-
-bool Instance::check_device_extension_support(VkPhysicalDevice device) {
-    uint32_t extension_count{};
-    vkEnumerateDeviceExtensionProperties(device, nullptr, &extension_count, nullptr);
-
-    std::vector<VkExtensionProperties> available_extensions(static_cast<usize>(extension_count));
-    vkEnumerateDeviceExtensionProperties(device, nullptr, &extension_count, available_extensions.data());
-
-    std::set<std::string> required_extensions(REQUESTED_DEVICE_EXTENSION_NAMES.begin(), REQUESTED_DEVICE_EXTENSION_NAMES.end());
-
-    for (const auto &extension : available_extensions) {
-        required_extensions.erase(extension.extensionName);
-    }
-
-    if (!required_extensions.empty()) {
-        DEBUG_WARNING("The physical device doesn't support the following extensions: ")
-        for (const auto &extension : required_extensions) {
-            DEBUG_WARNING(extension)
-        }
-
-        return false;
-    }
-
-    return true;
-}
-
-bool Instance::check_device_feature_support(VkPhysicalDevice device) {
-    VkPhysicalDeviceVulkan12Features supported_features_vk_1_2 {
-        .sType = VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_VULKAN_1_2_FEATURES,
-    };
-    VkPhysicalDeviceVulkan11Features supported_features_vk_1_1 {
-        .sType = VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_VULKAN_1_1_FEATURES,
-    };
-    VkPhysicalDeviceFeatures2 supported_features_vk_1_0 {
-        .sType = VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_FEATURES_2,
-    };
-
-    supported_features_vk_1_0.pNext = (void*)&supported_features_vk_1_1;
-    vkGetPhysicalDeviceFeatures2(device, &supported_features_vk_1_0);
-
-    supported_features_vk_1_0.pNext = (void*)&supported_features_vk_1_2;
-    vkGetPhysicalDeviceFeatures2(device, &supported_features_vk_1_0);
-
-    if(!supported_features_vk_1_0.features.samplerAnisotropy) {
-        DEBUG_WARNING("The physical device doesn't support Vulkan 1.0 feature: samplerAnisotropy")
-        return false;
-    }
-    if(!supported_features_vk_1_0.features.multiDrawIndirect) {
-        DEBUG_WARNING("The physical device doesn't support Vulkan 1.0 feature: multiDrawIndirect")
-        return false;
-    }
-    if(!supported_features_vk_1_1.storageBuffer16BitAccess) {
-        DEBUG_WARNING("The physical device doesn't support Vulkan 1.1 feature: storageBuffer16BitAccess")
-        return false;
-    }
-    if(!supported_features_vk_1_1.uniformAndStorageBuffer16BitAccess) {
-        DEBUG_WARNING("The physical device doesn't support Vulkan 1.1 feature: uniformAndStorageBuffer16BitAccess")
-        return false;
-    }
-    if(!supported_features_vk_1_1.shaderDrawParameters) {
-        DEBUG_WARNING("The physical device doesn't support Vulkan 1.1 feature: shaderDrawParameters")
-        return false;
-    }
-    if(!supported_features_vk_1_2.storageBuffer8BitAccess) {
-        DEBUG_WARNING("The physical device doesn't support Vulkan 1.2 feature: storageBuffer8BitAccess")
-        return false;
-    }
-    if(!supported_features_vk_1_2.uniformAndStorageBuffer8BitAccess) {
-        DEBUG_WARNING("The physical device doesn't support Vulkan 1.2 feature: uniformAndStorageBuffer8BitAccess")
-        return false;
-    }
-    if(!supported_features_vk_1_2.drawIndirectCount) {
-        DEBUG_WARNING("The physical device doesn't support Vulkan 1.2 feature: drawIndirectCount")
-        return false;
-    }
-    if(!supported_features_vk_1_2.shaderFloat16) {
-        DEBUG_WARNING("The physical device doesn't support Vulkan 1.2 feature: shaderFloat16")
-        return false;
-    }
-    if(!supported_features_vk_1_2.shaderInt8) {
-        DEBUG_WARNING("The physical device doesn't support Vulkan 1.2 feature: shaderInt8")
-        return false;
-    }
-    if(!supported_features_vk_1_2.descriptorIndexing) {
-        DEBUG_WARNING("The physical device doesn't support Vulkan 1.2 feature: descriptorIndexing")
-        return false;
-    }
-    if(!supported_features_vk_1_2.descriptorBindingUniformBufferUpdateAfterBind) {
-        DEBUG_WARNING("The physical device doesn't support Vulkan 1.2 feature: descriptorBindingUniformBufferUpdateAfterBind")
-        return false;
-    }
-    if(!supported_features_vk_1_2.descriptorBindingSampledImageUpdateAfterBind) {
-        DEBUG_WARNING("The physical device doesn't support Vulkan 1.2 feature: descriptorBindingSampledImageUpdateAfterBind")
-        return false;
-    }
-    if(!supported_features_vk_1_2.descriptorBindingStorageImageUpdateAfterBind) {
-        DEBUG_WARNING("The physical device doesn't support Vulkan 1.2 feature: descriptorBindingStorageImageUpdateAfterBind")
-        return false;
-    }
-    if(!supported_features_vk_1_2.descriptorBindingStorageBufferUpdateAfterBind) {
-        DEBUG_WARNING("The physical device doesn't support Vulkan 1.2 feature: descriptorBindingStorageBufferUpdateAfterBind")
-        return false;
-    }
-    if(!supported_features_vk_1_2.descriptorIndexing) {
-        DEBUG_WARNING("The physical device doesn't support Vulkan 1.2 feature: descriptorIndexing")
-        return false;
-    }
-    if(!supported_features_vk_1_2.shaderSampledImageArrayNonUniformIndexing) {
-        DEBUG_WARNING("The physical device doesn't support Vulkan 1.2 feature: shaderSampledImageArrayNonUniformIndexing")
-        return false;
-    }
-    if(!supported_features_vk_1_2.descriptorBindingPartiallyBound) {
-        DEBUG_WARNING("The physical device doesn't support Vulkan 1.2 feature: descriptorBindingPartiallyBound")
-        return false;
-    }
-    if(!supported_features_vk_1_2.runtimeDescriptorArray) {
-        DEBUG_WARNING("The physical device doesn't support Vulkan 1.2 feature: runtimeDescriptorArray")
-        return false;
-    }
-    if(!supported_features_vk_1_2.descriptorBindingUpdateUnusedWhilePending) {
-        DEBUG_WARNING("The physical device doesn't support Vulkan 1.2 feature: descriptorBindingUpdateUnusedWhilePending")
-        return false;
-    }
-    if(!supported_features_vk_1_2.samplerFilterMinmax) {
-        DEBUG_WARNING("The physical device doesn't support Vulkan 1.2 feature: samplerFilterMinmax")
-        return false;
-    }
-    if(!supported_features_vk_1_2.scalarBlockLayout) {
-        DEBUG_WARNING("The physical device doesn't support Vulkan 1.2 feature: scalarBlockLayout")
-        return false;
-    }
-
-    return true;
-}
-
-bool Instance::check_device_swapchain_support(VkPhysicalDevice device) {
-    VkSurfaceCapabilitiesKHR capabilities{};
-    std::vector<VkSurfaceFormatKHR> formats{};
-    std::vector<VkPresentModeKHR> present_modes{};
-
-    vkGetPhysicalDeviceSurfaceCapabilitiesKHR(device, m_surface, &capabilities);
-
-    u32 format_count{};
-    vkGetPhysicalDeviceSurfaceFormatsKHR(device, m_surface, &format_count, nullptr);
-
-    if(format_count == 0U) {
-        DEBUG_WARNING("There are no supported swapchain formats on this physical device!")
-        return false;
-    }
-
-    formats.resize(static_cast<usize>(format_count));
-    vkGetPhysicalDeviceSurfaceFormatsKHR(device, m_surface, &format_count, formats.data());
-
-    u32 present_mode_count{};
-    vkGetPhysicalDeviceSurfacePresentModesKHR(device, m_surface, &present_mode_count, nullptr);
-
-    if(present_mode_count == 0U) {
-        DEBUG_WARNING("There are no supported present modes on this physical device!")
-        return false;
-    }
-
-    present_modes.resize(static_cast<usize>(present_mode_count));
-    vkGetPhysicalDeviceSurfacePresentModesKHR(device, m_surface, &present_mode_count, present_modes.data());
-
-    return true;
-}
-
 bool Instance::validation_layers_supported() {
     uint32_t layer_count{};
     vkEnumerateInstanceLayerProperties(&layer_count, nullptr);
@@ -603,9 +533,68 @@ VkFormatProperties Instance::get_format_properties(VkFormat format) const {
     return properties;
 }
 
-VkPhysicalDeviceProperties Instance::get_physical_device_properties() const {
+VkPhysicalDeviceProperties Instance::get_physical_device_properties_vk_1_0() const {
     VkPhysicalDeviceProperties properties;
     vkGetPhysicalDeviceProperties(m_physical_device, &properties);
 
     return properties;
+}
+VkPhysicalDeviceVulkan11Properties Instance::get_physical_device_properties_vk_1_1() const {
+    VkPhysicalDeviceVulkan11Properties properties_vk_1_1{
+        .sType = VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_VULKAN_1_1_PROPERTIES
+    };
+    VkPhysicalDeviceProperties2 properties{
+        .sType = VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_PROPERTIES_2,
+        .pNext = &properties_vk_1_1
+    };
+
+    vkGetPhysicalDeviceProperties2(m_physical_device, &properties);
+
+    return properties_vk_1_1;
+}
+VkPhysicalDeviceVulkan12Properties Instance::get_physical_device_properties_vk_1_2() const {
+    VkPhysicalDeviceVulkan12Properties properties_vk_1_2{
+        .sType = VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_VULKAN_1_2_PROPERTIES
+    };
+    VkPhysicalDeviceProperties2 properties{
+        .sType = VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_PROPERTIES_2,
+        .pNext = &properties_vk_1_2
+    };
+
+    vkGetPhysicalDeviceProperties2(m_physical_device, &properties);
+
+    return properties_vk_1_2;
+}
+
+VkPhysicalDeviceFeatures Instance::get_physical_device_features_vk_1_0() const {
+    VkPhysicalDeviceFeatures features;
+    vkGetPhysicalDeviceFeatures(m_physical_device, &features);
+
+    return features;
+}
+VkPhysicalDeviceVulkan11Features Instance::get_physical_device_features_vk_1_1() const {
+    VkPhysicalDeviceVulkan11Features features_vk_1_1{
+        .sType = VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_VULKAN_1_1_FEATURES
+    };
+    VkPhysicalDeviceFeatures2 features{
+        .sType = VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_FEATURES_2,
+        .pNext = &features_vk_1_1
+    };
+
+    vkGetPhysicalDeviceFeatures2(m_physical_device, &features);
+
+    return features_vk_1_1;
+}
+VkPhysicalDeviceVulkan12Features Instance::get_physical_device_features_vk_1_2() const {
+    VkPhysicalDeviceVulkan12Features features_vk_1_2{
+        .sType = VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_VULKAN_1_2_FEATURES
+    };
+    VkPhysicalDeviceFeatures2 features{
+        .sType = VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_FEATURES_2,
+        .pNext = &features_vk_1_2
+    };
+
+    vkGetPhysicalDeviceFeatures2(m_physical_device, &features);
+
+    return features_vk_1_2;
 }

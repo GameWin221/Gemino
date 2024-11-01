@@ -627,12 +627,12 @@ Handle<Texture> Renderer::create_u8_texture(const TextureCreateInfo &create_info
     DEBUG_ASSERT(m_config_texture_anisotropy <= 16U)
 
     Texture texture{
-        .width = create_info.width,
-        .height = create_info.height,
-        .bytes_per_pixel = create_info.bytes_per_pixel,
-        .mip_level_count = (create_info.gen_mip_maps ? Utils::calculate_mipmap_levels_xy(create_info.width, create_info.height) : 1U),
-        .is_srgb = static_cast<u32>(create_info.is_srgb),
-        .use_linear_filter = static_cast<u32>(create_info.linear_filter)
+        .width = static_cast<u16>(create_info.width),
+        .height = static_cast<u16>(create_info.height),
+        .bytes_per_pixel = static_cast<u16>(create_info.bytes_per_pixel),
+        .mip_level_count = static_cast<u16>(create_info.gen_mip_maps ? Utils::calculate_mipmap_levels_xy(create_info.width, create_info.height) : 1U),
+        .is_srgb = static_cast<u16>(create_info.is_srgb),
+        .use_linear_filter = static_cast<u16>(create_info.linear_filter)
     };
 
     texture.image = m_api.m_resource_manager->create_image(ImageCreateInfo{

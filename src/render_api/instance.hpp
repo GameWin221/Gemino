@@ -36,7 +36,14 @@ public:
     Instance &operator=(Instance &&other) noexcept = delete;
 
     VkFormatProperties get_format_properties(VkFormat format) const;
-    VkPhysicalDeviceProperties get_physical_device_properties() const;
+
+    VkPhysicalDeviceProperties get_physical_device_properties_vk_1_0() const;
+    VkPhysicalDeviceVulkan11Properties get_physical_device_properties_vk_1_1() const;
+    VkPhysicalDeviceVulkan12Properties get_physical_device_properties_vk_1_2() const;
+
+    VkPhysicalDeviceFeatures get_physical_device_features_vk_1_0() const;
+    VkPhysicalDeviceVulkan11Features get_physical_device_features_vk_1_1() const;
+    VkPhysicalDeviceVulkan12Features get_physical_device_features_vk_1_2() const;
 
     u32 get_physical_device_preferred_warp_size() const { return m_preferred_warp_size; };
 
@@ -52,6 +59,7 @@ public:
     const QueueFamilyIndices &get_queue_family_indices() const { return m_queue_indices; }
 
     VmaAllocator get_allocator() const { return m_allocator; }
+
 private:
     VkInstance m_instance{};
     VkDevice m_device{};
@@ -71,7 +79,6 @@ private:
 
     u32 m_preferred_warp_size{};
 
-private:
     void create_instance();
     void create_debug_messenger();
     void create_window_surface(Proxy window_handle);
@@ -84,8 +91,8 @@ private:
     u32 rate_device(VkPhysicalDevice device);
 
     bool check_is_device_suitable(VkPhysicalDevice device);
-    bool check_device_extension_support(VkPhysicalDevice device);
     bool check_device_feature_support(VkPhysicalDevice device);
+    bool check_device_extension_support(VkPhysicalDevice device);
     bool check_device_swapchain_support(VkPhysicalDevice device);
 
     QueueFamilyIndices get_device_queue_family_indices(VkPhysicalDevice device);

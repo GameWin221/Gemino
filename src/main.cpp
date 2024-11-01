@@ -24,8 +24,7 @@ int main(){
 
     Renderer renderer(window, VSyncMode::Disabled);
 
-    Editor editor{};
-    editor.attach(renderer);
+    Editor::attach(renderer);
 
     World world{};
 
@@ -131,17 +130,27 @@ int main(){
         f32 f_time = static_cast<f32>(time);
         f32 f_dt = static_cast<f32>(dt);
 
-        if(input.get_key(Key::R, InputState::Pressed)) {
-            renderer.set_config_enable_dynamic_lod(!renderer.get_config_enable_dynamic_lod());
-            DEBUG_LOG("dynamic_lod " << (renderer.get_config_enable_dynamic_lod() ? "enabled" : "disabled"))
-        } else if(input.get_key(Key::T, InputState::Pressed)) {
-            renderer.set_config_enable_frustum_cull(!renderer.get_config_enable_frustum_cull());
-            DEBUG_LOG("frustum_cull " << (renderer.get_config_enable_frustum_cull() ? "enabled" : "disabled"))
-        }
+        if(input.get_key(Key::LeftShift, InputState::Down)) {
+            if(input.get_key(Key::U, InputState::Pressed)) {
+                if (Editor::is_attached()) {
+                    Editor::detach(renderer);
+                } else {
+                    Editor::attach(renderer);
+                }
+            }
 
-        if(input.get_key(Key::G, InputState::Pressed)) {
-            DEBUG_LOG("Position: " << main_camera_data.position.x << "f, " << main_camera_data.position.y << "f, " << main_camera_data.position.z << "f")
-            DEBUG_LOG("Rotation: " << main_camera_data.pitch << "f, " << main_camera_data.yaw << "f")
+            if(input.get_key(Key::R, InputState::Pressed)) {
+                renderer.set_config_enable_dynamic_lod(!renderer.get_config_enable_dynamic_lod());
+                DEBUG_LOG("dynamic_lod " << (renderer.get_config_enable_dynamic_lod() ? "enabled" : "disabled"))
+            } else if(input.get_key(Key::T, InputState::Pressed)) {
+                renderer.set_config_enable_frustum_cull(!renderer.get_config_enable_frustum_cull());
+                DEBUG_LOG("frustum_cull " << (renderer.get_config_enable_frustum_cull() ? "enabled" : "disabled"))
+            }
+
+            if(input.get_key(Key::G, InputState::Pressed)) {
+                DEBUG_LOG("Position: " << main_camera_data.position.x << "f, " << main_camera_data.position.y << "f, " << main_camera_data.position.z << "f")
+                DEBUG_LOG("Rotation: " << main_camera_data.pitch << "f, " << main_camera_data.yaw << "f")
+            }
         }
 
         world.update_objects();

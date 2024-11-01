@@ -181,7 +181,7 @@ void Renderer::update_world(World &world, Handle<Camera> camera) {
         },
     });
 }
-void Renderer::render_world(const World &world, Handle<Camera> camera) {
+void Renderer::render_world(World &world, Handle<Camera> camera) {
     const Frame &frame = m_frames[m_frame_in_flight_index];
 
     u32 scene_objects_count = static_cast<u32>(world.get_objects().size());
@@ -204,7 +204,7 @@ void Renderer::render_world(const World &world, Handle<Camera> camera) {
         m_scene_index_buffer,
         m_scene_draw_buffer,
         m_scene_draw_count_buffer,
-        MAX_SCENE_DRAWS,
+        static_cast<u32>(MAX_SCENE_DRAWS),
         sizeof(DrawCommand)
     );
 
@@ -219,7 +219,9 @@ void Renderer::render_world(const World &world, Handle<Camera> camera) {
         m_api,
         frame.command_list,
         m_ui_pass_draw_fn,
-        m_swapchain_target_index
+        m_swapchain_target_index,
+        *this,
+        world
     );
 }
 void Renderer::end_recording_frame() {
@@ -240,6 +242,6 @@ void Renderer::end_recording_frame() {
         DEBUG_PANIC("Failed to present swap chain image! result=" << result)
     }
 
-    m_frame_in_flight_index = (m_frame_in_flight_index + 1) % FRAMES_IN_FLIGHT;
+    m_frame_in_flight_index = (m_frame_in_flight_index + 1) % static_cast<u32>(m_frames.size());
     m_frames_since_init += 1;
 }

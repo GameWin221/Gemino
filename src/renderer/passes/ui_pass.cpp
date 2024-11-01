@@ -141,7 +141,7 @@ void UIPass::resize(const RenderAPI &api, const Window &window) {
     }
 }
 
-void UIPass::process(const RenderAPI &api, Handle<CommandList> command_list, const std::function<void()> &draw_fn, u32 swapchain_target_index) {
+void UIPass::process(const RenderAPI &api, Handle<CommandList> command_list, UIPassDrawFn draw_fn, u32 swapchain_target_index, Renderer &renderer, World &world) {
     if(draw_fn == nullptr) {
         return;
     }
@@ -153,7 +153,7 @@ void UIPass::process(const RenderAPI &api, Handle<CommandList> command_list, con
     ImGui::NewFrame();
 
     // Draw Commands
-    draw_fn();
+    draw_fn(renderer, world);
 
     ImGui::EndFrame();
     ImGui::Render();

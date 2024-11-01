@@ -60,23 +60,23 @@ struct MeshInstance {
     u32 material_start{};
 };
 struct Texture {
-    alignas(4) u32 width{};
-    alignas(4) u32 height{};
-    alignas(4) u32 bytes_per_pixel{};
-    alignas(4) u32 mip_level_count{};
-    alignas(4) u32 is_srgb{};
-    alignas(4) u32 use_linear_filter{};
-    alignas(4) Handle<u32> image{};
-    alignas(4) Handle<u32> sampler{};
+    Handle<u32> image{};
+    Handle<u32> sampler{};
+    u16 width{};
+    u16 height{};
+    u16 bytes_per_pixel{};
+    u16 mip_level_count{};
+    u16 is_srgb{};
+    u16 use_linear_filter{};
 };
 struct Material {
-    alignas(4) Handle<Texture> albedo_texture = INVALID_HANDLE;
-    alignas(4) Handle<Texture> roughness_texture = INVALID_HANDLE;
-    alignas(4) Handle<Texture> metalness_texture = INVALID_HANDLE;
-    alignas(4) Handle<Texture> normal_texture = INVALID_HANDLE;
-    alignas(16) glm::vec4 color = glm::vec4(1.0f);
+    Handle<Texture> albedo_texture = INVALID_HANDLE;
+    Handle<Texture> roughness_texture = INVALID_HANDLE;
+    Handle<Texture> metalness_texture = INVALID_HANDLE;
+    Handle<Texture> normal_texture = INVALID_HANDLE;
+    glm::vec4 color = glm::vec4(1.0f);
 };
-struct alignas(16) Transform {
+struct Transform {
     alignas(16) glm::vec3 position{};
     alignas(16) glm::quat rotation = glm::quat(1.0f, 0.0f, 0.0f, 0.0f);
     alignas(16) glm::vec3 scale = glm::vec3(1.0f);
@@ -84,9 +84,9 @@ struct alignas(16) Transform {
 };
 struct Object {
     // Global transform and local transform are both allocated at the same handle as object
-    alignas(4) Handle<MeshInstance> mesh_instance = INVALID_HANDLE;
-    alignas(4) Handle<Object> parent = INVALID_HANDLE;
-    alignas(4) u32 visible = 1U;
+    Handle<MeshInstance> mesh_instance = INVALID_HANDLE;
+    Handle<Object> parent = INVALID_HANDLE;
+    u32 visible = 1U;
 };
 
 struct ObjectCreateInfo{

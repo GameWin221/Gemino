@@ -88,7 +88,7 @@ public:
     Handle<Material> create_material(const MaterialCreateInfo &create_info);
     void destroy_material(Handle<Material> material_handle);
 
-    std::function<void()> m_ui_pass_draw_fn{};
+    UIPassDrawFn m_ui_pass_draw_fn{};
 
     void set_config_global_lod_bias(float value);
     float get_config_global_lod_bias() const { return m_config_global_lod_bias; }
@@ -103,12 +103,16 @@ public:
     bool get_config_enable_frustum_cull() const { return m_config_enable_frustum_cull; }
 
     const HandleAllocator<Mesh> &get_mesh_allocator() const { return m_mesh_allocator; }
-    const RangeAllocator<Primitive, RangeAllocatorType::InPlace> &get_primitive_allocator() const { return m_primitive_allocator; }
     const HandleAllocator<MeshInstance> &get_mesh_instance_allocator() const { return m_mesh_instance_allocator; }
     const HandleAllocator<Texture> &get_texture_allocator() const { return m_texture_allocator; }
     const HandleAllocator<Material> &get_material_allocator() const { return m_material_allocator; }
 
-    Handle<Material> get_default_material() const { return m_default_material  ; }
+    const RangeAllocator<Handle<Material>, RangeAllocatorType::InPlace> &get_mesh_instance_materials_allocator() const { return m_mesh_instance_materials_allocator; }
+    const RangeAllocator<Primitive, RangeAllocatorType::InPlace> &get_primitive_allocator() const { return m_primitive_allocator; }
+    const RangeAllocator<Vertex, RangeAllocatorType::External> &get_vertex_allocator() const { return m_vertex_allocator; }
+    const RangeAllocator<u32, RangeAllocatorType::External> &get_index_allocator() const { return m_index_allocator; }
+
+    Handle<Material> get_default_material() const { return m_default_material; }
     Handle<Texture> get_default_white_srgb_texture() const { return m_default_white_srgb_texture; }
     Handle<Texture> get_default_grey_unorm_texture() const { return m_default_grey_unorm_texture; }
 
@@ -130,7 +134,7 @@ public:
 private:
     void begin_recording_frame();
     void update_world(World &world, Handle<Camera> camera);
-    void render_world(const World &world, Handle<Camera> camera);
+    void render_world(World &world, Handle<Camera> camera);
     void end_recording_frame();
 
     void init_scene_buffers();

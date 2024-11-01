@@ -171,7 +171,7 @@ void Renderer::init_passes(const Window &window) {
 void Renderer::init_frames() {
     m_frames.resize(FRAMES_IN_FLIGHT);
 
-    for(u32 i{}; i < FRAMES_IN_FLIGHT; ++i) {
+    for(u32 i{}; i < static_cast<u32>(m_frames.size()); ++i) {
         m_frames[i] = Frame{
             .command_list = m_api.m_command_manager->create_command_list(QueueFamily::Graphics),
             .present_semaphore = m_api.m_command_manager->create_semaphore(),
