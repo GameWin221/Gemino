@@ -40,6 +40,7 @@ public:
 
     u32 get_physical_device_preferred_warp_size() const { return m_preferred_warp_size; };
 
+    VkInstance get_instance() const { return m_instance; }
     VkDevice get_device() const { return m_device; }
     VkSurfaceKHR get_surface() const { return m_surface; }
     VkPhysicalDevice get_physical_device() const { return m_physical_device; }

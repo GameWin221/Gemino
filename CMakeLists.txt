@@ -29,6 +29,7 @@ find_package(Vulkan REQUIRED)
 add_subdirectory(external/tinygltf)
 add_subdirectory(external/glfw)
 add_subdirectory(external/glm)
+add_subdirectory(external/imgui)
 add_subdirectory(external/VulkanMemoryAllocator)
 
 file(GLOB_RECURSE GEMINO_SRC_FILES CONFIGURE_DEPENDS
@@ -38,7 +39,7 @@ file(GLOB_RECURSE GEMINO_SRC_FILES CONFIGURE_DEPENDS
 
 add_executable(${PROJECT_NAME} ${GEMINO_SRC_FILES})
 target_include_directories(${PROJECT_NAME} PRIVATE ${GLFW_INCLUDE_DIRS} ${GLM_INCLUDE_DIRS} ${VULKAN_MEMORY_ALOCATOR_INCLUDE_DIRS} ${CMAKE_CURRENT_LIST_DIR}/src ${CMAKE_CURRENT_LIST_DIR}/external/stb)
-target_link_libraries(${PROJECT_NAME} PRIVATE glfw Vulkan::Vulkan glm::glm VulkanMemoryAllocator tinygltf)
+target_link_libraries(${PROJECT_NAME} PRIVATE glfw Vulkan::Vulkan glm::glm VulkanMemoryAllocator tinygltf ImGui)
 
 file(GLOB_RECURSE GEMINO_SHADER_SRC_FILES
     "${CMAKE_CURRENT_LIST_DIR}/res/shared/shaders/*.vert"

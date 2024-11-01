@@ -289,43 +289,13 @@ SceneCreateInfo Renderer::load_gltf_scene(const SceneLoadInfo &load_info) {
 
             mesh_vertices[primitive_id].resize(positions.size());
 
-            f32 avg_dot{}, max_dot = -1.0f, min_dot = 1.0f;
-            f32 avg_dot_norm{}, max_dot_norm = -1.0f, min_dot_norm = 1.0f;
-            f32 avg_length_diff{}, max_length_diff = -1e9, min_length_diff = 1e9;
             for(usize j{}; j < positions.size(); ++j) {
                 mesh_vertices[primitive_id][j].pos = positions[j];
                 mesh_vertices[primitive_id][j].normal = glm::i8vec4(glm::normalize(normals[j]) * 127.0f, 0.0f);
 
-                glm::vec3 full(normals[j].x, normals[j].y, normals[j].z);
-                glm::vec3 packed = glm::vec3(mesh_vertices[primitive_id][j].normal) / 127.0f;
-
-                f32 dot = glm::dot(full, packed);
-                f32 dot_norm = glm::dot(full, glm::normalize(packed));
-                f32 length_diff = abs(glm::length(packed) - glm::length(full));
-
-                avg_dot += dot;
-                avg_dot_norm += dot_norm;
-                avg_length_diff += length_diff;
-
-                max_dot = glm::max(max_dot, dot);
-                min_dot = glm::min(min_dot, dot);
-                max_dot_norm = glm::max(max_dot_norm, dot_norm);
-                min_dot_norm = glm::min(min_dot_norm, dot_norm);
-                max_length_diff = glm::max(max_length_diff, length_diff);
-                min_length_diff = glm::min(min_length_diff, length_diff);
-
                 mesh_vertices[primitive_id][j].texcoord = glm::u16vec2(Utils::f32_to_f16(texcoords[j].x), Utils::f32_to_f16(texcoords[j].y));
             }
 
-            DEBUG_LOG("Average dot product (Raw): " << (avg_dot / positions.size()));
-            DEBUG_LOG("Max dot product (Raw): " << max_dot);
-            DEBUG_LOG("Min dot product (Raw): " << min_dot);
-            DEBUG_LOG("Average dot product (Normalized): " << (avg_dot_norm / positions.size()));
-            DEBUG_LOG("Max dot product (Normalized): " << max_dot_norm);
-            DEBUG_LOG("Min dot product (Normalized): " << min_dot_norm);
-            DEBUG_LOG("Average length difference: " << (avg_length_diff / positions.size()));
-            DEBUG_LOG("Max length difference: " << max_length_diff);
-            DEBUG_LOG("Min length difference: " << min_length_diff);
 
             const tinygltf::Accessor &index_accessor = model.accessors[primitive.indices];
             const tinygltf::BufferView &index_buffer_view = model.bufferViews[index_accessor.bufferView];
@@ -722,7 +692,7 @@ Handle<Texture> Renderer::create_u8_texture(const TextureCreateInfo &create_info
 
     auto handle = m_texture_allocator.alloc(texture);
 
-    m_api.m_resource_manager->update_descriptor(m_forward_descriptor, DescriptorUpdateInfo{
+    m_api.m_resource_manager->update_descriptor(m_scene_texture_descriptor, DescriptorUpdateInfo{
         .bindings{
             DescriptorBindingUpdateInfo{
                 .binding_index = 0U,

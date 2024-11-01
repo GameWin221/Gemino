@@ -6,6 +6,11 @@
 #include <window/window.hpp>
 #include <common/utils.hpp>
 
+#include "passes/draw_call_gen_pass.hpp"
+#include "passes/geometry_pass.hpp"
+#include "passes/offscreen_to_swapchain_pass.hpp"
+#include "passes/ui_pass.hpp"
+
 struct SceneLoadInfo {
     std::string path{};
     bool import_textures = true;
@@ -51,12 +56,6 @@ struct MeshInstanceCreateInfo {
     std::vector<Handle<Material>> materials{};
 };
 
-struct DrawCallGenPC {
-    u32 object_count_pre_cull{};
-    f32 global_lod_bias{};
-    f32 global_cull_dist_multiplier{};
-};
-
 struct DrawCommand {
     VkDrawIndexedIndirectCommand vk_cmd{};
     u32 object_id{};
@@ -70,8 +69,8 @@ public:
 
     u32 get_frames_since_init() const { return m_frames_since_init; }
 
-    void resize(const Window &window);
-    void render(World &world, Handle<Camera> camera);
+    void resize(Window &window);
+    void render(Window &window, World &world, Handle<Camera> camera);
     void reload_pipelines();
 
     SceneCreateInfo load_gltf_scene(const SceneLoadInfo &load_info);
@@ -88,6 +87,8 @@ public:
 
     Handle<Material> create_material(const MaterialCreateInfo &create_info);
     void destroy_material(Handle<Material> material_handle);
+
+    std::function<void()> m_ui_pass_draw_fn{};
 
     void set_config_global_lod_bias(float value);
     float get_config_global_lod_bias() const { return m_config_global_lod_bias; }
@@ -132,28 +133,27 @@ private:
     void render_world(const World &world, Handle<Camera> camera);
     void end_recording_frame();
 
-    void render_pass_draw_call_gen(u32 scene_objects_count, const DrawCallGenPC &draw_call_gen_pc);
-    void render_pass_geometry();
-    void render_pass_offscreen_rt_to_swapchain();
-
     void init_scene_buffers();
-    void init_screen_images(const Window &window);
-    void init_debug_info();
-    void init_descriptors(bool create_new);
-    void init_pipelines();
-    void init_render_targets();
+    void init_screen_images(glm::uvec2 size);
+    void init_descriptors();
+    void init_passes(const Window &window);
     void init_frames();
     void init_defaults();
 
+    void resize_passes(const Window &window);
+
     void destroy_defaults();
     void destroy_frames();
-    void destroy_render_targets();
-    void destroy_pipelines();
-    void destroy_descriptors(bool create_new);
+    void destroy_passes();
+    void destroy_descriptors();
     void destroy_screen_images();
     void destroy_scene_buffers();
 
     RenderAPI m_api;
+    UIPass m_ui_pass{};
+    OffscreenToSwapchainPass m_offscreen_to_swapchain_pass{};
+    GeometryPass m_geometry_pass{};
+    DrawCallGenPass m_draw_call_gen_pass{};
 
     struct Frame {
         Handle<CommandList> command_list{};
@@ -172,20 +172,6 @@ private:
         }
     };
 
-    // Config start
-    float m_config_global_lod_bias{};
-    float m_config_global_cull_dist_multiplier = 1.0f;
-    bool m_config_enable_dynamic_lod = true;
-    bool m_config_enable_frustum_cull = true;
-
-    u32 m_config_texture_anisotropy = 8U;
-    float m_config_texture_mip_bias = 0.0f;
-    // Config end
-
-    u32 m_frame_in_flight_index{};
-    u32 m_swapchain_target_index{};
-    u32 m_frames_since_init{};
-
     bool m_reload_pipelines_queued{};
 
     std::vector<Frame> m_frames{};
@@ -200,26 +186,29 @@ private:
     RangeAllocator<Vertex, RangeAllocatorType::External> m_vertex_allocator{};
     RangeAllocator<u32, RangeAllocatorType::External> m_index_allocator{};
 
-    Handle<Descriptor> m_draw_call_gen_descriptor{};
-    Handle<ComputePipeline> m_draw_call_gen_pipeline{};
+    // Config start
+    float m_config_global_lod_bias{};
+    float m_config_global_cull_dist_multiplier = 1.0f;
+    bool m_config_enable_dynamic_lod = true;
+    bool m_config_enable_frustum_cull = true;
 
-    Handle<RenderTarget> m_offscreen_rt{};
-    Handle<Image> m_offscreen_rt_image{};
-    Handle<Sampler> m_offscreen_rt_sampler{};
+    u32 m_config_texture_anisotropy = 8U;
+    float m_config_texture_mip_bias = 0.0f;
+    // Config end
 
-    Handle<Descriptor> m_forward_descriptor{};
-    Handle<GraphicsPipeline> m_forward_pipeline{};
+    u32 m_frame_in_flight_index{};
+    u32 m_swapchain_target_index{};
+    u32 m_frames_since_init{};
 
-    std::vector<Handle<RenderTarget>> m_offscreen_rt_to_swapchain_targets{};
-    Handle<Descriptor> m_offscreen_rt_to_swapchain_descriptor{};
-    Handle<GraphicsPipeline> m_offscreen_rt_to_swapchain_pipeline{};
-
+    Handle<Image> m_offscreen_image{};
+    Handle<Sampler> m_offscreen_sampler{};
     Handle<Image> m_depth_image{};
 
     Handle<Material> m_default_material{};
     Handle<Texture> m_default_white_srgb_texture{};
     Handle<Texture> m_default_grey_unorm_texture{};
 
+    Handle<Descriptor> m_scene_texture_descriptor{};
     Handle<Buffer> m_scene_vertex_buffer{};
     Handle<Buffer> m_scene_index_buffer{};
     Handle<Buffer> m_scene_primitive_buffer{};

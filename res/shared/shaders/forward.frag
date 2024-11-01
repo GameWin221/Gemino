@@ -12,27 +12,27 @@ layout(location = 4) in flat uint f_primitive_id;
 
 layout(location = 0) out vec4 out_color;
 
-layout (set = 0, binding = 0) uniform sampler2D textures[];
+layout (set = 1, binding = 0) uniform sampler2D textures[];
 
-layout(set = 0, binding = 1) readonly buffer DrawCommandBuffer {
+layout(set = 0, binding = 0) readonly buffer DrawCommandBuffer {
     DrawCommand draw_commands[];
 };
-layout(set = 0, binding = 2) readonly buffer ObjectBuffer {
+layout(set = 0, binding = 1) readonly buffer ObjectBuffer {
     Object objects[];
 };
-layout(set = 0, binding = 3) readonly buffer GlobalTransformBuffer {
+layout(set = 0, binding = 2) readonly buffer GlobalTransformBuffer {
     Transform global_transforms[];
 };
-layout(set = 0, binding = 4) readonly buffer MaterialBuffer {
+layout(set = 0, binding = 3) readonly buffer MaterialBuffer {
     Material materials[];
 };
-layout(set = 0, binding = 5) readonly buffer MeshInstanceBuffer {
+layout(set = 0, binding = 4) readonly buffer MeshInstanceBuffer {
     MeshInstance mesh_instances[];
 };
-layout(set = 0, binding = 6) readonly buffer MeshInstanceMaterialsBuffer {
+layout(set = 0, binding = 5) readonly buffer MeshInstanceMaterialsBuffer {
     uint mesh_instance_materials[];
 };
-layout(set = 0, binding = 7) uniform CameraBuffer {
+layout(set = 0, binding = 6) uniform CameraBuffer {
     Camera camera;
 };
 

@@ -1,11 +1,12 @@
 #include <window/window.hpp>
 #include <window/input_manager.hpp>
 #include <world/world.hpp>
+#include <editor/editor.hpp>
+#include <renderer/renderer.hpp>
 
 #include <common/types.hpp>
 #include <common/utils.hpp>
 #include <common/debug.hpp>
-#include <renderer/renderer.hpp>
 
 #include <random>
 #include <thread>
@@ -22,6 +23,9 @@ int main(){
     InputManager input(window);
 
     Renderer renderer(window, VSyncMode::Disabled);
+
+    Editor editor{};
+    editor.attach(renderer);
 
     World world{};
 
@@ -79,9 +83,6 @@ int main(){
 
     DEBUG_TIMESTAMP(last_frame);
 
-
-    input.set_cursor_mode(CursorMode::Locked);
-
     while(window.is_open()) {
         input.poll_input();
 
@@ -90,7 +91,17 @@ int main(){
         float camera_movement_speed = 6.0f;
         float camera_rotate_speed = 0.1f;
 
-        glm::vec2 mouse_vel = input.get_mouse_velocity();
+        glm::vec2 mouse_vel{};
+        if(input.get_button(Button::Right, InputState::Down)) {
+           mouse_vel = input.get_mouse_velocity();
+        }
+
+        if(input.get_button(Button::Right, InputState::Pressed)) {
+            input.set_cursor_mode(CursorMode::Locked);
+        } else if(input.get_button(Button::Right, InputState::Released)) {
+            input.set_cursor_mode(CursorMode::Free);
+        }
+
         glm::vec3 camera_movement{};
         if(input.get_key(Key::W, InputState::Down)) {
             camera_movement += main_camera_data.forward;
@@ -114,13 +125,6 @@ int main(){
             camera_movement_speed += 8.0f;
         }
 
-        if(input.get_key(Key::Escape, InputState::Pressed)) {
-            input.set_cursor_mode(CursorMode::Free);
-        }
-        if(input.get_button(Button::Left, InputState::Pressed)) {
-            input.set_cursor_mode(CursorMode::Locked);
-        }
-
         world.set_camera_position(main_camera, main_camera_data.position + camera_movement * static_cast<f32>(dt) * camera_movement_speed);
         world.set_camera_rotation(main_camera, main_camera_data.pitch - mouse_vel.y * camera_rotate_speed, main_camera_data.yaw + mouse_vel.x * camera_rotate_speed);
 
@@ -134,7 +138,6 @@ int main(){
             renderer.set_config_enable_frustum_cull(!renderer.get_config_enable_frustum_cull());
             DEBUG_LOG("frustum_cull " << (renderer.get_config_enable_frustum_cull() ? "enabled" : "disabled"))
         }
-
 
         if(input.get_key(Key::G, InputState::Pressed)) {
             DEBUG_LOG("Position: " << main_camera_data.position.x << "f, " << main_camera_data.position.y << "f, " << main_camera_data.position.z << "f")
@@ -153,9 +156,10 @@ int main(){
 
                 renderer.resize(window);
             } else {
-                renderer.render(world, main_camera);
+                renderer.render(window, world, main_camera);
             }
         }
+
 
         window.poll_events();
 

@@ -136,6 +136,8 @@ public:
     const Descriptor &get_descriptor_data(Handle<Descriptor> descriptor_handle) const;
     const Sampler &get_sampler_data(Handle<Sampler> sampler_handle) const;
 
+    VkDescriptorPool get_descriptor_pool() const { return m_descriptor_pool; }
+
 private:
     const VkDevice VK_DEVICE;
     const VmaAllocator VK_ALLOCATOR;

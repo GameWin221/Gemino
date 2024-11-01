@@ -1,6 +1,6 @@
 #include "renderer.hpp"
 
-void Renderer::resize(const Window &window) {
+void Renderer::resize(Window &window) {
     m_api.wait_for_device_idle();
 
     m_frames_since_init = 0;
@@ -9,19 +9,17 @@ void Renderer::resize(const Window &window) {
         m_api.reset_commands(frame.command_list);
     }
 
-    destroy_render_targets();
-    destroy_descriptors(false);
     destroy_screen_images();
 
     m_api.recreate_swapchain(window.get_size(), m_api.get_swapchain_config());
 
-    init_screen_images(window);
-    init_descriptors(false);
-    init_render_targets();
+    init_screen_images(window.get_size());
+
+    resize_passes(window);
 
     m_api.wait_for_device_idle();
 }
-void Renderer::render(World &world, Handle<Camera> camera) {
+void Renderer::render(Window &window, World &world, Handle<Camera> camera) {
     if (!world.get_valid_camera_handles().contains(camera)) {
         DEBUG_PANIC("Cannot render the world from the given camera! - Camera with handle id: " << camera << " is invalid.")
     }
@@ -35,11 +33,8 @@ void Renderer::render(World &world, Handle<Camera> camera) {
 
         m_api.wait_for_device_idle();
 
-        destroy_render_targets();
-        destroy_pipelines();
-
-        init_pipelines();
-        init_render_targets();
+        destroy_passes();
+        init_passes(window);
 
         DEBUG_LOG("Reloaded pipelines!")
         m_reload_pipelines_queued = false;
@@ -191,15 +186,41 @@ void Renderer::render_world(const World &world, Handle<Camera> camera) {
 
     u32 scene_objects_count = static_cast<u32>(world.get_objects().size());
 
-    DrawCallGenPC draw_call_gen_pc{
-        .object_count_pre_cull = scene_objects_count,
-        .global_lod_bias = m_config_global_lod_bias,
-        .global_cull_dist_multiplier = m_config_global_cull_dist_multiplier
-    };
-    
-    render_pass_draw_call_gen(scene_objects_count, draw_call_gen_pc);
-    render_pass_geometry();
-    render_pass_offscreen_rt_to_swapchain();
+    m_draw_call_gen_pass.process(
+        m_api,
+        frame.command_list,
+        m_scene_draw_buffer,
+        m_scene_draw_count_buffer,
+        scene_objects_count,
+        m_config_global_lod_bias,
+        m_config_global_cull_dist_multiplier
+    );
+
+    m_geometry_pass.process(
+        m_api,
+        frame.command_list,
+        m_offscreen_image,
+        m_scene_texture_descriptor,
+        m_scene_index_buffer,
+        m_scene_draw_buffer,
+        m_scene_draw_count_buffer,
+        MAX_SCENE_DRAWS,
+        sizeof(DrawCommand)
+    );
+
+    m_offscreen_to_swapchain_pass.process(
+        m_api,
+        frame.command_list,
+        m_offscreen_image,
+        m_swapchain_target_index
+    );
+
+    m_ui_pass.process(
+        m_api,
+        frame.command_list,
+        m_ui_pass_draw_fn,
+        m_swapchain_target_index
+    );
 }
 void Renderer::end_recording_frame() {
     const Frame &frame = m_frames[m_frame_in_flight_index];
@@ -221,77 +242,4 @@ void Renderer::end_recording_frame() {
 
     m_frame_in_flight_index = (m_frame_in_flight_index + 1) % FRAMES_IN_FLIGHT;
     m_frames_since_init += 1;
-}
-
-void Renderer::render_pass_draw_call_gen(u32 scene_objects_count, const DrawCallGenPC &draw_call_gen_pc) {
-    const Frame &frame = m_frames[m_frame_in_flight_index];
-
-    m_api.fill_buffer(frame.command_list, m_scene_draw_count_buffer, 0U, sizeof(u32));
-
-    m_api.buffer_barrier(frame.command_list, VK_PIPELINE_STAGE_TRANSFER_BIT, VK_PIPELINE_STAGE_COMPUTE_SHADER_BIT, {
-        BufferBarrier{
-            .buffer_handle = m_scene_draw_count_buffer,
-            .src_access_mask = VK_ACCESS_TRANSFER_WRITE_BIT,
-            .dst_access_mask = VK_ACCESS_SHADER_READ_BIT | VK_ACCESS_SHADER_WRITE_BIT
-        }
-    });
-
-    m_api.begin_compute_pipeline(frame.command_list, m_draw_call_gen_pipeline);
-    m_api.bind_compute_descriptor(frame.command_list, m_draw_call_gen_pipeline, m_draw_call_gen_descriptor, 0U);
-    m_api.push_compute_constants(frame.command_list, m_draw_call_gen_pipeline, &draw_call_gen_pc);
-    m_api.dispatch_compute_pipeline(frame.command_list, glm::uvec3(Utils::div_ceil(scene_objects_count, m_api.m_instance->get_physical_device_preferred_warp_size()), 1u, 1u));
-
-    m_api.buffer_barrier(frame.command_list, VK_PIPELINE_STAGE_COMPUTE_SHADER_BIT, VK_PIPELINE_STAGE_DRAW_INDIRECT_BIT | VK_PIPELINE_STAGE_VERTEX_SHADER_BIT, {
-        BufferBarrier{
-            .buffer_handle = m_scene_draw_buffer,
-            .src_access_mask = VK_ACCESS_SHADER_WRITE_BIT,
-            .dst_access_mask = VK_ACCESS_INDIRECT_COMMAND_READ_BIT | VK_ACCESS_SHADER_READ_BIT,
-        },
-        BufferBarrier{
-            .buffer_handle = m_scene_draw_count_buffer,
-            .src_access_mask = VK_ACCESS_SHADER_WRITE_BIT,
-            .dst_access_mask = VK_ACCESS_INDIRECT_COMMAND_READ_BIT,
-        },
-    });
-}
-void Renderer::render_pass_geometry() {
-    const Frame &frame = m_frames[m_frame_in_flight_index];
-
-    m_api.image_barrier(frame.command_list, VK_PIPELINE_STAGE_FRAGMENT_SHADER_BIT, VK_PIPELINE_STAGE_COLOR_ATTACHMENT_OUTPUT_BIT, {
-        ImageBarrier{
-            .image_handle = m_offscreen_rt_image,
-            .src_access_mask = VK_ACCESS_SHADER_READ_BIT,
-            .dst_access_mask = VK_ACCESS_COLOR_ATTACHMENT_READ_BIT,
-            .old_layout = VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL,
-            .new_layout = VK_IMAGE_LAYOUT_COLOR_ATTACHMENT_OPTIMAL
-        }
-    });
-
-    m_api.begin_graphics_pipeline(frame.command_list, m_forward_pipeline, m_offscreen_rt, RenderTargetClear{
-        .color = {0.0f, 0.0f, 0.0f, 1.0f},
-        .depth = 0.0f
-    });
-
-    // No vertex buffer bound because of programmable vertex fetching
-    m_api.bind_graphics_descriptor(frame.command_list, m_forward_pipeline, m_forward_descriptor, 0U);
-    m_api.bind_index_buffer(frame.command_list, m_scene_index_buffer);
-    m_api.draw_indexed_indirect_count(frame.command_list,m_scene_draw_buffer, m_scene_draw_count_buffer, MAX_SCENE_DRAWS, sizeof(DrawCommand));
-
-    m_api.end_graphics_pipeline(frame.command_list, m_forward_pipeline);
-}
-void Renderer::render_pass_offscreen_rt_to_swapchain() {
-    const Frame &frame = m_frames[m_frame_in_flight_index];
-
-    m_api.image_barrier(frame.command_list, VK_PIPELINE_STAGE_COLOR_ATTACHMENT_OUTPUT_BIT, VK_PIPELINE_STAGE_FRAGMENT_SHADER_BIT, { ImageBarrier{
-        .image_handle = m_offscreen_rt_image,
-        .src_access_mask = VK_ACCESS_COLOR_ATTACHMENT_WRITE_BIT,
-        .dst_access_mask = VK_ACCESS_SHADER_READ_BIT,
-        .old_layout = VK_IMAGE_LAYOUT_COLOR_ATTACHMENT_OPTIMAL,
-        .new_layout = VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL
-    }});
-
-    m_api.begin_graphics_pipeline(frame.command_list, m_offscreen_rt_to_swapchain_pipeline, m_offscreen_rt_to_swapchain_targets[m_swapchain_target_index], RenderTargetClear{});
-    m_api.bind_graphics_descriptor(frame.command_list, m_offscreen_rt_to_swapchain_pipeline, m_offscreen_rt_to_swapchain_descriptor, 0U);
-    m_api.draw_count(frame.command_list, 3U),
-    m_api.end_graphics_pipeline(frame.command_list, m_offscreen_rt_to_swapchain_pipeline);
 }

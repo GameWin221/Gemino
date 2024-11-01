@@ -11,28 +11,28 @@ layout(location = 2) out vec2 f_texcoord;
 layout(location = 3) out flat uint f_object_id;
 layout(location = 4) out flat uint f_primitive_id;
 
-layout(set = 0, binding = 1) readonly buffer DrawCommandBuffer {
+layout(set = 0, binding = 0) readonly buffer DrawCommandBuffer {
     DrawCommand draw_commands[];
 };
-layout(set = 0, binding = 2) readonly buffer ObjectBuffer {
+layout(set = 0, binding = 1) readonly buffer ObjectBuffer {
     Object objects[];
 };
-layout(set = 0, binding = 3) readonly buffer GlobalTransformBuffer {
+layout(set = 0, binding = 2) readonly buffer GlobalTransformBuffer {
     Transform global_transforms[];
 };
-layout(set = 0, binding = 4) readonly buffer MaterialBuffer {
+layout(set = 0, binding = 3) readonly buffer MaterialBuffer {
     Material materials[];
 };
-layout(set = 0, binding = 5) readonly buffer MeshInstanceBuffer {
+layout(set = 0, binding = 4) readonly buffer MeshInstanceBuffer {
     MeshInstance mesh_instances[];
 };
-layout(set = 0, binding = 6) readonly buffer MeshInstanceMaterialsBuffer {
+layout(set = 0, binding = 5) readonly buffer MeshInstanceMaterialsBuffer {
     uint mesh_instance_materials[];
 };
-layout(set = 0, binding = 7) uniform CameraBuffer {
+layout(set = 0, binding = 6) uniform CameraBuffer {
     Camera camera;
 };
-layout(scalar, set = 0, binding = 8) readonly buffer VertexBuffer {
+layout(scalar, set = 0, binding = 7) readonly buffer VertexBuffer {
     Vertex vertices[];
 };
 

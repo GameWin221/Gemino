@@ -43,6 +43,7 @@ Handle<Image> RenderAPI::get_swapchain_image_handle(u32 image_index) const {
 
     return m_borrowed_swapchain_images[image_index];
 }
+
 VkResult RenderAPI::get_next_swapchain_index(Handle<Semaphore> signal_semaphore, u32* swapchain_index) const {
     VkResult result = vkAcquireNextImageKHR(
         m_instance->get_device(),
@@ -69,7 +70,7 @@ VkResult RenderAPI::present_swapchain(Handle<Semaphore> wait_semaphore, u32 imag
 
     return vkQueuePresentKHR(m_instance->get_graphics_queue(), &info);
 }
-u32 RenderAPI::get_swapchain_index_count() const {
+u32 RenderAPI::get_swapchain_image_count() const {
     return static_cast<u32>(m_swapchain->get_images().size());
 }
 void RenderAPI::recreate_swapchain(glm::uvec2 size, const SwapchainConfig &config) {
@@ -692,13 +693,13 @@ void RenderAPI::bind_graphics_descriptor(Handle<CommandList> command_list, Handl
     const GraphicsPipeline &pipe = m_pipeline_manager->get_graphics_pipeline_data(pipeline);
     const Descriptor& desc = m_resource_manager->get_descriptor_data(descriptor);
 
-    vkCmdBindDescriptorSets(m_command_manager->get_command_list_data(command_list).command_buffer, VK_PIPELINE_BIND_POINT_GRAPHICS, pipe.layout, 0U, 1U, &desc.set, 0U, nullptr);
+    vkCmdBindDescriptorSets(m_command_manager->get_command_list_data(command_list).command_buffer, VK_PIPELINE_BIND_POINT_GRAPHICS, pipe.layout, dst_index, 1U, &desc.set, 0U, nullptr);
 }
 void RenderAPI::bind_compute_descriptor(Handle<CommandList> command_list, Handle<ComputePipeline> pipeline, Handle<Descriptor> descriptor, u32 dst_index) const {
     const ComputePipeline &pipe = m_pipeline_manager->get_compute_pipeline_data(pipeline);
     const Descriptor& desc = m_resource_manager->get_descriptor_data(descriptor);
 
-    vkCmdBindDescriptorSets(m_command_manager->get_command_list_data(command_list).command_buffer, VK_PIPELINE_BIND_POINT_COMPUTE, pipe.layout, 0U, 1U, &desc.set, 0U, nullptr);
+    vkCmdBindDescriptorSets(m_command_manager->get_command_list_data(command_list).command_buffer, VK_PIPELINE_BIND_POINT_COMPUTE, pipe.layout, dst_index, 1U, &desc.set, 0U, nullptr);
 }
 
 void RenderAPI::bind_vertex_buffer(Handle<CommandList> command_list, Handle<Buffer> buffer, u32 index, VkDeviceSize offset) const {

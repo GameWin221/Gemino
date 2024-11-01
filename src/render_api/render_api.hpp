@@ -91,9 +91,10 @@ public:
 
     /// Rendering functions
     Handle<Image> get_swapchain_image_handle(u32 image_index) const;
+    VkFormat get_swapchain_format() const;
     VkResult get_next_swapchain_index(Handle<Semaphore> signal_semaphore, u32 *swapchain_index) const;
     VkResult present_swapchain(Handle<Semaphore> wait_semaphore, u32 image_index) const;
-    u32 get_swapchain_index_count() const;
+    u32 get_swapchain_image_count() const;
 
     void recreate_swapchain(glm::uvec2 size, const SwapchainConfig &config);
 
