@@ -86,7 +86,7 @@ void Renderer::update_world(World &world, Handle<Camera> camera) {
 
         camera_copy_regions.push_back(VkBufferCopy{
             .srcOffset = upload_offset,
-            .dstOffset = static_cast<VkDeviceSize>(camera) * sizeof(Camera),
+            .dstOffset = static_cast<VkDeviceSize>(camera.as_u32()) * sizeof(Camera),
             .size = sizeof(Camera)
         });
 
@@ -95,7 +95,7 @@ void Renderer::update_world(World &world, Handle<Camera> camera) {
 
     std::vector<Handle<Object>> handles_to_clear{};
     for(const auto &handle : world.get_changed_object_handles()) {
-        if(handle >= MAX_SCENE_OBJECTS) {
+        if(handle.as_u32() >= static_cast<u32>(MAX_SCENE_OBJECTS)) {
             DEBUG_PANIC("Failed to upload object with handle id: " << handle << "! MAX_SCENE_OBJECTS: " << MAX_SCENE_OBJECTS)
         }
 
@@ -112,7 +112,7 @@ void Renderer::update_world(World &world, Handle<Camera> camera) {
 
         object_copy_regions.push_back(VkBufferCopy{
             .srcOffset = upload_offset,
-            .dstOffset = static_cast<VkDeviceSize>(handle) * sizeof(object),
+            .dstOffset = static_cast<VkDeviceSize>(handle.as_u32()) * sizeof(object),
             .size = sizeof(object)
         });
 
@@ -128,7 +128,7 @@ void Renderer::update_world(World &world, Handle<Camera> camera) {
 
         global_transforms_copy_regions.push_back(VkBufferCopy{
             .srcOffset = upload_offset,
-            .dstOffset = static_cast<VkDeviceSize>(handle) * sizeof(transform),
+            .dstOffset = static_cast<VkDeviceSize>(handle.as_u32()) * sizeof(transform),
             .size = sizeof(transform)
         });
 

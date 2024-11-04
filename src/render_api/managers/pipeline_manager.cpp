@@ -499,7 +499,7 @@ void PipelineManager::destroy_graphics_pipeline(Handle<GraphicsPipeline> pipelin
 
     m_graphics_pipeline_allocator.free(pipeline_handle);
 }
-void PipelineManager::destroy_compute_pipeline(Handle<GraphicsPipeline> pipeline_handle) {
+void PipelineManager::destroy_compute_pipeline(Handle<ComputePipeline> pipeline_handle) {
     if (!m_compute_pipeline_allocator.is_handle_valid(pipeline_handle)) {
         DEBUG_PANIC("Cannot delete compute pipeline - Pipeline with a handle id: = " << pipeline_handle << ", does not exist!")
     }

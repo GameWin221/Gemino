@@ -3,11 +3,54 @@
 
 #include <common/debug.hpp>
 #include <common/types.hpp>
+
 #include <vector>
 #include <unordered_set>
 
 template<typename T>
-using Handle = u32;
+struct Handle {
+    Handle() = default;
+    Handle(const u32 &other) : _internal(other) {}
+    Handle(const Handle &other) = default;
+
+    Handle &operator=(const Handle &other) = default;
+    Handle &operator=(const u32 &other) {
+        _internal = other;
+        return *this;
+    }
+
+    bool operator==(const Handle &other) const {
+        return _internal == other._internal;
+    }
+    bool operator==(const u32 &other) const {
+        return _internal == other;
+    }
+
+    [[nodiscard]] u32 as_u32() const {
+        return _internal;
+    }
+    template<typename U>
+    [[nodiscard]] Handle<U> into() const {
+        return Handle<U>(_internal);
+    }
+
+    u32 _internal{};
+};
+
+template<typename T>
+std::ostream& operator<<(std::ostream& os, const Handle<T> &handle) {
+    os << handle.as_u32();
+    return os;
+}
+
+namespace std {
+    template<typename T>
+    struct hash<Handle<T>> {
+        std::size_t operator()(const Handle<T> &handle) const noexcept {
+            return std::hash<u32>()(handle.as_u32());
+        }
+    };
+}
 
 template <typename T>
 class HandleAllocator {
@@ -20,9 +63,9 @@ public:
         if(!m_free_handles.empty()) {
             handle = m_free_handles.back();
             m_free_handles.pop_back();
-            m_elements[handle] = T(std::forward<Args>(args)...);
+            m_elements[handle.as_u32()] = T(std::forward<Args>(args)...);
         } else {
-            handle = static_cast<Handle<T>>(m_elements.size());
+            handle = static_cast<u32>(m_elements.size());
             m_elements.emplace_back(std::forward<Args>(args)...);
         }
 
@@ -33,14 +76,14 @@ public:
 
     // Allocate element using m_elements.push_back(object)
     Handle<T> alloc(const T& object) {
-        Handle<T> handle;
+        Handle<T> handle{};
 
         if(!m_free_handles.empty()) {
             handle = m_free_handles.back();
             m_free_handles.pop_back();
-            m_elements[handle] = object;
+            m_elements[handle.as_u32()] = object;
         } else {
-            handle = static_cast<Handle<T>>(m_elements.size());
+            handle = static_cast<u32>(m_elements.size());
             m_elements.push_back(object);
         }
 
@@ -61,17 +104,17 @@ public:
 
     const T& get_element(Handle<T> handle) const {
 #if DEBUG_MODE
-        return m_elements.at(handle);
+        return m_elements.at(handle.as_u32());
 #else
-        return m_elements[handle];
+        return m_elements[handle].as_u32();
 #endif
     }
 
     T& get_element_mutable(Handle<T> handle) {
 #if DEBUG_MODE
-        return m_elements.at(handle);
+        return m_elements.at(handle.as_u32());
 #else
-        return m_elements[handle];
+        return m_elements[handle.as_u32()];
 #endif
     }
 

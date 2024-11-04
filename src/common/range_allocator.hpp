@@ -20,6 +20,12 @@ struct Range {
     }
 };
 
+template<typename T>
+std::ostream& operator<<(std::ostream& os, const Range<T> &handle) {
+    os << "( " << handle.start << ", " << handle.count << " )";
+    return os;
+}
+
 namespace std {
     template<typename T>
     struct hash<Range<T>> {

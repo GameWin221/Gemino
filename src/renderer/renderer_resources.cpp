@@ -468,7 +468,7 @@ Handle<Mesh> Renderer::create_mesh(const MeshCreateInfo &create_info) {
     m_api.m_resource_manager->memcpy_to_buffer_once(staging, &mesh, sizeof(mesh));
 
     VkBufferCopy mesh_buffer_copy {
-        .dstOffset = mesh_handle * sizeof(Mesh),
+        .dstOffset = mesh_handle.as_u32() * sizeof(Mesh),
         .size = sizeof(Mesh)
     };
 
@@ -542,7 +542,7 @@ Handle<MeshInstance> Renderer::create_mesh_instance(const MeshInstanceCreateInfo
     m_api.m_resource_manager->memcpy_to_buffer(mapped_staging, &instance, sizeof(MeshInstance), dst_offset);
     VkBufferCopy mesh_instance_copy {
         .srcOffset = dst_offset,
-        .dstOffset = instance_handle * sizeof(MeshInstance),
+        .dstOffset = instance_handle.as_u32() * sizeof(MeshInstance),
         .size = sizeof(MeshInstance)
     };
 
@@ -696,7 +696,7 @@ Handle<Texture> Renderer::create_u8_texture(const TextureCreateInfo &create_info
         .bindings{
             DescriptorBindingUpdateInfo{
                 .binding_index = 0U,
-                .array_index = handle,
+                .array_index = handle.as_u32(),
                 .image_info {
                     .image_handle = texture.image,
                     .image_sampler = texture.sampler
@@ -741,7 +741,7 @@ Handle<Material> Renderer::create_material(const MaterialCreateInfo &create_info
     m_api.record_and_submit_once([this, handle, staging_buffer](Handle<CommandList> cmd){
         m_api.copy_buffer_to_buffer(cmd, staging_buffer, m_scene_material_buffer, {
             VkBufferCopy {
-                .dstOffset = handle * sizeof(Material),
+                .dstOffset = handle.as_u32() * sizeof(Material),
                 .size = sizeof(Material),
             }
         });

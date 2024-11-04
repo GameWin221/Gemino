@@ -22,10 +22,10 @@ Handle<Object> World::create_object(const ObjectCreateInfo& create_info) {
     Handle<Transform> global_t_handle = m_global_transforms.alloc(global_transform);
     Handle<std::vector<Handle<Object>>> children_handle = m_children.alloc_in_place();
 
-    DEBUG_ASSERT(object_handle == children_handle && object_handle == local_t_handle && local_t_handle == global_t_handle)
+    DEBUG_ASSERT(object_handle.as_u32() == children_handle.as_u32() && object_handle.as_u32() == local_t_handle.as_u32() && local_t_handle.as_u32() == global_t_handle.as_u32())
 
     if (object.parent != INVALID_HANDLE) {
-        m_children.get_element_mutable(object.parent).push_back(object_handle);
+        m_children.get_element_mutable(object.parent.into<std::vector<Handle<Object>>>()).push_back(object_handle);
     }
 
     m_changed_object_handles.insert(object_handle);
@@ -120,7 +120,10 @@ Handle<Object> World::instantiate_scene_object(const SceneCreateInfo &create_inf
 }
 
 void World::destroy_object(Handle<Object> object) {
-    for (const auto &child_handle : m_children.get_element(object)) {
+    auto object_children = object.into<std::vector<Handle<Object>>>();
+    auto object_transform = object.into<Transform>();
+
+    for (const auto &child_handle : m_children.get_element(object_children)) {
         destroy_object(child_handle);
     }
 
@@ -130,10 +133,10 @@ void World::destroy_object(Handle<Object> object) {
     obj.visible = 0u;
     m_changed_object_handles.insert(object);
 
-    m_children.get_element_mutable(object).clear();
-    m_children.free(object);
-    m_global_transforms.free(object);
-    m_local_transforms.free(object);
+    m_children.get_element_mutable(object_children).clear();
+    m_children.free(object_children);
+    m_global_transforms.free(object_transform);
+    m_local_transforms.free(object_transform);
     m_objects.free(object);
 }
 void World::destroy_camera(Handle<Camera> camera) {
@@ -145,7 +148,7 @@ void World::destroy_camera(Handle<Camera> camera) {
 }
 
 void World::set_position(Handle<Object> object, glm::vec3 position) {
-    Transform &target = m_local_transforms.get_element_mutable(object);
+    Transform &target = m_local_transforms.get_element_mutable(object.into<Transform>());
 
     if(target.position == position) return;
 
@@ -153,7 +156,7 @@ void World::set_position(Handle<Object> object, glm::vec3 position) {
     m_changed_object_handles.insert(object);
 }
 void World::set_rotation(Handle<Object> object, glm::quat rotation) {
-    Transform &target = m_local_transforms.get_element_mutable(object);
+    Transform &target = m_local_transforms.get_element_mutable(object.into<Transform>());
 
     if(target.rotation == rotation) return;
 
@@ -161,7 +164,7 @@ void World::set_rotation(Handle<Object> object, glm::quat rotation) {
     m_changed_object_handles.insert(object);
 }
 void World::set_scale(Handle<Object> object, glm::vec3 scale) {
-    Transform &target = m_local_transforms.get_element_mutable(object);
+    Transform &target = m_local_transforms.get_element_mutable(object.into<Transform>());
 
     if(target.scale == scale) return;
 
@@ -194,7 +197,7 @@ void World::set_parent(Handle<Object> object, Handle<Object> new_parent) {
 
     target.parent = new_parent;
 
-    m_children.get_element_mutable(new_parent).push_back(object);
+    m_children.get_element_mutable(new_parent.into<std::vector<Handle<Object>>>()).push_back(object);
 
     m_changed_object_handles.insert(object);
 }
@@ -316,20 +319,23 @@ void World::update_objects() {
 }
 
 void World::update_object_recursive(Handle<Object> object_handle) {
+    auto object_transform_handle = object_handle.into<Transform>();
+    auto object_children_handle = object_handle.into<std::vector<Handle<Object>>>();
+
     const auto &object = m_objects.get_element(object_handle);
-    const auto &local_transform = m_local_transforms.get_element(object_handle);
+    const auto &local_transform = m_local_transforms.get_element(object_transform_handle);
 
     m_changed_object_handles.insert(object_handle);
 
     if (object.parent != INVALID_HANDLE) {
-        const auto &parent_transform = m_global_transforms.get_element(object.parent);
+        const auto &parent_transform = m_global_transforms.get_element(object.parent.into<Transform>());
 
-        m_global_transforms.get_element_mutable(object_handle) = calculate_child_transform(local_transform, parent_transform);
+        m_global_transforms.get_element_mutable(object_transform_handle) = calculate_child_transform(local_transform, parent_transform);
     } else {
-        m_global_transforms.get_element_mutable(object_handle) = local_transform;
+        m_global_transforms.get_element_mutable(object_transform_handle) = local_transform;
     }
 
-    for (const auto &child_obj : m_children.get_element(object_handle)) {
+    for (const auto &child_obj : m_children.get_element(object_children_handle)) {
         update_object_recursive(child_obj);
     }
 }

@@ -60,8 +60,8 @@ struct MeshInstance {
     u32 material_start{};
 };
 struct Texture {
-    Handle<u32> image{};
-    Handle<u32> sampler{};
+    Handle<struct Image> image{};
+    Handle<struct Sampler> sampler{};
     u16 width{};
     u16 height{};
     u16 bytes_per_pixel{};
@@ -147,9 +147,9 @@ public:
     void set_visibility(Handle<Object> object, bool visible);
     void set_parent(Handle<Object> object, Handle<Object> new_parent);
 
-    const std::vector<Handle<Object>> &get_children(Handle<Object> object) const { return m_children.get_element(object); }
-    const Transform &get_local_transform(Handle<Object> object) const { return m_local_transforms.get_element(object); }
-    const Transform &get_global_transform(Handle<Object> object) const { return m_global_transforms.get_element(object); }
+    const std::vector<Handle<Object>> &get_children(Handle<Object> object) const { return m_children.get_element(object.into<std::vector<Handle<Object>>>()); }
+    const Transform &get_local_transform(Handle<Object> object) const { return m_local_transforms.get_element(object.into<Transform>()); }
+    const Transform &get_global_transform(Handle<Object> object) const { return m_global_transforms.get_element(object.into<Transform>()); }
     const Object &get_object(Handle<Object> object) const { return m_objects.get_element(object); }
     const Camera &get_camera(Handle<Camera> camera) const { return m_cameras.get_element(camera); }
     bool get_visibility(Handle<Object> object) const { return static_cast<bool>(m_objects.get_element(object).visible); }
