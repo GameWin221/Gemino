@@ -28,16 +28,12 @@ int main(){
 
     World world{};
 
-    renderer.load_gltf_scene(SceneLoadInfo {
-        .path = "C:/Dev/Resources/Meshes/SubDSuzanne.gltf",
-        .import_textures = false,
-        .import_materials = false,
-    });
-
     auto sponza_scene = renderer.load_gltf_scene(SceneLoadInfo {
         .path = "C:/Dev/Resources/Meshes/main1_sponza/NewSponza_Main_glTF_003.gltf",
         .import_textures = false,
-        .import_materials = true
+        .import_materials = true,
+        .lod_bias_vert_threshold = 10000u,
+        .lod_bias = 0.8f
     });
 
     // Hide decals by default
@@ -49,6 +45,8 @@ int main(){
 
     auto sponza_handle = world.instantiate_scene(sponza_scene);
 
+
+
     auto monkey_scene = renderer.load_gltf_scene(SceneLoadInfo {
         .path = "res/monkey.gltf"
     });
@@ -56,16 +54,16 @@ int main(){
     monkey_scene.position = glm::vec3(4.0f, 0.5f, 0.0f);
     monkey_scene.rotation = glm::angleAxis(glm::radians(-45.0f), glm::vec3(0.0f, 1.0f, 0.0f)) * glm::angleAxis(glm::radians(-35.0f), glm::vec3(1.0f, 0.0f, 0.0f));
     auto monkey_handle = world.instantiate_scene_object(monkey_scene, 0);
-/*
-    for (u32 y{}; y < 50u; ++y) {
-        for (u32 x{}; x < 50u; ++x) {
-            for (u32 z{}; z < 50u; ++z) {
+
+    for (u32 y{}; y < 40u; ++y) {
+        for (u32 x{}; x < 40u; ++x) {
+            for (u32 z{}; z < 40u; ++z) {
                 monkey_scene.position = glm::vec3(x * 2u, y * 2u, z * 2u);
                 auto monkey_handle = world.instantiate_scene_object(monkey_scene, 0u);
             }
         }
     }
-*/
+
     std::srand(0xDEADBEEF);
 
     auto main_camera = world.create_camera(CameraCreateInfo{
@@ -145,6 +143,9 @@ int main(){
             } else if(input.get_key(Key::T, InputState::Pressed)) {
                 renderer.set_config_enable_frustum_cull(!renderer.get_config_enable_frustum_cull());
                 DEBUG_LOG("frustum_cull " << (renderer.get_config_enable_frustum_cull() ? "enabled" : "disabled"))
+            } else if(input.get_key(Key::B, InputState::Pressed)) {
+                renderer.set_config_enable_debug_shape_view(!renderer.get_config_enable_debug_shape_view());
+                DEBUG_LOG("debug_shape_view " << (renderer.get_config_enable_debug_shape_view() ? "enabled" : "disabled"))
             }
 
             if(input.get_key(Key::G, InputState::Pressed)) {

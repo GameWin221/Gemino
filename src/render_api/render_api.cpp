@@ -548,13 +548,13 @@ void RenderAPI::begin_graphics_pipeline(Handle<CommandList> command_list, Handle
 
     VkClearValue clear_values[2]{};
 
-    u32 uses_color_target = static_cast<u32>(pipe.create_info.color_target.format != VK_FORMAT_UNDEFINED);
-    u32 uses_depth_target = static_cast<u32>(pipe.create_info.depth_target.format != VK_FORMAT_UNDEFINED);
-    if(uses_color_target) {
+    u32 clears_color_target = static_cast<u32>(pipe.create_info.color_target.format != VK_FORMAT_UNDEFINED && pipe.create_info.color_target.load_op == VK_ATTACHMENT_LOAD_OP_CLEAR);
+    u32 clears_depth_target = static_cast<u32>(pipe.create_info.depth_target.format != VK_FORMAT_UNDEFINED && pipe.create_info.depth_target.load_op == VK_ATTACHMENT_LOAD_OP_CLEAR);
+    if(clears_color_target) {
         clear_values[0].color = std::bit_cast<VkClearColorValue>(clear.color);
     }
-    if(uses_depth_target) {
-        clear_values[uses_color_target].depthStencil = { clear.depth, 0U};
+    if(clears_depth_target) {
+        clear_values[clears_color_target].depthStencil = { clear.depth, 0U};
     }
 
     VkRenderPassBeginInfo info{
@@ -564,7 +564,7 @@ void RenderAPI::begin_graphics_pipeline(Handle<CommandList> command_list, Handle
         .renderArea {
             .extent = rt.extent,
         },
-        .clearValueCount = uses_color_target + uses_depth_target,
+        .clearValueCount = clears_color_target + clears_depth_target,
         .pClearValues = clear_values,
     };
 

@@ -9,6 +9,7 @@
 #define TINYGLTF_NO_INCLUDE_STB_IMAGE
 #define TINYGLTF_NO_INCLUDE_STB_IMAGE_WRITE
 #include <tiny_gltf.h>
+#include <meshoptimizer.h>
 
 static glm::vec3 calculate_center_offset(const Vertex *vertices, u32 vertex_count) {
     glm::vec3 center_offset{};
@@ -217,6 +218,9 @@ SceneCreateInfo Renderer::load_gltf_scene(const SceneLoadInfo &load_info) {
         const auto &mesh = model.meshes[mesh_id];
 
         MeshCreateInfo mesh_create_info{};
+        if (load_info.simplify_target_error >= 0.0f && load_info.simplify_target_error <= 1.0f) {
+            mesh_create_info.simplify_target_error = load_info.simplify_target_error;
+        }
 
         std::vector<std::vector<Vertex>> mesh_vertices(mesh.primitives.size());
         std::vector<std::vector<u32>> mesh_indices(mesh.primitives.size());
@@ -292,10 +296,8 @@ SceneCreateInfo Renderer::load_gltf_scene(const SceneLoadInfo &load_info) {
             for(usize j{}; j < positions.size(); ++j) {
                 mesh_vertices[primitive_id][j].pos = positions[j];
                 mesh_vertices[primitive_id][j].normal = glm::i8vec4(glm::normalize(normals[j]) * 127.0f, 0.0f);
-
-                mesh_vertices[primitive_id][j].texcoord = glm::u16vec2(Utils::f32_to_f16(texcoords[j].x), Utils::f32_to_f16(texcoords[j].y));
+                mesh_vertices[primitive_id][j].texcoord = glm::u16vec2(meshopt_quantizeHalf(texcoords[j].x), meshopt_quantizeHalf(texcoords[j].y));
             }
-
 
             const tinygltf::Accessor &index_accessor = model.accessors[primitive.indices];
             const tinygltf::BufferView &index_buffer_view = model.bufferViews[index_accessor.bufferView];
@@ -332,10 +334,17 @@ SceneCreateInfo Renderer::load_gltf_scene(const SceneLoadInfo &load_info) {
             });
         }
 
+        u32 total_vertices{};
+        for(const auto &primitive_vertices : mesh_vertices) {
+            total_vertices += static_cast<u32>(primitive_vertices.size());
+        }
+
         scene.meshes[mesh_id] = create_mesh(mesh_create_info);
         scene.mesh_instances[mesh_id] = create_mesh_instance(MeshInstanceCreateInfo{
             .mesh = scene.meshes[mesh_id],
-             .materials = primitives_default_materials
+            .materials = primitives_default_materials,
+            .lod_bias = (total_vertices > load_info.lod_bias_vert_threshold ? load_info.lod_bias : 0.0f),
+            .cull_dist_multiplier = load_info.cull_dist_multiplier
         });
 
         DEBUG_LOG("Loaded mesh \"" << mesh.name << "\" from \"" << load_info.path << "\"")
@@ -358,79 +367,179 @@ Handle<Mesh> Renderer::create_mesh(const MeshCreateInfo &create_info) {
     Range<Primitive> primitive_range = m_primitive_allocator.alloc(static_cast<u32>(create_info.primitives.size()));
     std::vector<glm::vec4> primitive_bounding_spheres(primitive_range.count);
 
+    std::vector<u32> indices{};
+    std::vector<Vertex> vertices{};
+    std::vector<u32> remap{};
+
     for (u32 primitive_id{}; primitive_id < primitive_range.count; ++primitive_id) {
         const auto &primitive_info = create_info.primitives[primitive_id];
 
-        // TODO: Implement automatic LOD creation
         Primitive primitive_data{};
 
-        Range<Vertex> vertex_range = m_vertex_allocator.alloc(primitive_info.vertex_count);
-        Range<u32> index_range = m_index_allocator.alloc(primitive_info.index_count);
+        if(remap.size() < primitive_info.index_count) {
+            remap.resize(primitive_info.index_count);
+        }
 
-        primitive_data.lods[0u] = PrimitiveLOD {
-            .index_start = index_range.start,
-            .index_count = index_range.count,
-            .vertex_start = static_cast<i32>(vertex_range.start),
-            .vertex_count = vertex_range.count
-        };
-        for(u32 i = 1u; i < static_cast<u32>(primitive_data.lods.size()); ++i) {
-            primitive_data.lods[i] = primitive_data.lods[0];
+        // remapping is possibly pointless if the gltf is indexed correctly in the first place,
+        // but check it later if it is actually true.
+        usize remapped_vertices_count = meshopt_generateVertexRemap(
+            remap.data(),
+            primitive_info.index_data,
+            primitive_info.index_count,
+            primitive_info.vertex_data,
+            primitive_info.vertex_count,
+            sizeof(Vertex)
+        );
+        usize remapped_indices_count = primitive_info.index_count;
+
+        if(indices.size() < remapped_indices_count) {
+            indices.resize(remapped_indices_count);
+        }
+        if(vertices.size() < remapped_vertices_count) {
+            vertices.resize(remapped_vertices_count);
+        }
+
+        meshopt_remapIndexBuffer(indices.data(), primitive_info.index_data, primitive_info.index_count, remap.data());
+        meshopt_remapVertexBuffer(vertices.data(), primitive_info.vertex_data, primitive_info.vertex_count, sizeof(Vertex), remap.data());
+
+        //DEBUG_LOG("pre: " << primitive_info.vertex_count << ", post: " << remapped_vertices_count);
+
+        // Position has to be 32-bit xyz in order to perform overdraw optimizations
+        DEBUG_ASSERT(sizeof(Vertex::pos) == sizeof(f32) * 3);
+
+        meshopt_optimizeVertexCache(indices.data(), indices.data(), remapped_indices_count, remapped_vertices_count);
+        meshopt_optimizeOverdraw(indices.data(), indices.data(), remapped_indices_count, &vertices[0].pos.x, remapped_vertices_count, sizeof(Vertex), 1.05f);
+        meshopt_optimizeVertexFetch(vertices.data(), indices.data(), remapped_indices_count, vertices.data(), remapped_vertices_count, sizeof(Vertex));
+
+        // simplified index buffers are always smaller or equal to the original size
+        Handle<Buffer> staging = m_api.m_resource_manager->create_buffer(BufferCreateInfo {
+            .size = std::max({remapped_vertices_count * sizeof(Vertex), remapped_indices_count * sizeof(u32), sizeof(Primitive)}),
+            .buffer_usage_flags = VK_BUFFER_USAGE_TRANSFER_SRC_BIT,
+            .memory_usage_flags = VMA_MEMORY_USAGE_CPU_TO_GPU
+        });
+
+        void *mapped_staging = m_api.m_resource_manager->map_buffer(staging);
+
+        // Vertices
+        {
+            Range<Vertex> vertex_range = m_vertex_allocator.alloc(remapped_vertices_count);
+            primitive_data.vertex_start = static_cast<i32>(vertex_range.start);
+            primitive_data.vertex_count = vertex_range.count;
+
+            m_api.m_resource_manager->memcpy_to_buffer(mapped_staging, vertices.data(), sizeof(Vertex) * static_cast<usize>(vertex_range.count));
+
+            VkBufferCopy vertex_buffer_copy{
+                .dstOffset = vertex_range.start * sizeof(Vertex),
+                .size = sizeof(Vertex) * static_cast<usize>(vertex_range.count)
+            };
+
+            m_api.record_and_submit_once([this, staging, &vertex_buffer_copy](Handle<CommandList> cmd) {
+                m_api.copy_buffer_to_buffer(cmd, staging, m_scene_vertex_buffer, { vertex_buffer_copy });
+            });
+        }
+
+        // Indices LOD0
+        {
+            Range<u32> index_range = m_index_allocator.alloc(remapped_indices_count);
+            primitive_data.lods[0u] = PrimitiveLOD {
+                .index_start = index_range.start,
+                .index_count = index_range.count,
+            };
+
+            m_api.m_resource_manager->memcpy_to_buffer(mapped_staging, indices.data(), sizeof(u32) * static_cast<usize>(index_range.count));
+
+            VkBufferCopy index_buffer_copy{
+                .dstOffset = index_range.start * sizeof(u32),
+                .size = sizeof(u32) * static_cast<usize>(index_range.count)
+            };
+
+            m_api.record_and_submit_once([this, staging, &index_buffer_copy](Handle<CommandList> cmd) {
+                m_api.copy_buffer_to_buffer(cmd, staging, m_scene_index_buffer, { index_buffer_copy });
+            });
+        }
+
+        // Indices LOD1-7
+        usize last_indices_count = remapped_indices_count;
+        
+        for (u32 lod_id = 1u; lod_id < static_cast<u32>(primitive_data.lods.size()); ++lod_id) {
+            f32 threshold = 1.0f - (lod_id / static_cast<f32>(primitive_data.lods.size()));
+            f32 target_error = create_info.simplify_target_error * (lod_id / (static_cast<f32>(primitive_data.lods.size() - 1)));
+            f32 result_error{};
+
+            usize simplified_indices_count = meshopt_simplify(
+                indices.data(),
+                indices.data(),
+                last_indices_count,
+                &vertices[0].pos.x,
+                remapped_vertices_count,
+                sizeof(Vertex),
+                static_cast<usize>(threshold * last_indices_count),
+                target_error,
+                0,
+                &result_error
+            );
+
+            if (simplified_indices_count == 0) {
+                for(u32 j = lod_id; j < static_cast<u32>(primitive_data.lods.size()); ++j) {
+                    primitive_data.lods[j] = primitive_data.lods[lod_id-1];
+                }
+
+                break;
+            }
+
+            meshopt_optimizeVertexCache(indices.data(), indices.data(), simplified_indices_count, remapped_vertices_count);
+            meshopt_optimizeOverdraw(indices.data(), indices.data(), simplified_indices_count, &vertices[0].pos.x, remapped_vertices_count, sizeof(Vertex), 1.05f);
+
+            Range<u32> index_range = m_index_allocator.alloc(simplified_indices_count);
+            primitive_data.lods[lod_id] = PrimitiveLOD {
+                .index_start = index_range.start,
+                .index_count = index_range.count,
+            };
+
+            m_api.m_resource_manager->memcpy_to_buffer(mapped_staging, indices.data(), sizeof(u32) * static_cast<usize>(index_range.count));
+
+            VkBufferCopy index_buffer_copy{
+                .dstOffset = index_range.start * sizeof(u32),
+                .size = sizeof(u32) * static_cast<usize>(index_range.count)
+            };
+
+            m_api.record_and_submit_once([this, staging, &index_buffer_copy](Handle<CommandList> cmd) {
+                m_api.copy_buffer_to_buffer(cmd, staging, m_scene_index_buffer, { index_buffer_copy });
+            });
+
+            last_indices_count = simplified_indices_count;
         }
 
         m_primitive_allocator.get_element_mutable(primitive_range.start + primitive_id) = primitive_data;
 
-        glm::vec3 center_offset = calculate_center_offset(primitive_info.vertex_data, vertex_range.count);
-        f32 radius = calculate_radius(primitive_info.vertex_data, vertex_range.count, center_offset);
-        primitive_bounding_spheres[primitive_id] = glm::vec4(center_offset.x, center_offset.y, center_offset.z, radius);
+        m_api.m_resource_manager->memcpy_to_buffer(mapped_staging, &primitive_data, sizeof(primitive_data));
 
-        // When I eventually add LODs, then I'll have to sum the total amount of vertices and indices of each LOD
-        Handle<Buffer> staging = m_api.m_resource_manager->create_buffer(BufferCreateInfo {
-            .size = vertex_range.count * sizeof(Vertex) + index_range.count * sizeof(u32) + sizeof(Primitive),
-            .buffer_usage_flags = VK_BUFFER_USAGE_TRANSFER_SRC_BIT,
-            .memory_usage_flags = VMA_MEMORY_USAGE_CPU_TO_GPU
-        });
-        void *mapped_staging = m_api.m_resource_manager->map_buffer(staging);
-
-        std::vector<VkBufferCopy> vertex_copy_regions{};
-        std::vector<VkBufferCopy> index_copy_regions{};
-        VkBufferCopy primitive_copy_region{};
-
-        usize dst_offset = 0ull;
-        m_api.m_resource_manager->memcpy_to_buffer(mapped_staging, primitive_info.vertex_data, sizeof(Vertex) * static_cast<usize>(vertex_range.count), dst_offset);
-        vertex_copy_regions.push_back(VkBufferCopy{
-            .srcOffset = dst_offset,
-            .dstOffset = vertex_range.start * sizeof(Vertex),
-            .size = sizeof(Vertex) * static_cast<usize>(vertex_range.count)
-        });
-
-        dst_offset += sizeof(Vertex) * static_cast<usize>(vertex_range.count);
-        m_api.m_resource_manager->memcpy_to_buffer(mapped_staging, primitive_info.index_data, sizeof(u32) * static_cast<usize>(index_range.count), dst_offset);
-        index_copy_regions.push_back(VkBufferCopy{
-            .srcOffset = dst_offset,
-            .dstOffset = index_range.start * sizeof(u32),
-            .size = sizeof(u32) * static_cast<usize>(index_range.count)
-        });
-
-        dst_offset += sizeof(u32) * static_cast<usize>(index_range.count);
-        m_api.m_resource_manager->memcpy_to_buffer(mapped_staging, &primitive_data, sizeof(primitive_data), dst_offset);
-        primitive_copy_region = VkBufferCopy {
-            .srcOffset = dst_offset,
+        VkBufferCopy primitive_copy_region{
             .dstOffset = (primitive_range.start + primitive_id) * sizeof(Primitive),
             .size = sizeof(Primitive)
         };
 
-        dst_offset += sizeof(Primitive);
-
-        m_api.m_resource_manager->unmap_buffer(staging);
-
-        m_api.record_and_submit_once([this, staging, &vertex_copy_regions, &index_copy_regions, &primitive_copy_region](Handle<CommandList> cmd) {
-            m_api.copy_buffer_to_buffer(cmd, staging, m_scene_vertex_buffer, vertex_copy_regions);
-            m_api.copy_buffer_to_buffer(cmd, staging, m_scene_index_buffer, index_copy_regions);
+        m_api.record_and_submit_once([this, staging, &primitive_copy_region](Handle<CommandList> cmd) {
             m_api.copy_buffer_to_buffer(cmd, staging, m_scene_primitive_buffer, { primitive_copy_region });
         });
 
+        m_api.m_resource_manager->unmap_buffer(staging);
         m_api.m_resource_manager->destroy_buffer(staging);
+
+        glm::vec3 center_offset = calculate_center_offset(vertices.data(), static_cast<u32>(vertices.size()));
+        f32 radius = calculate_radius(vertices.data(), static_cast<u32>(vertices.size()), center_offset);
+
+        primitive_bounding_spheres[primitive_id] = glm::vec4(center_offset.x, center_offset.y, center_offset.z, radius);
     }
+
+    indices.clear();
+    indices.shrink_to_fit();
+
+    vertices.clear();
+    vertices.shrink_to_fit();
+
+    remap.clear();
+    remap.shrink_to_fit();
 
     glm::vec3 avg_center{};
     for(const auto &bound : primitive_bounding_spheres) {
@@ -449,7 +558,6 @@ Handle<Mesh> Renderer::create_mesh(const MeshCreateInfo &create_info) {
         }
     }
 
-    // Register mesh
     Mesh mesh{
         .center_offset = avg_center,
         .radius = max_radius,
@@ -494,9 +602,10 @@ void Renderer::destroy_mesh(Handle<Mesh> mesh_handle) {
 
     for (u32 i{}; i < primitive_range.count; ++i) {
         const Primitive &prim = m_primitive_allocator.get_element(primitive_range.start + i);
+        m_vertex_allocator.free(Range<Vertex>{static_cast<u32>(prim.vertex_start), prim.vertex_count});
+
         for (u32 lod_id{}; lod_id < static_cast<u32>(prim.lods.size()); ++lod_id) {
             const PrimitiveLOD &lod = prim.lods[lod_id];
-            m_vertex_allocator.free(Range<Vertex>{static_cast<u32>(lod.vertex_start), lod.vertex_count});
             m_index_allocator.free(Range<u32>{lod.index_start, lod.index_count});
         }
     }
@@ -516,7 +625,9 @@ Handle<MeshInstance> Renderer::create_mesh_instance(const MeshInstanceCreateInfo
     MeshInstance instance{
         .mesh = create_info.mesh,
         .material_count = material_range.count,
-        .material_start = material_range.start
+        .material_start = material_range.start,
+        .lod_bias = create_info.lod_bias,
+        .cull_dist_multiplier = create_info.cull_dist_multiplier
     };
     
     Handle<Buffer> staging = m_api.m_resource_manager->create_buffer(BufferCreateInfo{

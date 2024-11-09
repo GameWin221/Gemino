@@ -50,7 +50,8 @@ void main() {
         return;
     }
 
-    Mesh mesh = meshes[mesh_instances[object.mesh_instance].mesh];
+    MeshInstance mesh_instance = mesh_instances[object.mesh_instance];
+    Mesh mesh = meshes[mesh_instance.mesh];
     Transform transform = global_transforms[object_id];
 
     bool should_draw = true;
@@ -58,12 +59,12 @@ void main() {
     vec3 mesh_position = rotate_vq(mesh.center_offset * transform.scale, transform.rotation) + transform.position;
     // Distance to camera plane is cheaper than euclidean distance
     float mesh_dist = dot(mesh_position - camera.position, camera.forward);
-    float cull_distance = 4000.0f * global_cull_dist_multiplier;
+    float mesh_radius = mesh.radius * transform.max_scale;
+    float cull_distance = (mesh_radius / sin(radians(camera.fov * LOD_SPHERE_VISIBLE_ANGLE_HEIGHT / 2.0))) * global_cull_dist_multiplier * mesh_instance.cull_dist_multiplier;
 
     // Frustum Culling
     if (ENABLE_FRUSTUM_CULL != 0u) {
         vec3 mesh_pos_camera_diff = mesh_position - camera.position;
-        float mesh_radius = mesh.radius * transform.max_scale;
 
         should_draw = should_draw && (mesh_dist <= cull_distance);
         should_draw = should_draw && (dot(camera.right_plane, mesh_pos_camera_diff) > -mesh_radius);
@@ -72,27 +73,29 @@ void main() {
         should_draw = should_draw && (dot(camera.top_plane, mesh_pos_camera_diff) > -mesh_radius);
     }
 
-    // TODO: Re-implement
-    // LOD Picking
-    // https://www.desmos.com/calculator/igswt6rlwt
-    //float lod_f;
-    //if (ENABLE_DYNAMIC_LOD != 0u) {
-    //    lod_f = max(max(log2((1 << LOD_COUNT) * (mesh_dist / cull_distance) + (mesh_dist / LOD_DIV_CONSTANT)), 0.0) + global_lod_bias + mesh.lod_bias, 0.0);
-    //} else {
-    //    lod_f = max(global_lod_bias, 0.0);
-    //}
-    //uint lod_id = min(uint(lod_f), LOD_COUNT - 1u);
-    uint lod_id = 0u;
+    // LOD Picking (two candidates, here I used the second one "f4")
+    // "f4" is much faster since it involves only power-of-two operations such as 2^LOD_COUNT and log2, multiplication and division
+    // "f3" on the other hand uses a complex operation (sqrt) on top of addition, 2 multiplications and 2 divisions
+    // https://www.desmos.com/calculator/uewk5hwork
+    float lod_distance = max(mesh_dist - mesh_radius, 0.0);
+    float lod_f;
+    if (ENABLE_DYNAMIC_LOD != 0u) {
+        lod_f = max(max(log2((1 << LOD_COUNT) * (lod_distance / cull_distance)), 0.0) + global_lod_bias + mesh_instance.lod_bias, 0.0);
+    } else {
+        lod_f = max(global_lod_bias + mesh_instance.lod_bias, 0.0);
+    }
+    uint lod_id = min(uint(lod_f), LOD_COUNT - 1u);
 
     if (should_draw) {
         for (uint i = 0u; i < mesh.primitive_count; ++i) {
-            PrimitiveLOD lod = primitives[mesh.primitive_start + i].lods[lod_id];
+            Primitive prim = primitives[mesh.primitive_start + i];
+            PrimitiveLOD lod = prim.lods[lod_id];
 
             DrawCommand cmd;
             cmd.index_count = lod.index_count;
             cmd.instance_count = 1u;
             cmd.first_index = lod.index_start;
-            cmd.vertex_offset = lod.vertex_start;
+            cmd.vertex_offset = prim.vertex_start;
             cmd.first_instance = 0u;
             cmd.object_id = object_id;
             cmd.primitive_id = i;

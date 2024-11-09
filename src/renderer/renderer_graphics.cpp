@@ -208,6 +208,10 @@ void Renderer::render_world(World &world, Handle<Camera> camera) {
         sizeof(DrawCommand)
     );
 
+    if (m_config_enable_debug_shape_view) {
+        m_debug_pass.process(m_api, frame.command_list, m_config_debug_shape_opacity);
+    }
+
     m_offscreen_to_swapchain_pass.process(
         m_api,
         frame.command_list,

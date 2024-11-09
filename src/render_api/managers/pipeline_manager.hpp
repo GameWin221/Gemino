@@ -52,6 +52,7 @@ struct GraphicsPipelineCreateInfo {
     VkCompareOp depth_compare_op = VK_COMPARE_OP_LESS;
     
     bool enable_blending = false;
+    VkPrimitiveTopology primitive_topology = VK_PRIMITIVE_TOPOLOGY_TRIANGLE_LIST;
     VkPolygonMode polygon_mode = VK_POLYGON_MODE_FILL;
     VkCullModeFlags cull_mode = VK_CULL_MODE_BACK_BIT;
 };

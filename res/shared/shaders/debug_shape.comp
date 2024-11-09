@@ -1,0 +1,27 @@
+#version 450
+
+#include "forward.glsl"
+
+layout(local_size_x = 1) in;
+
+layout (constant_id = 0) const uint SPHERE_MESH_INDICES = 0u;
+
+layout(set = 0, binding = 0) writeonly buffer OutputBuffer {
+    uint index_count;
+    uint instance_count;
+    uint first_index;
+    int vertex_offset;
+    uint first_instance;
+} output_buffer;
+
+layout(set = 0, binding = 1) readonly buffer DrawCommandCountBuffer {
+    uint draw_command_count;
+};
+
+void main() {
+    output_buffer.index_count = SPHERE_MESH_INDICES;
+    output_buffer.instance_count = draw_command_count;
+    output_buffer.first_index = 0u;
+    output_buffer.vertex_offset = 0;
+    output_buffer.first_instance = 0u;
+}

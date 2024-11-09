@@ -1,9 +1,10 @@
-#define LOD_DIV_CONSTANT 50.0
+// min angular height of a visible bounding sphere = LOD_SPHERE_VISIBLE_ANGLE_HEIGHT * camera.fov
+// if the angular height of a bounding sphere is less than the min angular height then the object gets culled
+#define LOD_SPHERE_VISIBLE_ANGLE_HEIGHT 0.01
 #define LOD_COUNT 8
 
 #extension GL_EXT_shader_16bit_storage : require
 #extension GL_EXT_shader_8bit_storage : require
-
 
 struct Camera {
     mat4 view;
@@ -11,7 +12,7 @@ struct Camera {
     mat4 view_proj;
 
     vec3 position;
-    float fov;
+    float fov; // euler angles
 
     float pitch;
     float yaw;
@@ -41,10 +42,10 @@ struct Vertex {
 struct PrimitiveLOD {
     uint index_start;
     uint index_count;
-    int vertex_start;
-    uint vertex_count;
 };
 struct Primitive {
+    int vertex_start;
+    uint vertex_count;
     PrimitiveLOD lods[LOD_COUNT];
 };
 struct Mesh {
@@ -58,6 +59,8 @@ struct MeshInstance {
     uint mesh;
     uint material_count;
     uint material_start;
+    float lod_bias;
+    float cull_dist_multiplier;
 };
 
 struct Material {

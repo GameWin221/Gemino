@@ -16,7 +16,7 @@ struct alignas(16) Camera {
     alignas(16) glm::mat4 view_proj = glm::mat4(1.0f);
 
     alignas(16) glm::vec3 position{};
-    alignas(4) float fov{};
+    alignas(4) float fov{}; // euler angles
 
     alignas(4) float pitch{};
     alignas(4) float yaw{};
@@ -41,10 +41,10 @@ struct alignas(16) Camera {
 struct PrimitiveLOD {
     u32 index_start{};
     u32 index_count{};
-    i32 vertex_start{};
-    u32 vertex_count{};
 };
 struct Primitive {
+    i32 vertex_start{};
+    u32 vertex_count{};
     std::array<PrimitiveLOD, 8> lods{};
 };
 struct alignas(16) Mesh {
@@ -58,6 +58,8 @@ struct MeshInstance {
     Handle<Mesh> mesh = INVALID_HANDLE;
     u32 material_count{};
     u32 material_start{};
+    f32 lod_bias{};
+    f32 cull_dist_multiplier = 1.0f;
 };
 struct Texture {
     Handle<struct Image> image{};

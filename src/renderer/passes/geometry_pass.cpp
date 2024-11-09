@@ -144,7 +144,7 @@ void GeometryPass::process(
     });
 
     api.begin_graphics_pipeline(cmd, m_pipeline, m_render_target, RenderTargetClear{
-        .color = {0.0f, 0.0f, 0.0f, 1.0f},
+        .color = {0.0f, 0.0f, 0.0f, 0.0f},
         .depth = 0.0f
     });
 

@@ -10,11 +10,16 @@
 #include "passes/geometry_pass.hpp"
 #include "passes/offscreen_to_swapchain_pass.hpp"
 #include "passes/ui_pass.hpp"
+#include "passes/debug_pass.hpp"
 
 struct SceneLoadInfo {
     std::string path{};
     bool import_textures = true;
     bool import_materials = true;
+    u32 lod_bias_vert_threshold = UINT32_MAX;
+    f32 lod_bias{}; // Applied if MeshInstance has more than 'lod_bias_threshold' vertices in total
+    f32 simplify_target_error = -1.0f; // 0.0f -> 1.0f, less = better quality
+    f32 cull_dist_multiplier = 1.0f;
 };
 struct TextureLoadInfo {
     std::string path{};
@@ -50,10 +55,13 @@ struct PrimitiveCreateInfo {
 };
 struct MeshCreateInfo {
     std::vector<PrimitiveCreateInfo> primitives{};
+    f32 simplify_target_error = 0.05f;
 };
 struct MeshInstanceCreateInfo {
     Handle<Mesh> mesh = INVALID_HANDLE;
     std::vector<Handle<Material>> materials{};
+    f32 lod_bias{};
+    f32 cull_dist_multiplier = 1.0f;
 };
 
 struct DrawCommand {
@@ -90,17 +98,23 @@ public:
 
     UIPassDrawFn m_ui_pass_draw_fn{};
 
-    void set_config_global_lod_bias(float value);
-    float get_config_global_lod_bias() const { return m_config_global_lod_bias; }
+    void set_config_global_lod_bias(f32 value);
+    f32 get_config_global_lod_bias() const { return m_config_global_lod_bias; }
 
-    void set_config_global_cull_dist_multiplier(float value);
-    float get_config_global_culldist_multiplier() const { return m_config_global_cull_dist_multiplier; }
+    void set_config_global_cull_dist_multiplier(f32 value);
+    f32 get_config_global_culldist_multiplier() const { return m_config_global_cull_dist_multiplier; }
 
     void set_config_enable_dynamic_lod(bool enable);
     bool get_config_enable_dynamic_lod() const { return m_config_enable_dynamic_lod; }
 
     void set_config_enable_frustum_cull(bool enable);
     bool get_config_enable_frustum_cull() const { return m_config_enable_frustum_cull; }
+
+    void set_config_enable_debug_shape_view(bool enable);
+    bool get_config_enable_debug_shape_view() const { return m_config_enable_debug_shape_view; }
+
+    void set_config_debug_shape_opacity(f32 value);
+    f32 get_config_debug_shape_opacity() const { return m_config_debug_shape_opacity; }
 
     const HandleAllocator<Mesh> &get_mesh_allocator() const { return m_mesh_allocator; }
     const HandleAllocator<MeshInstance> &get_mesh_instance_allocator() const { return m_mesh_instance_allocator; }
@@ -120,8 +134,8 @@ public:
 
     const VkDeviceSize MAX_SCENE_TEXTURES = 2048ull; // (device memory)
     const VkDeviceSize MAX_SCENE_MATERIALS = 65535ull; // (device memory)
-    const VkDeviceSize MAX_SCENE_VERTICES = (128ull * 1024ull * 1024ull) / sizeof(Vertex); // (device memory)
-    const VkDeviceSize MAX_SCENE_INDICES = (64ull * 1024ull * 1024ull) / sizeof(u32); // (device memory)
+    const VkDeviceSize MAX_SCENE_VERTICES = (64ull * 1024ull * 1024ull) / sizeof(Vertex); // (device memory)
+    const VkDeviceSize MAX_SCENE_INDICES = (256ull * 1024ull * 1024ull) / sizeof(u32); // (device memory)
     const VkDeviceSize MAX_SCENE_MESHES = 2048ull; // (device memory)
     const VkDeviceSize MAX_SCENE_MESH_INSTANCES = MAX_SCENE_MESHES * 2ull; // (device memory)
     const VkDeviceSize MAX_SCENE_MESH_INSTANCE_MATERIALS = MAX_SCENE_MESH_INSTANCES * 4u; // (device memory)
@@ -158,6 +172,7 @@ private:
     OffscreenToSwapchainPass m_offscreen_to_swapchain_pass{};
     GeometryPass m_geometry_pass{};
     DrawCallGenPass m_draw_call_gen_pass{};
+    DebugPass m_debug_pass{};
 
     struct Frame {
         Handle<CommandList> command_list{};
@@ -195,6 +210,8 @@ private:
     float m_config_global_cull_dist_multiplier = 1.0f;
     bool m_config_enable_dynamic_lod = true;
     bool m_config_enable_frustum_cull = true;
+    bool m_config_enable_debug_shape_view = false;
+    f32 m_config_debug_shape_opacity = 0.3f;
 
     u32 m_config_texture_anisotropy = 8U;
     float m_config_texture_mip_bias = 0.0f;

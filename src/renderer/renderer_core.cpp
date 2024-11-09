@@ -164,6 +164,19 @@ void Renderer::init_passes(const Window &window) {
         m_scene_texture_descriptor
     );
 
+    m_debug_pass.init(
+        m_api,
+        m_scene_draw_buffer,
+        m_scene_object_buffer,
+        m_scene_global_transform_buffer,
+        m_scene_mesh_buffer,
+        m_scene_mesh_instance_buffer,
+        m_scene_camera_buffer,
+        m_scene_draw_count_buffer,
+        m_offscreen_image,
+        m_depth_image
+    );
+
     m_offscreen_to_swapchain_pass.init(m_api, m_offscreen_image, m_offscreen_sampler);
 
     m_ui_pass.init(m_api, window);
@@ -224,6 +237,7 @@ void Renderer::resize_passes(const Window &window) {
     m_offscreen_to_swapchain_pass.resize(m_api, m_offscreen_image, m_offscreen_sampler);
 
     m_ui_pass.resize(m_api, window);
+    m_debug_pass.resize(m_api, m_offscreen_image, m_depth_image);
 }
 
 void Renderer::destroy_scene_buffers() {
@@ -249,6 +263,7 @@ void Renderer::destroy_descriptors() {
     m_api.m_resource_manager->destroy_descriptor(m_scene_texture_descriptor);
 }
 void Renderer::destroy_passes() {
+    m_debug_pass.destroy(m_api);
     m_draw_call_gen_pass.destroy(m_api);
     m_geometry_pass.destroy(m_api);
     m_ui_pass.destroy(m_api);
@@ -272,10 +287,10 @@ void Renderer::destroy_defaults() {
     destroy_material(m_default_material);
 }
 
-void Renderer::set_config_global_lod_bias(float value) {
+void Renderer::set_config_global_lod_bias(f32 value) {
     m_config_global_lod_bias = value;
 }
-void Renderer::set_config_global_cull_dist_multiplier(float value) {
+void Renderer::set_config_global_cull_dist_multiplier(f32 value) {
     m_config_global_cull_dist_multiplier = std::max(value, 0.0f);
 }
 void Renderer::set_config_enable_dynamic_lod(bool enable) {
@@ -285,4 +300,12 @@ void Renderer::set_config_enable_dynamic_lod(bool enable) {
 void Renderer::set_config_enable_frustum_cull(bool enable) {
     m_config_enable_frustum_cull = enable;
     reload_pipelines();
+}
+
+void Renderer::set_config_enable_debug_shape_view(bool enable) {
+    m_config_enable_debug_shape_view = enable;
+}
+
+void Renderer::set_config_debug_shape_opacity(f32 value) {
+    m_config_debug_shape_opacity = std::max(std::min(value, 1.0f), 0.0f);
 }

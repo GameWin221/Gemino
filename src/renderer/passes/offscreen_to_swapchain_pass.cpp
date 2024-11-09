@@ -24,7 +24,7 @@ void OffscreenToSwapchainPass::init(const RenderAPI &api, Handle<Image> offscree
         .descriptors = { m_descriptor } ,
         .color_target {
             .format = api.m_swapchain->get_format(),
-            .layout = VK_IMAGE_LAYOUT_PRESENT_SRC_KHR
+            .layout = VK_IMAGE_LAYOUT_PRESENT_SRC_KHR,
         },
         .cull_mode = VK_CULL_MODE_NONE,
     });

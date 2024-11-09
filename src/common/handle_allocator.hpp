@@ -106,7 +106,7 @@ public:
 #if DEBUG_MODE
         return m_elements.at(handle.as_u32());
 #else
-        return m_elements[handle].as_u32();
+        return m_elements[handle.as_u32()];
 #endif
     }
 
