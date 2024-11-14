@@ -81,8 +81,8 @@ void GeometryPass::init(
     });
 
     m_pipeline = api.m_pipeline_manager->create_graphics_pipeline(GraphicsPipelineCreateInfo{
-        .vertex_shader_path = "./res/shared/shaders/forward.vert.spv",
-        .fragment_shader_path = "./res/shared/shaders/forward.frag.spv",
+        .vertex_shader_path = "./shaders/forward.vert.spv",
+        .fragment_shader_path = "./shaders/forward.frag.spv",
 
         //.push_constants_size = sizeof(PushConstants),
         .descriptors { m_descriptor, scene_texture_descriptor },

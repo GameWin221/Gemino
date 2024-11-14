@@ -33,29 +33,15 @@ add_subdirectory(external/imgui)
 add_subdirectory(external/meshoptimizer)
 add_subdirectory(external/VulkanMemoryAllocator)
 
-file(GLOB_RECURSE GEMINO_SRC_FILES CONFIGURE_DEPENDS
+file(GLOB_RECURSE SRC_FILES CONFIGURE_DEPENDS
     "${CMAKE_CURRENT_LIST_DIR}/src/*.cpp"
     "${CMAKE_CURRENT_LIST_DIR}/src/*.hpp"
+    "${CMAKE_CURRENT_LIST_DIR}/src/*.inl"
 )
 
-add_executable(${PROJECT_NAME} ${GEMINO_SRC_FILES})
-target_include_directories(${PROJECT_NAME} PRIVATE ${GLFW_INCLUDE_DIRS} ${GLM_INCLUDE_DIRS} ${VULKAN_MEMORY_ALOCATOR_INCLUDE_DIRS} ${CMAKE_CURRENT_LIST_DIR}/src ${CMAKE_CURRENT_LIST_DIR}/external/stb)
+add_executable(${PROJECT_NAME} ${SRC_FILES})
+target_include_directories(${PROJECT_NAME} PRIVATE ${CMAKE_CURRENT_LIST_DIR}/src ${CMAKE_CURRENT_LIST_DIR}/external/stb)
 target_link_libraries(${PROJECT_NAME} PRIVATE glfw Vulkan::Vulkan glm::glm VulkanMemoryAllocator tinygltf ImGui meshoptimizer)
-
-file(GLOB_RECURSE GEMINO_SHADER_SRC_FILES
-    "${CMAKE_CURRENT_LIST_DIR}/res/shared/shaders/*.vert"
-    "${CMAKE_CURRENT_LIST_DIR}/res/shared/shaders/*.frag"
-    "${CMAKE_CURRENT_LIST_DIR}/res/shared/shaders/*.comp"
-    "${CMAKE_CURRENT_LIST_DIR}/res/shared/shaders/*.tesc"
-    "${CMAKE_CURRENT_LIST_DIR}/res/shared/shaders/*.tese"
-    "${CMAKE_CURRENT_LIST_DIR}/res/shared/shaders/*.geom"
-    "${CMAKE_CURRENT_LIST_DIR}/res/shared/shaders/*.rgen"
-    "${CMAKE_CURRENT_LIST_DIR}/res/shared/shaders/*.rint"
-    "${CMAKE_CURRENT_LIST_DIR}/res/shared/shaders/*.rahit"
-    "${CMAKE_CURRENT_LIST_DIR}/res/shared/shaders/*.rchit"
-    "${CMAKE_CURRENT_LIST_DIR}/res/shared/shaders/*.rmiss"
-    "${CMAKE_CURRENT_LIST_DIR}/res/shared/shaders/*.rcall"
-)
 
 if(NOT MSVC)
     target_link_options(${PROJECT_NAME} PRIVATE -static)
@@ -63,23 +49,39 @@ else()
 
 endif()
 
-if(CMAKE_BUILD_TYPE MATCHES "Debug" OR CMAKE_BUILD_TYPE MATCHES "RelWithDebInfo")
-    foreach(file ${GEMINO_SHADER_SRC_FILES})
-        add_custom_command(TARGET ${PROJECT_NAME} PRE_BUILD
-            COMMAND $ENV{VULKAN_SDK}/bin/glslc ${file} -o ${file}.spv -g
-        )
-    endforeach()
-    message(STATUS "${PROJECT_NAME}: Compiled shaders with debug info.")
-else()
-    foreach(file ${GEMINO_SHADER_SRC_FILES})
-        add_custom_command(TARGET ${PROJECT_NAME} PRE_BUILD
-            COMMAND $ENV{VULKAN_SDK}/bin/glslc ${file} -o ${file}.spv
-        )
-    endforeach()
-    message(STATUS "${PROJECT_NAME}: Compiled shaders without debug info.")
-endif()
+set(GLSL_FILES_DIR "${CMAKE_CURRENT_LIST_DIR}/src/renderer/shaders")
 
-add_custom_command(TARGET ${PROJECT_NAME} POST_BUILD
-    COMMAND ${CMAKE_COMMAND} -E copy_directory ${CMAKE_CURRENT_LIST_DIR}/res/shared ${PROJECT_BINARY_DIR}/res/shared
+file(GLOB_RECURSE GLSL_FILES
+    "${GLSL_FILES_DIR}/*.vert"
+    "${GLSL_FILES_DIR}/*.frag"
+    "${GLSL_FILES_DIR}/*.comp"
+    "${GLSL_FILES_DIR}/*.tesc"
+    "${GLSL_FILES_DIR}/*.tese"
+    "${GLSL_FILES_DIR}/*.geom"
+    "${GLSL_FILES_DIR}/*.rgen"
+    "${GLSL_FILES_DIR}/*.rint"
+    "${GLSL_FILES_DIR}/*.rahit"
+    "${GLSL_FILES_DIR}/*.rchit"
+    "${GLSL_FILES_DIR}/*.rmiss"
+    "${GLSL_FILES_DIR}/*.rcall"
 )
-message(STATUS "${PROJECT_NAME}: Copied ${CMAKE_CURRENT_LIST_DIR}/res/shared to ${PROJECT_BINARY_DIR}/res/shared")
+
+add_custom_command(TARGET ${PROJECT_NAME} PRE_BUILD
+    COMMAND ${CMAKE_COMMAND} -E make_directory ${PROJECT_BINARY_DIR}/shaders
+    COMMAND ${CMAKE_COMMAND} -E make_directory ${PROJECT_BINARY_DIR}/res
+)
+
+foreach(FILE ${GLSL_FILES})
+    file(RELATIVE_PATH GLSL_FILE_NAME ${GLSL_FILES_DIR} ${FILE})
+    set(SPIRV_FILE "${PROJECT_BINARY_DIR}/shaders/${GLSL_FILE_NAME}.spv")
+
+    add_custom_command(
+        OUTPUT ${SPIRV_FILE}
+        DEPENDS ${FILE}
+        COMMAND $ENV{VULKAN_SDK}/bin/glslc ${FILE} -o ${SPIRV_FILE} "-g" "--target-env=vulkan1.2"
+    )
+    list(APPEND SPIRV_FILES ${SPIRV_FILE})
+endforeach()
+
+add_custom_target(compile_glsl DEPENDS ${SPIRV_FILES})
+add_dependencies(${PROJECT_NAME} compile_glsl)

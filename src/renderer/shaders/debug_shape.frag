@@ -1,7 +1,5 @@
 #version 450
 
-#include "forward.glsl"
-
 layout(location = 0) out vec4 out_color;
 
 layout(push_constant) uniform PushConstant {

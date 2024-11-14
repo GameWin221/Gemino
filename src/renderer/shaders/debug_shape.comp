@@ -1,7 +1,5 @@
 #version 450
 
-#include "forward.glsl"
-
 layout(local_size_x = 1) in;
 
 layout (constant_id = 0) const uint SPHERE_MESH_INDICES = 0u;

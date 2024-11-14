@@ -19,8 +19,8 @@ void OffscreenToSwapchainPass::init(const RenderAPI &api, Handle<Image> offscree
     });
 
     m_pipeline = api.m_pipeline_manager->create_graphics_pipeline(GraphicsPipelineCreateInfo{
-        .vertex_shader_path = "res/shared/shaders/fullscreen_tri.vert.spv",
-        .fragment_shader_path = "res/shared/shaders/fullscreen_tri.frag.spv",
+        .vertex_shader_path = "./shaders/fullscreen_tri.vert.spv",
+        .fragment_shader_path = "./shaders/fullscreen_tri.frag.spv",
         .descriptors = { m_descriptor } ,
         .color_target {
             .format = api.m_swapchain->get_format(),

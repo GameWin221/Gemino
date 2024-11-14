@@ -1,6 +1,7 @@
 #version 450
 
-#include "forward.glsl"
+#include "common.glsl"
+#include "../gpu_types.inl"
 
 layout (constant_id = 0) const uint ENABLE_DYNAMIC_LOD = 1u;
 layout (constant_id = 1) const uint ENABLE_FRUSTUM_CULL = 1u;
@@ -12,6 +13,9 @@ layout(push_constant) uniform PushConstant {
     uint object_count_pre_cull;
     float global_lod_bias;
     float global_cull_dist_multiplier;
+    float lod_sphere_visible_angle;
+    // min angular height of a visible bounding sphere = LOD_SPHERE_VISIBLE_ANGLE_HEIGHT * camera.fov
+    // if the angular height of a bounding sphere is less than the min angular height then the object gets culled
 };
 
 layout(set = 0, binding = 0) readonly buffer MeshBuffer {
@@ -60,7 +64,7 @@ void main() {
     // Distance to camera plane is cheaper than euclidean distance
     float mesh_dist = dot(mesh_position - camera.position, camera.forward);
     float mesh_radius = mesh.radius * transform.max_scale;
-    float cull_distance = (mesh_radius / sin(radians(camera.fov * LOD_SPHERE_VISIBLE_ANGLE_HEIGHT / 2.0))) * global_cull_dist_multiplier * mesh_instance.cull_dist_multiplier;
+    float cull_distance = (mesh_radius / sin(radians(camera.fov * lod_sphere_visible_angle / 2.0))) * global_cull_dist_multiplier * mesh_instance.cull_dist_multiplier;
 
     // Frustum Culling
     if (ENABLE_FRUSTUM_CULL != 0u) {
@@ -80,11 +84,11 @@ void main() {
     float lod_distance = max(mesh_dist - mesh_radius, 0.0);
     float lod_f;
     if (ENABLE_DYNAMIC_LOD != 0u) {
-        lod_f = max(max(log2((1 << LOD_COUNT) * (lod_distance / cull_distance)), 0.0) + global_lod_bias + mesh_instance.lod_bias, 0.0);
+        lod_f = max(max(log2((1 << GPU_MAX_LOD_COUNT) * (lod_distance / cull_distance)), 0.0) + global_lod_bias + mesh_instance.lod_bias, 0.0);
     } else {
         lod_f = max(global_lod_bias + mesh_instance.lod_bias, 0.0);
     }
-    uint lod_id = min(uint(lod_f), LOD_COUNT - 1u);
+    uint lod_id = min(uint(lod_f), GPU_MAX_LOD_COUNT - 1u);
 
     if (should_draw) {
         for (uint i = 0u; i < mesh.primitive_count; ++i) {

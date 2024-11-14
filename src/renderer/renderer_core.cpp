@@ -309,3 +309,7 @@ void Renderer::set_config_enable_debug_shape_view(bool enable) {
 void Renderer::set_config_debug_shape_opacity(f32 value) {
     m_config_debug_shape_opacity = std::max(std::min(value, 1.0f), 0.0f);
 }
+
+void Renderer::set_config_lod_sphere_visible_angle(f32 value) {
+    m_config_lod_sphere_visible_angle = std::max(std::min(value, 179.99f), 0.0002f);
+}

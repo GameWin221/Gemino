@@ -3,7 +3,8 @@
 #extension GL_ARB_shader_draw_parameters : require
 #extension GL_EXT_scalar_block_layout : require
 
-#include "forward.glsl"
+#include "common.glsl"
+#include "../gpu_types.inl"
 
 layout(location = 0) out vec3 f_position;
 layout(location = 1) out vec3 f_normal;

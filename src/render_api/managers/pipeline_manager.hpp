@@ -3,7 +3,6 @@
 
 #include <string>
 #include <vulkan/vulkan.h>
-#include <render_api/vertex.hpp>
 #include <render_api/managers/resource_manager.hpp>
 #include <common/handle_allocator.hpp>
 #include <common/types.hpp>

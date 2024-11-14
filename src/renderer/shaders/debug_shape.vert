@@ -3,7 +3,8 @@
 #extension GL_ARB_shader_draw_parameters : require
 #extension GL_EXT_scalar_block_layout : require
 
-#include "forward.glsl"
+#include "common.glsl"
+#include "../gpu_types.inl"
 
 layout(scalar, set = 0, binding = 0) readonly buffer VertexBuffer {
     vec3 positions[];

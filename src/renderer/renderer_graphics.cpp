@@ -193,7 +193,8 @@ void Renderer::render_world(World &world, Handle<Camera> camera) {
         m_scene_draw_count_buffer,
         scene_objects_count,
         m_config_global_lod_bias,
-        m_config_global_cull_dist_multiplier
+        m_config_global_cull_dist_multiplier,
+        m_config_lod_sphere_visible_angle
     );
 
     m_geometry_pass.process(

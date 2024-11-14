@@ -9,9 +9,9 @@
 
 template<typename T>
 struct Handle {
-    Handle() = default;
-    Handle(const u32 &other) : _internal(other) {}
-    Handle(const Handle &other) = default;
+    constexpr Handle() = default;
+    constexpr Handle(const u32 &other) : _internal(other) {}
+    constexpr Handle(const Handle &other) = default;
 
     Handle &operator=(const Handle &other) = default;
     Handle &operator=(const u32 &other) {
@@ -34,7 +34,7 @@ struct Handle {
         return Handle<U>(_internal);
     }
 
-    u32 _internal{};
+    u32 _internal = INVALID_HANDLE;
 };
 
 template<typename T>

@@ -3,5 +3,5 @@ for %%f in (%~dp0*.vert, %~dp0*.frag, %~dp0*.comp, %~dp0*.tesc, %~dp0*.tese, %~d
     echo Compiling %~dp0%%f
     %VULKAN_SDK%\Bin\glslc.exe %%f -o %%f.spv -g
 )
-echo Compiled shaders with debug info.
+echo Compiled all shaders.
 pause

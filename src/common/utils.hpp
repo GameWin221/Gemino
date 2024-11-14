@@ -4,9 +4,6 @@
 #include <common/types.hpp>
 #include <common/debug.hpp>
 
-#include <render_api/vertex.hpp>
-#include <glm/gtc/quaternion.hpp>
-
 #include <vector>
 #include <string>
 #include <cstring>

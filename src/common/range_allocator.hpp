@@ -9,8 +9,11 @@
 
 template<typename T>
 struct Range {
-    u32 start{};
-    u32 count{};
+    constexpr Range() = default;
+    constexpr Range(u32 _start, u32 _count) : start(_start), count(_count){};
+    constexpr Range(const Range &other) = default;
+
+    Range &operator=(const Range &other) = default;
 
     bool operator<(const Range &other) const {
         return start < other.start;
@@ -18,6 +21,14 @@ struct Range {
     bool operator==(const Range &other) const {
         return start == other.start && count == other.count;
     }
+
+    template<typename U>
+    [[nodiscard]] Range<U> into() const {
+        return Range<U>(start, count);
+    }
+
+    u32 start = INVALID_HANDLE;
+    u32 count{};
 };
 
 template<typename T>
@@ -44,10 +55,7 @@ template <typename T, RangeAllocatorType alloc_type = RangeAllocatorType::Extern
 class RangeAllocator {
 public:
     RangeAllocator() {
-        m_free_ranges.insert(Range<T>{
-            .start = 0u,
-            .count = UINT32_MAX
-        });
+        m_free_ranges.insert(Range<T>(0u, UINT32_MAX));
     }
 
     Range<T> alloc(u32 count, const T *data = nullptr) {
@@ -57,10 +65,7 @@ public:
 
         // Insert what remained of the free Range
         if (range.count > count) {
-            m_free_ranges.insert(Range<T>{
-                .start = range.start + count,
-                .count = range.count - count
-            });
+            m_free_ranges.insert(Range<T>(range.start + count, range.count - count));
         }
 
         range.count = count;
@@ -186,10 +191,7 @@ private:
             }
         }
 
-        return Range<T>{
-            .start = INVALID_HANDLE,
-            .count = 0
-        };
+        return Range<T>(INVALID_HANDLE, 0u);
     }
 
     std::set<Range<T>> m_free_ranges{};

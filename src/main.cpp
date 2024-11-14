@@ -12,6 +12,8 @@
 #include <thread>
 #include <iomanip>
 
+constexpr const char *SPONZA_PATH = "C:/Dev/Resources/Meshes/main1_sponza/NewSponza_Main_glTF_003.gltf";
+
 int main(){
     Window window(WindowConfig {
         .title = "Gemino Engine Example",
@@ -29,7 +31,7 @@ int main(){
     World world{};
 
     auto sponza_scene = renderer.load_gltf_scene(SceneLoadInfo {
-        .path = "C:/Dev/Resources/Meshes/main1_sponza/NewSponza_Main_glTF_003.gltf",
+        .path = SPONZA_PATH,
         .import_textures = false,
         .import_materials = true,
         .lod_bias_vert_threshold = 10000u,

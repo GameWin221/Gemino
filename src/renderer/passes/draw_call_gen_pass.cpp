@@ -82,7 +82,7 @@ void DrawCallGenPass::init(
     });
 
     m_pipeline = api.m_pipeline_manager->create_compute_pipeline(ComputePipelineCreateInfo{
-        .shader_path = "res/shared/shaders/draw_call_gen.comp.spv",
+        .shader_path = "./shaders/draw_call_gen.comp.spv",
         .shader_constant_values {
             static_cast<uint32_t>(config_enable_dynamic_lod),
             static_cast<uint32_t>(config_enable_frustum_cull),
@@ -101,7 +101,16 @@ void DrawCallGenPass::resize(const RenderAPI &api) {
 
 }
 
-void DrawCallGenPass::process(const RenderAPI &api, Handle<CommandList> cmd, Handle<Buffer> scene_draw_buffer, Handle<Buffer> scene_draw_count_buffer, u32 scene_objects_count, f32 config_global_lod_bias, f32 config_global_cull_dist_multiplier) {
+void DrawCallGenPass::process(
+    const RenderAPI &api,
+    Handle<CommandList> cmd,
+    Handle<Buffer> scene_draw_buffer,
+    Handle<Buffer> scene_draw_count_buffer,
+    u32 scene_objects_count,
+    f32 config_global_lod_bias,
+    f32 config_global_cull_dist_multiplier,
+    f32 config_lod_sphere_visible_angle
+    ) {
     api.fill_buffer(cmd, scene_draw_count_buffer, 0U, sizeof(u32));
 
     api.buffer_barrier(cmd, VK_PIPELINE_STAGE_TRANSFER_BIT, VK_PIPELINE_STAGE_COMPUTE_SHADER_BIT, {
@@ -115,13 +124,14 @@ void DrawCallGenPass::process(const RenderAPI &api, Handle<CommandList> cmd, Han
     DrawCallGenPushConstant push_constant{
         .object_count_pre_cull = scene_objects_count,
         .global_lod_bias = config_global_lod_bias,
-        .global_cull_dist_multiplier = config_global_cull_dist_multiplier
+        .global_cull_dist_multiplier = config_global_cull_dist_multiplier,
+        .lod_sphere_visible_angle = config_lod_sphere_visible_angle
     };
 
     api.begin_compute_pipeline(cmd, m_pipeline);
     api.bind_compute_descriptor(cmd, m_pipeline, m_descriptor, 0U);
     api.push_compute_constants(cmd, m_pipeline, &push_constant);
-    api.dispatch_compute_pipeline(cmd, glm::uvec3(Utils::div_ceil(scene_objects_count, api.m_instance->get_physical_device_preferred_warp_size()), 1u, 1u));
+    api.dispatch_compute_pipeline(cmd, Utils::div_ceil(scene_objects_count, api.m_instance->get_physical_device_preferred_warp_size()));
 
     api.buffer_barrier(cmd, VK_PIPELINE_STAGE_COMPUTE_SHADER_BIT, VK_PIPELINE_STAGE_DRAW_INDIRECT_BIT | VK_PIPELINE_STAGE_VERTEX_SHADER_BIT, {
         BufferBarrier{

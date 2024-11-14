@@ -5,6 +5,7 @@
 #include <world/world.hpp>
 #include <window/window.hpp>
 #include <common/utils.hpp>
+#include <renderer/gpu_types.inl>
 
 #include "passes/draw_call_gen_pass.hpp"
 #include "passes/geometry_pass.hpp"
@@ -64,12 +65,6 @@ struct MeshInstanceCreateInfo {
     f32 cull_dist_multiplier = 1.0f;
 };
 
-struct DrawCommand {
-    VkDrawIndexedIndirectCommand vk_cmd{};
-    u32 object_id{};
-    u32 primitive_id{};
-};
-
 class Renderer {
 public:
     Renderer(Window &window, VSyncMode v_sync);
@@ -115,6 +110,9 @@ public:
 
     void set_config_debug_shape_opacity(f32 value);
     f32 get_config_debug_shape_opacity() const { return m_config_debug_shape_opacity; }
+
+    void set_config_lod_sphere_visible_angle(f32 value);
+    f32 get_config_lod_sphere_visible_angle() const { return m_config_lod_sphere_visible_angle; }
 
     const HandleAllocator<Mesh> &get_mesh_allocator() const { return m_mesh_allocator; }
     const HandleAllocator<MeshInstance> &get_mesh_instance_allocator() const { return m_mesh_instance_allocator; }
@@ -212,6 +210,7 @@ private:
     bool m_config_enable_frustum_cull = true;
     bool m_config_enable_debug_shape_view = false;
     f32 m_config_debug_shape_opacity = 0.3f;
+    f32 m_config_lod_sphere_visible_angle = 0.01f;
 
     u32 m_config_texture_anisotropy = 8U;
     float m_config_texture_mip_bias = 0.0f;

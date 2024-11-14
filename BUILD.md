@@ -1,9 +1,9 @@
 # Building Gemino
 ## Prerequisites
-You have to get the Vulkan SDK from https://vulkan.lunarg.com/ and have it installed. CMake and Visual Studio will find it automatically only when the `VULKAN_SDK` environmental variable is set correctly.
+You have to get the Vulkan SDK from https://vulkan.lunarg.com/ and have it installed. CMake will find it automatically only when the `VULKAN_SDK` environmental variable is set correctly.
 You will also need Vulkan drivers 1.2 or newer.
 
-Sponza scene is required for the default example and can be downloaded [here](https://www.intel.com/content/www/us/en/developer/topic-technology/graphics-research/samples.html), from the Intel GPU Research samples. After you download it, paste it in the `res/Sponza` directory.
+Sponza scene is required for the default example and can be downloaded [here](https://www.intel.com/content/www/us/en/developer/topic-technology/graphics-research/samples.html), from the Intel GPU Research samples. After you download it, provide the path to it in the main.cpp file.
 
 ## Build Tool
 ### 1. Using CMake
@@ -15,23 +15,17 @@ Sponza scene is required for the default example and can be downloaded [here](ht
 ### 2. Using CLion and other JetBrains IDEs
 Open the project's directory, your IDE will handle it and configure CMake accordingly. You can use your own configurations.
 
-### 3. Using Visual Studio
-There is a .sln file in the project root folder to make Visual Studio users' lives easier. It should work identically as the CMake project.
-
 # Compiling Shaders
-Place all of your shaders in the `res/shared/shaders` directory. **Only there** the shaders will get automatically compiled and copied correctly.
+Place all of your shaders in the `src/renderer/shaders` directory. **Only there** the shaders will get automatically compiled and copied correctly.
 
-### 1. Using CMake or Visual Studio
-- CMake will generate custom shader build commands everytime you reload or create the CMake project (`cmake` command). In debug mode it will compile the shaders with additional debug info.
+### 1. Using CMake
+CMake will generate custom shader *build-and-copy* commands for each GLSL source file everytime you reload or create the CMake project (`cmake` command).
 
-- Visual Studio simply runs `compile.bat` in Release mode and `compile_debug.bat` in Debug mode. It is located in the `res/shaders` directory so the commands don't need to be regenerated.
+The commands are always executed during the build process only for the sources that changed compared to the last compiled version (Or if a re-build was issued). Each compiled `.spv` file will get copied into the `shaders/` directory located in the target build directory while maintaining the file structure (e.g. shaders in subdirectories).
 
-The shader build commands are executed always after a successful build.
-
-### 2. Manually
+### 2. Manually (Not recommended)
 Use GLSL to SPIR-V compiler like `glslangValidator` or `glslc` on each shader source file.
 
-On Windows you can run the `compile.bat` script located in the `res/shaders` directory.
+On Windows you can run the `compile.bat` script located in the `src/renderer/shaders` directory.
 
-## Automatic `res/shared` directory copying
-The whole `res/shared` directory will get automatically copied to the build directory after a successful build. (Both using CMake and Visual Studio)
+Copy the resulting `.spv` files manually to the `shaders/` directory located in the target build directory.

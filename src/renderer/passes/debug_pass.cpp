@@ -139,8 +139,8 @@ void DebugPass::init(
     });
 
     m_graphics_pipeline = api.m_pipeline_manager->create_graphics_pipeline(GraphicsPipelineCreateInfo{
-        .vertex_shader_path = "./res/shared/shaders/debug_shape.vert.spv",
-        .fragment_shader_path = "./res/shared/shaders/debug_shape.frag.spv",
+        .vertex_shader_path = "./shaders/debug_shape.vert.spv",
+        .fragment_shader_path = "./shaders/debug_shape.frag.spv",
 
         .push_constants_size = sizeof(f32),
 
@@ -203,9 +203,8 @@ void DebugPass::init(
         }
     });
 
-
     m_compute_pipeline = api.m_pipeline_manager->create_compute_pipeline(ComputePipelineCreateInfo{
-        .shader_path = "res/shared/shaders/debug_shape.comp.spv",
+        .shader_path = "./shaders/debug_shape.comp.spv",
         .shader_constant_values{ static_cast<u32>(sphere_mesh_indices.size()) },
         .descriptors { m_compute_descriptor }
     });
@@ -235,7 +234,7 @@ void DebugPass::resize(const RenderAPI &api, Handle<Image> offscreen_image, Hand
 void DebugPass::process(const RenderAPI &api, Handle<CommandList> cmd, f32 debug_shape_opacity) {
     api.begin_compute_pipeline(cmd, m_compute_pipeline);
         api.bind_compute_descriptor(cmd, m_compute_pipeline, m_compute_descriptor, 0u);
-        api.dispatch_compute_pipeline(cmd, glm::uvec3(1u));
+        api.dispatch_compute_pipeline(cmd);
 
         api.buffer_barrier(cmd, VK_PIPELINE_STAGE_COMPUTE_SHADER_BIT, VK_PIPELINE_STAGE_DRAW_INDIRECT_BIT, {
             BufferBarrier { m_sphere_indirect_draw_buffer, VK_ACCESS_SHADER_WRITE_BIT, VK_ACCESS_INDIRECT_COMMAND_READ_BIT }

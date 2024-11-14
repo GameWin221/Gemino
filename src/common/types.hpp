@@ -5,6 +5,9 @@
 #include <cmath>
 #include <memory>
 
+#include <glm/glm.hpp>
+#include <glm/ext/scalar_constants.hpp>
+
 using usize = size_t;
 using u64 = uint64_t;
 using u32 = uint32_t;

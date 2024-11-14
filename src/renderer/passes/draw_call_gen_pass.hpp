@@ -8,6 +8,7 @@ struct DrawCallGenPushConstant {
     u32 object_count_pre_cull{};
     f32 global_lod_bias{};
     f32 global_cull_dist_multiplier{};
+    f32 lod_sphere_visible_angle{};
 };
 
 class DrawCallGenPass {
@@ -28,7 +29,16 @@ public:
     void destroy(const RenderAPI &api);
     void resize(const RenderAPI &api);
 
-    void process(const RenderAPI &api, Handle<CommandList> cmd, Handle<Buffer> scene_draw_buffer, Handle<Buffer> scene_draw_count_buffer, u32 scene_objects_count, f32 config_global_lod_bias, f32 config_global_cull_dist_multiplier);
+    void process(
+        const RenderAPI &api,
+        Handle<CommandList> cmd,
+        Handle<Buffer> scene_draw_buffer,
+        Handle<Buffer> scene_draw_count_buffer,
+        u32 scene_objects_count,
+        f32 config_global_lod_bias,
+        f32 config_global_cull_dist_multiplier,
+        f32 config_lod_sphere_visible_angle
+        );
 private:
     Handle<Descriptor> m_descriptor{};
     Handle<ComputePipeline> m_pipeline{};

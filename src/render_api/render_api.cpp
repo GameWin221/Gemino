@@ -681,12 +681,12 @@ void RenderAPI::wait_for_device_idle() const {
     vkDeviceWaitIdle(m_instance->get_device());
 }
 
-void RenderAPI::dispatch_compute_pipeline(Handle<CommandList> command_list, glm::uvec3 groups) const {
-    if(groups.x == 0) groups.x = 1;
-    if(groups.y == 0) groups.y = 1;
-    if(groups.z == 0) groups.z = 1;
+void RenderAPI::dispatch_compute_pipeline(Handle<CommandList> command_list, u32 x_groups, u32 y_groups, u32 z_groups) const {
+    DEBUG_ASSERT(x_groups >= 1u);
+    DEBUG_ASSERT(y_groups >= 1u);
+    DEBUG_ASSERT(z_groups >= 1u);
 
-    vkCmdDispatch(m_command_manager->get_command_list_data(command_list).command_buffer, groups.x, groups.y, groups.z);
+    vkCmdDispatch(m_command_manager->get_command_list_data(command_list).command_buffer, x_groups, y_groups, z_groups);
 }
 
 void RenderAPI::bind_graphics_descriptor(Handle<CommandList> command_list, Handle<GraphicsPipeline> pipeline, Handle<Descriptor> descriptor, u32 dst_index) const {

@@ -2,7 +2,8 @@
 
 #extension GL_EXT_nonuniform_qualifier : require
 
-#include "forward.glsl"
+#include "common.glsl"
+#include "../gpu_types.inl"
 
 layout(location = 0) in vec3 f_position;
 layout(location = 1) in vec3 f_normal;

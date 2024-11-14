@@ -3,93 +3,9 @@
 
 #define GLM_FORCE_DEPTH_ZERO_TO_ONE
 
-#include <array>
 #include <common/handle_allocator.hpp>
 #include <common/range_allocator.hpp>
-#include <glm/glm.hpp>
-#include <glm/gtc/matrix_transform.hpp>
-#include <glm/gtc/quaternion.hpp>
-
-struct alignas(16) Camera {
-    alignas(16) glm::mat4 view = glm::mat4(1.0f);
-    alignas(16) glm::mat4 proj = glm::mat4(1.0f);
-    alignas(16) glm::mat4 view_proj = glm::mat4(1.0f);
-
-    alignas(16) glm::vec3 position{};
-    alignas(4) float fov{}; // euler angles
-
-    alignas(4) float pitch{};
-    alignas(4) float yaw{};
-    alignas(4) float near = 0.02f;
-    alignas(4) float far = 2000.0f;
-
-    alignas(8) glm::vec2 viewport_size = glm::vec2(1.0f);
-
-    alignas(16) glm::vec3 forward = glm::vec3(0.0f, 0.0f, 1.0f);
-    alignas(16) glm::vec3 right = glm::vec3(1.0f, 0.0f, 0.0f);
-    alignas(16) glm::vec3 up = glm::vec3(0.0f, 1.0f, 0.0f);
-
-    alignas(16) glm::vec3 left_plane{};
-    alignas(16) glm::vec3 right_plane{};
-    alignas(16) glm::vec3 top_plane{};
-    alignas(16) glm::vec3 bottom_plane{};
-
-    alignas(16) glm::vec4 _pad0{};
-    alignas(16) glm::vec4 _pad1{};
-};
-
-struct PrimitiveLOD {
-    u32 index_start{};
-    u32 index_count{};
-};
-struct Primitive {
-    i32 vertex_start{};
-    u32 vertex_count{};
-    std::array<PrimitiveLOD, 8> lods{};
-};
-struct alignas(16) Mesh {
-    glm::vec3 center_offset{};
-    f32 radius{};
-
-    u32 primitive_count{};
-    u32 primitive_start{};
-};
-struct MeshInstance {
-    Handle<Mesh> mesh = INVALID_HANDLE;
-    u32 material_count{};
-    u32 material_start{};
-    f32 lod_bias{};
-    f32 cull_dist_multiplier = 1.0f;
-};
-struct Texture {
-    Handle<struct Image> image{};
-    Handle<struct Sampler> sampler{};
-    u16 width{};
-    u16 height{};
-    u16 bytes_per_pixel{};
-    u16 mip_level_count{};
-    u16 is_srgb{};
-    u16 use_linear_filter{};
-};
-struct Material {
-    Handle<Texture> albedo_texture = INVALID_HANDLE;
-    Handle<Texture> roughness_texture = INVALID_HANDLE;
-    Handle<Texture> metalness_texture = INVALID_HANDLE;
-    Handle<Texture> normal_texture = INVALID_HANDLE;
-    glm::vec4 color = glm::vec4(1.0f);
-};
-struct Transform {
-    alignas(16) glm::vec3 position{};
-    alignas(16) glm::quat rotation = glm::quat(1.0f, 0.0f, 0.0f, 0.0f);
-    alignas(16) glm::vec3 scale = glm::vec3(1.0f);
-    alignas(4) f32 max_scale = 1.0f;
-};
-struct Object {
-    // Global transform and local transform are both allocated at the same handle as object
-    Handle<MeshInstance> mesh_instance = INVALID_HANDLE;
-    Handle<Object> parent = INVALID_HANDLE;
-    u32 visible = 1U;
-};
+#include <renderer/gpu_types.inl>
 
 struct ObjectCreateInfo{
     std::string name{};
