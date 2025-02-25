@@ -5,6 +5,7 @@
 
 #ifdef __cplusplus
 #include <vulkan/vulkan.h>
+#include <meshoptimizer.h>
 #include <glm/glm.hpp>
 #include <glm/gtc/matrix_transform.hpp>
 #include <glm/gtc/quaternion.hpp>
@@ -42,6 +43,14 @@ struct alignas(16) Camera {
 struct Vertex {
     bool operator==(const Vertex &other) const {
         return pos == other.pos && texcoord == other.texcoord && normal == other.normal;
+    }
+
+    void set_normal_from_f32(const glm::vec3 &n) {
+        normal = glm::i8vec4(glm::normalize(n) * 127.0f, 0.0f);
+    }
+
+    void set_texcoord_from_f32(const glm::vec2 &uv) {
+        texcoord = glm::u16vec2(meshopt_quantizeHalf(uv.x), meshopt_quantizeHalf(uv.y));
     }
 
     glm::f32vec3 pos{};

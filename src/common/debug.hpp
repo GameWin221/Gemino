@@ -20,7 +20,8 @@
 #define DEBUG_ASSERT(x)  if (!(x)) DEBUG_PANIC("Expression failed: " << #x);
 #define DEBUG_CONST_ASSERT(x)  if constexpr(!(x)) DEBUG_PANIC("Expression failed: " << #x);
 
-#define DEBUG_TIMESTAMP(name) auto name = std::chrono::high_resolution_clock::now()
-#define DEBUG_TIME_DIFF(a, b) std::chrono::duration<double>(b - a).count()
+#define _DEBUG_TIMESTAMP_NAME(name) __timestamp##name
+#define DEBUG_TIMESTAMP(name) auto _DEBUG_TIMESTAMP_NAME(name) = std::chrono::high_resolution_clock::now()
+#define DEBUG_TIME_DIFF(a, b) std::chrono::duration<double>(_DEBUG_TIMESTAMP_NAME(b) - _DEBUG_TIMESTAMP_NAME(a)).count()
 
 #endif

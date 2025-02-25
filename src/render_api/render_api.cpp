@@ -1,5 +1,6 @@
 #include "render_api.hpp"
 #include <bit>
+#include <algorithm>
 
 RenderAPI::RenderAPI(const Window& window, const SwapchainConfig& config) : m_swapchain_config(config) {
     m_instance = MakeUnique<Instance>(window.get_native_handle());
@@ -216,6 +217,200 @@ void RenderAPI::record_and_submit_once(std::function<void(Handle<CommandList>)> 
     end_recording_commands(temp_cmd);
     submit_commands_once(temp_cmd);
     m_command_manager->destroy_command_list(temp_cmd);
+}
+
+void RenderAPI::begin_query(Handle<CommandList> command_list, Handle<Query> query_handle) {
+    const CommandList &cmd = m_command_manager->get_command_list_data(command_list);
+    const Query &query = m_command_manager->get_query_data(query_handle);
+
+    vkCmdBeginQuery(
+        cmd.command_buffer,
+        m_command_manager->get_query_pool(query.query_type),
+        query.local_id.as_u32(),
+        query.query_type == QueryType::Occlusion ? VK_QUERY_CONTROL_PRECISE_BIT : 0u
+    );
+}
+void RenderAPI::end_query(Handle<CommandList> command_list, Handle<Query> query_handle) {
+    const CommandList &cmd = m_command_manager->get_command_list_data(command_list);
+    const Query &query = m_command_manager->get_query_data(query_handle);
+
+    vkCmdEndQuery(cmd.command_buffer, m_command_manager->get_query_pool(query.query_type), query.local_id.as_u32());
+}
+
+void RenderAPI::reset_queries_immediate(const std::vector<Handle<Query>> &query_handles) {
+    std::unordered_map<QueryType, std::vector<u32>> query_ids_by_type{};
+    for (const auto &q_handle : query_handles) {
+        const Query &q_data = m_command_manager->get_query_data(q_handle);
+        query_ids_by_type[q_data.query_type].push_back(q_data.local_id.as_u32());
+    }
+
+    for(auto &[q_type, query_ids] : query_ids_by_type) {
+        std::sort(query_ids.begin(), query_ids.end());
+
+        u32 first = 0u;
+        for(u32 i = 1u; i < query_ids.size(); ++i) {
+            if (query_ids[i] != query_ids[i-1] + 1) {
+                vkResetQueryPool(m_instance->get_device(), m_command_manager->get_query_pool(q_type), query_ids[first], i - first);
+                first = i;
+            }
+        }
+
+        vkResetQueryPool(m_instance->get_device(), m_command_manager->get_query_pool(q_type), query_ids[first], query_ids.size() - first);
+    }
+}
+void RenderAPI::reset_queries_cmd(Handle<CommandList> command_list, const std::vector<Handle<Query>> &query_handles) {
+    const CommandList &cmd = m_command_manager->get_command_list_data(command_list);
+
+    std::unordered_map<QueryType, std::vector<u32>> query_ids_by_type{};
+    for (const auto &q_handle : query_handles) {
+        const Query &q_data = m_command_manager->get_query_data(q_handle);
+        query_ids_by_type[q_data.query_type].push_back(q_data.local_id.as_u32());
+    }
+
+    for(auto &[q_type, query_ids] : query_ids_by_type) {
+        std::sort(query_ids.begin(), query_ids.end());
+
+        u32 first = 0u;
+        for(u32 i = 1u; i < query_ids.size(); ++i) {
+            if (query_ids[i] != query_ids[i-1] + 1) {
+                vkCmdResetQueryPool(cmd.command_buffer, m_command_manager->get_query_pool(q_type), query_ids[first], i - first);
+                first = i;
+            }
+        }
+
+        vkCmdResetQueryPool(cmd.command_buffer, m_command_manager->get_query_pool(q_type), query_ids[first], query_ids.size() - first);
+    }
+}
+void RenderAPI::write_timestamp(Handle<CommandList> command_list, Handle<Query> query_handle, VkPipelineStageFlagBits pipeline_stage) {
+    const CommandList &cmd = m_command_manager->get_command_list_data(command_list);
+    const Query &query = m_command_manager->get_query_data(query_handle);
+
+    vkCmdWriteTimestamp(cmd.command_buffer, pipeline_stage, m_command_manager->get_query_pool(query.query_type), query.local_id.as_u32());
+}
+void RenderAPI::read_queries(const std::vector<Handle<Query>> &query_handles, std::unordered_map<Handle<Query>, u64> *scalar_results, std::unordered_map<Handle<Query>, QueryPipelineStatisticsResults> *statistics_results, bool wait_for_results) {
+    std::unordered_map<QueryType, std::vector<Handle<Query>>> queries_by_type{};
+    for (const auto &q_handle : query_handles) {
+        const Query &q_data = m_command_manager->get_query_data(q_handle);
+        queries_by_type[q_data.query_type].push_back(q_handle);
+    }
+
+    for(auto &[q_type, query_handles] : queries_by_type) {
+        std::sort(query_handles.begin(), query_handles.end(), [this](const Handle<Query> &a, const Handle<Query> &b) {
+            const Query &query_a = m_command_manager->get_query_data(a);
+            const Query &query_b = m_command_manager->get_query_data(b);
+
+            return query_a.local_id.as_u32() < query_b.local_id.as_u32();
+        });
+
+        u32 first = 0u;
+        for(u32 i = 1u; i < query_handles.size(); ++i) {
+            const Query &last_query = m_command_manager->get_query_data(query_handles[i-1]);
+            const Query &this_query = m_command_manager->get_query_data(query_handles[i]);
+
+            if (this_query.local_id.as_u32() != last_query.local_id.as_u32() + 1) {
+                u32 count = i - first;
+
+                if (q_type == QueryType::PipelineStatistics) {
+                    DEBUG_ASSERT(statistics_results != nullptr);
+
+                    std::vector<QueryPipelineStatisticsResults> local_results(count);
+
+                    VkResult vk_res = vkGetQueryPoolResults(
+                        m_instance->get_device(), m_command_manager->get_query_pool(q_type),
+                        m_command_manager->get_query_data(query_handles[first]).local_id.as_u32(), count,
+                        count * sizeof(QueryPipelineStatisticsResults), local_results.data(), sizeof(QueryPipelineStatisticsResults),
+                        (wait_for_results ? VK_QUERY_RESULT_WAIT_BIT : 0u)
+                    );
+
+                    if (vk_res == VK_SUCCESS) {
+                        for(u32 j = first, k{}; k < count; ++j, ++k) {
+                            (*statistics_results)[query_handles[j]] = local_results[k];
+                        }
+                    } else if(vk_res == VK_NOT_READY) {
+                        for(u32 j = first, k{}; k < count; ++j, ++k) {
+                            (*statistics_results)[query_handles[j]] = QueryPipelineStatisticsResults{};
+                        }
+                    } else {
+                        DEBUG_PANIC("Failed to read query results!");
+                    }
+                } else {
+                    DEBUG_ASSERT(scalar_results != nullptr);
+
+                    std::vector<u64> local_results(count);
+
+                    VkResult vk_res = vkGetQueryPoolResults(
+                        m_instance->get_device(), m_command_manager->get_query_pool(q_type),
+                        m_command_manager->get_query_data(query_handles[first]).local_id.as_u32(), count,
+                        count * sizeof(u64), local_results.data(), sizeof(u64),
+                        VK_QUERY_RESULT_64_BIT | (wait_for_results ? VK_QUERY_RESULT_WAIT_BIT : 0u)
+                    );
+
+                    if (vk_res == VK_SUCCESS) {
+                        for(u32 j = first, k{}; k < count; ++j, ++k) {
+                            (*scalar_results)[query_handles[j]] = local_results[k];
+                        }
+                    } else if(vk_res == VK_NOT_READY) {
+                        for(u32 j = first, k{}; k < count; ++j, ++k) {
+                            (*scalar_results)[query_handles[j]] = UINT64_MAX;
+                        }
+                    } else {
+                        DEBUG_PANIC("Failed to read query results!");
+                    }
+                }
+
+                first = i;
+            }
+        }
+
+        u32 count = query_handles.size() - first;
+        if (q_type == QueryType::PipelineStatistics) {
+            DEBUG_ASSERT(statistics_results != nullptr);
+
+            std::vector<QueryPipelineStatisticsResults> local_results(count);
+
+            VkResult vk_res = vkGetQueryPoolResults(
+                m_instance->get_device(), m_command_manager->get_query_pool(q_type),
+                m_command_manager->get_query_data(query_handles[first]).local_id.as_u32(), count,
+                count * sizeof(QueryPipelineStatisticsResults), local_results.data(), sizeof(QueryPipelineStatisticsResults),
+                (wait_for_results ? VK_QUERY_RESULT_WAIT_BIT : 0u)
+            );
+
+            if (vk_res == VK_SUCCESS) {
+                for(u32 j = first, k{}; k < count; ++j, ++k) {
+                    (*statistics_results)[query_handles[j]] = local_results[k];
+                }
+            } else if(vk_res == VK_NOT_READY) {
+                for(u32 j = first, k{}; k < count; ++j, ++k) {
+                    (*statistics_results)[query_handles[j]] = QueryPipelineStatisticsResults{};
+                }
+            } else {
+                DEBUG_PANIC("Failed to read query results!");
+            }
+        } else {
+            DEBUG_ASSERT(scalar_results != nullptr);
+
+            std::vector<u64> local_results(count);
+
+            VkResult vk_res = vkGetQueryPoolResults(
+                m_instance->get_device(), m_command_manager->get_query_pool(q_type),
+                m_command_manager->get_query_data(query_handles[first]).local_id.as_u32(), count,
+                count * sizeof(u64), local_results.data(), sizeof(u64),
+                VK_QUERY_RESULT_64_BIT | (wait_for_results ? VK_QUERY_RESULT_WAIT_BIT : 0u)
+            );
+
+            if (vk_res == VK_SUCCESS) {
+                for(u32 j = first, k{}; k < count; ++j, ++k) {
+                    (*scalar_results)[query_handles[j]] = local_results[k];
+                }
+            } else if(vk_res == VK_NOT_READY) {
+                for(u32 j = first, k{}; k < count; ++j, ++k) {
+                    (*scalar_results)[query_handles[j]] = UINT64_MAX;
+                }
+            } else {
+                DEBUG_PANIC("Failed to read query results!");
+            }
+        }
+    }
 }
 
 void RenderAPI::image_barrier(Handle<CommandList> command_list, VkPipelineStageFlags src_stage, VkPipelineStageFlags dst_stage, const std::vector<ImageBarrier> &barriers) const {

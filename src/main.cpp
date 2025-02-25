@@ -12,7 +12,8 @@
 #include <thread>
 #include <iomanip>
 
-constexpr const char *SPONZA_PATH = "C:/Dev/Resources/Meshes/main1_sponza/NewSponza_Main_glTF_003.gltf";
+//constexpr const char *SPONZA_PATH = "C:/Dev/Resources/Meshes/main1_sponza/NewSponza_Main_glTF_003.gltf";
+constexpr const char *BISTRO_PATH = "C:/Dev/Resources/Meshes/Bistro_v5_2/GLTF/BistroExterior.gltf";
 
 int main(){
     Window window(WindowConfig {
@@ -29,26 +30,17 @@ int main(){
     Editor::attach(renderer);
 
     World world{};
-
-    auto sponza_scene = renderer.load_gltf_scene(SceneLoadInfo {
-        .path = SPONZA_PATH,
+/*
+    auto bistro_scene = renderer.load_gltf_scene(SceneLoadInfo {
+        .path = BISTRO_PATH,
         .import_textures = false,
         .import_materials = true,
-        .lod_bias_vert_threshold = 10000u,
-        .lod_bias = 0.8f
+        //.lod_bias_vert_threshold = 10000u,
+        //.lod_bias = 0.8f
     });
 
-    // Hide decals by default
-    for (auto &obj : sponza_scene.objects) {
-        if (obj.name.find("decals") != std::string::npos) {
-            obj.visible = false;
-        }
-    }
-
-    auto sponza_handle = world.instantiate_scene(sponza_scene);
-
-
-
+    auto bistro_handle = world.instantiate_scene(bistro_scene);
+*/
     auto monkey_scene = renderer.load_gltf_scene(SceneLoadInfo {
         .path = "res/monkey.gltf"
     });
@@ -60,8 +52,8 @@ int main(){
     for (u32 y{}; y < 40u; ++y) {
         for (u32 x{}; x < 40u; ++x) {
             for (u32 z{}; z < 40u; ++z) {
-                monkey_scene.position = glm::vec3(x * 2u, y * 2u, z * 2u);
-                auto monkey_handle = world.instantiate_scene_object(monkey_scene, 0u);
+                //monkey_scene.position = glm::vec3(x * 2u, y * 2u, z * 2u);
+                //auto monkey_handle = world.instantiate_scene_object(monkey_scene, 0u);
             }
         }
     }
@@ -177,7 +169,7 @@ int main(){
 
         DEBUG_TIMESTAMP(now);
         dt = DEBUG_TIME_DIFF(last_frame, now);
-        last_frame = now;
+        _DEBUG_TIMESTAMP_NAME(last_frame) = _DEBUG_TIMESTAMP_NAME(now);
 
         if(renderer.get_frames_since_init() % 512u == 0u) {
             DEBUG_LOG(1.0 / dt << "fps")

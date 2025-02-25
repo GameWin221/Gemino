@@ -51,9 +51,36 @@ void Renderer::reload_pipelines() {
 }
 
 void Renderer::begin_recording_frame() {
-    Frame &frame = m_frames[m_frame_in_flight_index];
+    DEBUG_TIMESTAMP(start);
 
+    Frame &frame = m_frames[m_frame_in_flight_index];
     m_api.wait_for_fence(frame.fence);
+
+    std::unordered_map<Handle<Query>, QueryPipelineStatisticsResults> pipeline_statistics_results{};
+    std::unordered_map<Handle<Query>, u64> scalar_query_results{};
+
+    std::vector<Handle<Query>> queries_to_be_read_and_reset{};
+    for(const auto &[name, data] : frame.gpu_timing) {
+        const auto &[queries, time] = data;
+        queries_to_be_read_and_reset.push_back(queries.first);
+        queries_to_be_read_and_reset.push_back(queries.second);
+    }
+    for(auto &[name, data] : frame.gpu_pipeline_statistics) {
+        auto &[query, time] = data;
+        queries_to_be_read_and_reset.push_back(query);
+    }
+
+    // Thanks to m_api.wait_for_fence() above we are certain that we can read the results (either populated or empty)
+    m_api.read_queries(queries_to_be_read_and_reset, &scalar_query_results, &pipeline_statistics_results, false);
+
+    for(auto &[name, data] : frame.gpu_timing) {
+        auto &[queries, time] = data;
+        time = static_cast<f64>(scalar_query_results.at(queries.second) - scalar_query_results.at(queries.first)) * static_cast<f64>(m_default_timestamp_period) / 1000.0 / 1000.0;
+    }
+    for(auto &[name, data] : frame.gpu_pipeline_statistics) {
+        auto &[query, results] = data;
+        results = pipeline_statistics_results.at(query);
+    }
 
     VkResult result = m_api.get_next_swapchain_index(frame.present_semaphore, &m_swapchain_target_index);
     if(result == VK_ERROR_OUT_OF_DATE_KHR) {
@@ -65,8 +92,17 @@ void Renderer::begin_recording_frame() {
     m_api.reset_fence(frame.fence);
     m_api.reset_commands(frame.command_list);
     m_api.begin_recording_commands(frame.command_list);
+
+    m_api.reset_queries_cmd(frame.command_list, queries_to_be_read_and_reset);
+
+    m_api.write_timestamp(frame.command_list, frame.gpu_timing["Total GPU Time"].first.first);
+
+    DEBUG_TIMESTAMP(stop);
+    frame.cpu_timing[__FUNCTION__] = DEBUG_TIME_DIFF(start, stop);
 }
 void Renderer::update_world(World &world, Handle<Camera> camera) {
+    DEBUG_TIMESTAMP(start);
+
     Frame &frame = m_frames[m_frame_in_flight_index];
 
     std::vector<VkBufferCopy> object_copy_regions{};
@@ -140,6 +176,8 @@ void Renderer::update_world(World &world, Handle<Camera> camera) {
 
     world._clear_updates(handles_to_clear);
 
+    m_api.write_timestamp(frame.command_list, frame.gpu_timing.at("Buffers Copy").first.first);
+
     // Ensure that other m_frames don't use these global buffers
     m_api.buffer_barrier(frame.command_list, VK_PIPELINE_STAGE_VERTEX_SHADER_BIT | VK_PIPELINE_STAGE_FRAGMENT_SHADER_BIT, VK_PIPELINE_STAGE_TRANSFER_BIT, {
         BufferBarrier{
@@ -180,12 +218,20 @@ void Renderer::update_world(World &world, Handle<Camera> camera) {
             .dst_access_mask = VK_ACCESS_UNIFORM_READ_BIT
         },
     });
+
+    m_api.write_timestamp(frame.command_list, frame.gpu_timing.at("Buffers Copy").first.second);
+
+    DEBUG_TIMESTAMP(stop);
+    frame.cpu_timing[__FUNCTION__] = DEBUG_TIME_DIFF(start, stop);
 }
 void Renderer::render_world(World &world, Handle<Camera> camera) {
-    const Frame &frame = m_frames[m_frame_in_flight_index];
+    DEBUG_TIMESTAMP(start);
+
+    Frame &frame = m_frames[m_frame_in_flight_index];
 
     u32 scene_objects_count = static_cast<u32>(world.get_objects().size());
 
+    m_api.write_timestamp(frame.command_list, frame.gpu_timing.at("Draw Call Generation").first.first);
     m_draw_call_gen_pass.process(
         m_api,
         frame.command_list,
@@ -196,7 +242,10 @@ void Renderer::render_world(World &world, Handle<Camera> camera) {
         m_config_global_cull_dist_multiplier,
         m_config_lod_sphere_visible_angle
     );
+    m_api.write_timestamp(frame.command_list, frame.gpu_timing.at("Draw Call Generation").first.second);
 
+    m_api.write_timestamp(frame.command_list, frame.gpu_timing.at("Geometry").first.first);
+    m_api.begin_query(frame.command_list, frame.gpu_pipeline_statistics.at("Geometry").first);
     m_geometry_pass.process(
         m_api,
         frame.command_list,
@@ -208,18 +257,25 @@ void Renderer::render_world(World &world, Handle<Camera> camera) {
         static_cast<u32>(MAX_SCENE_DRAWS),
         sizeof(DrawCommand)
     );
+    m_api.end_query(frame.command_list, frame.gpu_pipeline_statistics.at("Geometry").first);
+    m_api.write_timestamp(frame.command_list, frame.gpu_timing.at("Geometry").first.second);
 
+    m_api.write_timestamp(frame.command_list, frame.gpu_timing.at("Debug View").first.first);
     if (m_config_enable_debug_shape_view) {
         m_debug_pass.process(m_api, frame.command_list, m_config_debug_shape_opacity);
     }
+    m_api.write_timestamp(frame.command_list, frame.gpu_timing.at("Debug View").first.second);
 
+    m_api.write_timestamp(frame.command_list, frame.gpu_timing.at("Offscreen To Swapchain").first.first);
     m_offscreen_to_swapchain_pass.process(
         m_api,
         frame.command_list,
         m_offscreen_image,
         m_swapchain_target_index
     );
+    m_api.write_timestamp(frame.command_list, frame.gpu_timing.at("Offscreen To Swapchain").first.second);
 
+    m_api.write_timestamp(frame.command_list, frame.gpu_timing.at("UI").first.first);
     m_ui_pass.process(
         m_api,
         frame.command_list,
@@ -228,9 +284,15 @@ void Renderer::render_world(World &world, Handle<Camera> camera) {
         *this,
         world
     );
+    m_api.write_timestamp(frame.command_list, frame.gpu_timing.at("UI").first.second);
+
+    DEBUG_TIMESTAMP(stop);
+    frame.cpu_timing[__FUNCTION__] = DEBUG_TIME_DIFF(start, stop);
 }
 void Renderer::end_recording_frame() {
-    const Frame &frame = m_frames[m_frame_in_flight_index];
+    DEBUG_TIMESTAMP(start);
+
+    Frame &frame = m_frames[m_frame_in_flight_index];
 
     SubmitInfo submit{
         .fence = frame.fence,
@@ -238,6 +300,8 @@ void Renderer::end_recording_frame() {
         .signal_semaphores{ frame.render_semaphore },
         .signal_stages{ VK_PIPELINE_STAGE_COLOR_ATTACHMENT_OUTPUT_BIT }
     };
+
+    m_api.write_timestamp(frame.command_list, frame.gpu_timing["Total GPU Time"].first.second);
 
     m_api.end_recording_commands(frame.command_list);
     m_api.submit_commands(frame.command_list, submit);
@@ -249,4 +313,7 @@ void Renderer::end_recording_frame() {
 
     m_frame_in_flight_index = (m_frame_in_flight_index + 1) % static_cast<u32>(m_frames.size());
     m_frames_since_init += 1;
+
+    DEBUG_TIMESTAMP(stop);
+    frame.cpu_timing[__FUNCTION__] = DEBUG_TIME_DIFF(start, stop);
 }

@@ -30,4 +30,4 @@ Early tests of Two-Pass Occlusion Culling and LODs:
 Exactly 16'000'000 (400 x 100 x 400) monkeys and spheres.
 ![EarlyGPUOcclusionCullingTests](https://github.com/user-attachments/assets/ee851dfb-f828-41e5-a9b8-d6a64dc7fcc9)
 
-(LODs don't work now because of the improvements made to the scenegraph mesh<->primitive relations. Occlusion culling is removed for now since this particular implementationt brings huge benefits only for little meshes so I'll bring it back if I implement Mesh Shading and understand it more)
+(Occlusion culling is removed for now since this particular implementationt brings huge benefits only for little meshes so I'll bring it back if I implement Mesh Shading and understand it more)

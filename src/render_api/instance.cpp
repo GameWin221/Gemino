@@ -34,6 +34,7 @@ static constexpr VkPhysicalDeviceVulkan12Features REQUESTED_DEVICE_FEATURES_VK_1
     //.descriptorBindingVariableDescriptorCount = true,
     .runtimeDescriptorArray = true,
     .scalarBlockLayout = true,
+    .hostQueryReset = true,
 };
 
 static constexpr VkPhysicalDeviceVulkan11Features REQUESTED_DEVICE_FEATURES_VK_1_1 {
@@ -46,7 +47,9 @@ static constexpr VkPhysicalDeviceVulkan11Features REQUESTED_DEVICE_FEATURES_VK_1
 
 static constexpr VkPhysicalDeviceFeatures REQUESTED_DEVICE_FEATURES_VK_1_0 {
     .multiDrawIndirect = true,
-    .samplerAnisotropy = true
+    .samplerAnisotropy = true,
+    .occlusionQueryPrecise = true,
+    .pipelineStatisticsQuery = true
 };
 
 static VKAPI_ATTR VkBool32 VKAPI_CALL vk_debug_callback(VkDebugUtilsMessageSeverityFlagBitsEXT message_severity, VkDebugUtilsMessageTypeFlagsEXT message_type, const VkDebugUtilsMessengerCallbackDataEXT* p_callback_data, void* p_user_data) {
@@ -136,6 +139,8 @@ bool Instance::check_device_feature_support(VkPhysicalDevice device) {
 
     #define REQUIRE_FEATURE(structure, feature) if(!(structure).feature) unsupported_features.emplace_back(#feature)
 
+    REQUIRE_FEATURE(supported_features_vk_1_0.features, occlusionQueryPrecise);
+    REQUIRE_FEATURE(supported_features_vk_1_0.features, pipelineStatisticsQuery);
     REQUIRE_FEATURE(supported_features_vk_1_0.features, samplerAnisotropy);
     REQUIRE_FEATURE(supported_features_vk_1_0.features, multiDrawIndirect);
     REQUIRE_FEATURE(supported_features_vk_1_1, storageBuffer16BitAccess);
@@ -153,6 +158,7 @@ bool Instance::check_device_feature_support(VkPhysicalDevice device) {
     REQUIRE_FEATURE(supported_features_vk_1_2, descriptorBindingPartiallyBound);
     REQUIRE_FEATURE(supported_features_vk_1_2, runtimeDescriptorArray);
     REQUIRE_FEATURE(supported_features_vk_1_2, scalarBlockLayout);
+    REQUIRE_FEATURE(supported_features_vk_1_2, hostQueryReset);
 
     if (!unsupported_features.empty()) {
         DEBUG_WARNING("The physical device doesn't support the following required features: ")

@@ -40,30 +40,52 @@ static void process_gltf_node(SceneCreateInfo &scene, const tinygltf::Model &mod
     ObjectCreateInfo object{};
     object.name = node.name;
 
-    if (!node.translation.empty()) {
+    if(!node.matrix.empty()) {
         object.local_position = glm::vec3(
-            static_cast<f32>(node.translation[0]),
-            static_cast<f32>(node.translation[1]),
-            static_cast<f32>(node.translation[2])
+            static_cast<f32>(node.matrix[3*4 + 0]),
+            static_cast<f32>(node.matrix[3*4 + 1]),
+            static_cast<f32>(node.matrix[3*4 + 2])
         );
-    }
-
-    if (!node.rotation.empty()) {
-        object.local_rotation = glm::quat(
-            static_cast<f32>(node.rotation[3]),
-            static_cast<f32>(node.rotation[0]),
-            static_cast<f32>(node.rotation[1]),
-            static_cast<f32>(node.rotation[2])
-        );
-    }
-
-    if (!node.scale.empty()) {
         object.local_scale = glm::vec3(
-            static_cast<f32>(node.scale[0]),
-            static_cast<f32>(node.scale[1]),
-            static_cast<f32>(node.scale[2])
+            glm::length(glm::vec3(static_cast<f32>(node.matrix[0*4 + 0]), static_cast<f32>(node.matrix[0*4 + 1]), static_cast<f32>(node.matrix[0*4 + 2]))),
+            glm::length(glm::vec3(static_cast<f32>(node.matrix[1*4 + 0]), static_cast<f32>(node.matrix[1*4 + 1]), static_cast<f32>(node.matrix[1*4 + 2]))),
+            glm::length(glm::vec3(static_cast<f32>(node.matrix[2*4 + 0]), static_cast<f32>(node.matrix[2*4 + 1]), static_cast<f32>(node.matrix[2*4 + 2])))
         );
+
+        glm::mat3 rotation_matrix = glm::mat3(
+            node.matrix[0] / object.local_scale.x, node.matrix[1] / object.local_scale.x, node.matrix[2] / object.local_scale.x,
+            node.matrix[4] / object.local_scale.y, node.matrix[5] / object.local_scale.y, node.matrix[6] / object.local_scale.y,
+            node.matrix[8] / object.local_scale.z, node.matrix[9] / object.local_scale.z, node.matrix[10] / object.local_scale.z
+        );
+
+        object.local_rotation = glm::quat_cast(rotation_matrix);
+    } else {
+        if (!node.translation.empty()) {
+            object.local_position = glm::vec3(
+                static_cast<f32>(node.translation[0]),
+                static_cast<f32>(node.translation[1]),
+                static_cast<f32>(node.translation[2])
+            );
+        }
+
+        if (!node.rotation.empty()) {
+            object.local_rotation = glm::quat(
+                static_cast<f32>(node.rotation[3]),
+                static_cast<f32>(node.rotation[0]),
+                static_cast<f32>(node.rotation[1]),
+                static_cast<f32>(node.rotation[2])
+            );
+        }
+
+        if (!node.scale.empty()) {
+            object.local_scale = glm::vec3(
+                static_cast<f32>(node.scale[0]),
+                static_cast<f32>(node.scale[1]),
+                static_cast<f32>(node.scale[2])
+            );
+        }
     }
+
 
     if (node.mesh != -1) {
         object.mesh_instance = scene.mesh_instances[node.mesh];
@@ -236,15 +258,15 @@ SceneCreateInfo Renderer::load_gltf_scene(const SceneLoadInfo &load_info) {
 
             DEBUG_ASSERT(primitive.mode == TINYGLTF_MODE_TRIANGLES);
 
-            DEBUG_ASSERT(
-                primitive.attributes.contains("POSITION") &&
-                primitive.attributes.contains("NORMAL") &&
-                primitive.attributes.contains("TEXCOORD_0")
-            );
+            DEBUG_ASSERT(primitive.attributes.contains("POSITION") && primitive.attributes.contains("NORMAL"));
 
             usize positions_count = model.accessors[primitive.attributes.at("POSITION")].count;
             usize normal_count = model.accessors[primitive.attributes.at("NORMAL")].count;
-            usize texcoord_count = model.accessors[primitive.attributes.at("TEXCOORD_0")].count;
+            usize texcoord_count = positions_count;
+
+            if (primitive.attributes.contains("TEXCOORD_0")) {
+                texcoord_count = model.accessors[primitive.attributes.at("TEXCOORD_0")].count;
+            }
 
             DEBUG_ASSERT(positions_count == normal_count && normal_count == texcoord_count);
 
@@ -254,6 +276,12 @@ SceneCreateInfo Renderer::load_gltf_scene(const SceneLoadInfo &load_info) {
                 positions.resize(vertex_count);
                 normals.resize(vertex_count);
                 texcoords.resize(vertex_count);
+            }
+
+            if (!primitive.attributes.contains("TEXCOORD_0")) {
+                for(auto &t : texcoords) {
+                    t = glm::vec2(0.0f);
+                }
             }
 
             for (const auto &[attrib_name, attrib_id] : primitive.attributes) {
@@ -285,8 +313,8 @@ SceneCreateInfo Renderer::load_gltf_scene(const SceneLoadInfo &load_info) {
             mesh_vertices[primitive_id].resize(vertex_count);
             for(usize i{}; i < vertex_count; ++i) {
                 mesh_vertices[primitive_id][i].pos = positions[i];
-                mesh_vertices[primitive_id][i].normal = glm::i8vec4(glm::normalize(normals[i]) * 127.0f, 0.0f);
-                mesh_vertices[primitive_id][i].texcoord = glm::u16vec2(meshopt_quantizeHalf(texcoords[i].x), meshopt_quantizeHalf(texcoords[i].y));
+                mesh_vertices[primitive_id][i].set_normal_from_f32(normals[i]);
+                mesh_vertices[primitive_id][i].set_texcoord_from_f32(texcoords[i]);
             }
 
             const tinygltf::Accessor &index_accessor = model.accessors[primitive.indices];
@@ -694,6 +722,7 @@ Handle<Texture> Renderer::load_u8_texture(const TextureLoadInfo &load_info) {
     if(!pixels) {
         DEBUG_PANIC("Failed to load image from \"" << load_info.path << "\"")
     }
+
 
     DEBUG_LOG("Loaded image from \"" << load_info.path << "\"")
 

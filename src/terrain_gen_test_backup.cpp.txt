@@ -1,0 +1,121 @@
+/*
+static f32 terrain_coord_to_height(f32 x, f32 z) {
+    return (perlin.octave2D_01(x * 0.01f, z * 0.01f, 8)-0.5) * 40.0;
+}
+u32 vertices_per_axis = 16u + 1u;
+f32 vertices_spacing = 1.0f;
+f32 distance_between = (vertices_per_axis-1u) * vertices_spacing;
+
+auto grass_texture = renderer.load_u8_texture(TextureLoadInfo{
+    .path = "res/grass.jpg",
+    .is_srgb = true,
+    .gen_mip_maps = true,
+    .linear_filter = true,
+});
+
+auto terrain_material = renderer.create_material(MaterialCreateInfo{
+    .albedo_texture = grass_texture,
+    .color = glm::vec4(1.0f, 1.0f, 1.0f, 1.0f)
+});
+
+for(u32 t_x{}; t_x < 60u; t_x++) {
+    for(u32 t_z{}; t_z < 60u; t_z++) {
+        std::vector<Vertex> terrain_vertices{};
+        std::vector<u32> terrain_indices{};
+
+        for(u32 vz{}; vz < vertices_per_axis; ++vz) {
+            for(u32 vx{}; vx < vertices_per_axis; ++vx) {
+                f32 effective_x = vx * vertices_spacing + t_x*distance_between;
+                f32 effective_z = vz * vertices_spacing + t_z*distance_between;
+
+                Vertex vert{};
+                vert.pos = glm::vec3(
+                    vx * vertices_spacing,
+                    terrain_coord_to_height(effective_x, effective_z),
+                    vz * vertices_spacing
+                );
+
+                glm::vec3 sum{};
+                glm::vec3 pc = vert.pos;
+                glm::vec3 pu = glm::vec3(
+                    pc.x,
+                    terrain_coord_to_height(effective_x, effective_z - vertices_spacing),
+                    pc.z - vertices_spacing
+                );
+                glm::vec3 pd = glm::vec3(
+                    pc.x,
+                    terrain_coord_to_height(effective_x, effective_z + vertices_spacing),
+                    pc.z + vertices_spacing
+                );
+                glm::vec3 pr = glm::vec3(
+                    pc.x + vertices_spacing,
+                    terrain_coord_to_height(effective_x + vertices_spacing, effective_z),
+                    pc.z
+                );
+                glm::vec3 pl = glm::vec3(
+                    pc.x - vertices_spacing,
+                    terrain_coord_to_height(effective_x - vertices_spacing, effective_z),
+                    pc.z
+                );
+
+                sum += glm::cross(pu - pc, pl - pc);
+                sum += glm::cross(pr - pc, pu - pc);
+                sum += glm::cross(pd - pc, pr - pc);
+                sum += glm::cross(pl - pc, pd - pc);
+
+                vert.set_normal_from_f32(sum);
+                vert.set_texcoord_from_f32(glm::vec2(
+                    static_cast<f32>(vz) / (vertices_per_axis-1),
+                    static_cast<f32>(vx) / (vertices_per_axis-1)
+                ));
+
+                terrain_vertices.push_back(vert);
+            }
+        }
+
+        for(u32 vz{}; vz < vertices_per_axis-1u; ++vz) {
+            for(u32 vx{}; vx < vertices_per_axis-1u; ++vx) {
+                u32 vi0 = vz * vertices_per_axis + vx;
+                u32 vi1 = vi0+1;
+                u32 vi2 = vi0 + vertices_per_axis;
+
+                u32 vi3 = vi1;
+                u32 vi4 = vi2+1;
+                u32 vi5 = vi2;
+
+                terrain_indices.push_back(vi2);
+                terrain_indices.push_back(vi1);
+                terrain_indices.push_back(vi0);
+
+                terrain_indices.push_back(vi5);
+                terrain_indices.push_back(vi4);
+                terrain_indices.push_back(vi3);
+            }
+        }
+
+        auto terrain_mesh = renderer.create_mesh(MeshCreateInfo{
+            .primitives = {
+                PrimitiveCreateInfo{
+                    .vertex_data = terrain_vertices.data(),
+                    .vertex_count = static_cast<u32>(terrain_vertices.size()),
+                    .index_data = terrain_indices.data(),
+                    .index_count = static_cast<u32>(terrain_indices.size())
+                }
+            },
+        });
+
+        auto terrain_mesh_instance = renderer.create_mesh_instance(MeshInstanceCreateInfo{
+            .mesh = terrain_mesh,
+            .materials = {
+                terrain_material
+            },
+        });
+
+        auto terrain_object = world.create_object(ObjectCreateInfo{
+            .name = "Terrain",
+            .mesh_instance = terrain_mesh_instance,
+            .local_position = glm::vec3(t_x*distance_between, 0.0f, t_z*distance_between)
+        });
+    }
+}
+*/

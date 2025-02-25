@@ -4,6 +4,7 @@
 
 static bool g_is_attached = false;
 static bool g_gpu_memory_usage_window_open = true;
+static bool g_frametime_window_open = true;
 
 struct GPUMemoryElement {
     std::string format{};
@@ -27,6 +28,9 @@ bool Editor::is_attached() {
 void Editor::draw(Renderer &renderer, World &world) {
     if (g_gpu_memory_usage_window_open) {
         draw_gpu_memory_usage_window(renderer, world);
+    }
+    if (g_frametime_window_open) {
+        draw_frametime_window(renderer);
     }
 }
 
@@ -115,6 +119,53 @@ void Editor::draw_gpu_memory_usage_window(Renderer &renderer, World &world) {
 
     ImGui::Spacing();
     ImGui::Text("Total: %.02f mb", static_cast<f32>(used_total_size) / 1024.0f / 1024.0f);
+
+    ImGui::End();
+}
+
+void Editor::draw_frametime_window(Renderer &renderer) {
+    if(!ImGui::Begin("Frametime", &g_frametime_window_open)) {
+        ImGui::End();
+        return;
+    }
+
+    static char buf[128];
+
+    if(ImGui::CollapsingHeader("GPU Statistics")) {
+        for(const auto &[name, data] : renderer.get_gpu_statistics()) {
+            const auto &[queries, results] = data;
+
+            sprintf(buf, "%s:", name.c_str()); ImGui::SeparatorText(buf);
+            sprintf(buf, "\tinput_assembly_vertices: %u", results.input_assembly_vertices); ImGui::Text(buf);
+            sprintf(buf, "\tinput_assembly_primitives: %u", results.input_assembly_primitives); ImGui::Text(buf);
+            sprintf(buf, "\tvertex_shader_invocations: %u", results.vertex_shader_invocations); ImGui::Text(buf);
+            sprintf(buf, "\tgeometry_shader_invocations: %u", results.geometry_shader_invocations); ImGui::Text(buf);
+            sprintf(buf, "\tgeometry_shader_primitives: %u", results.geometry_shader_primitives); ImGui::Text(buf);
+            sprintf(buf, "\tclipping_invocations: %u", results.clipping_invocations); ImGui::Text(buf);
+            sprintf(buf, "\tclipping_primitives: %u", results.clipping_primitives); ImGui::Text(buf);
+            sprintf(buf, "\tfragment_shader_invocations: %u", results.fragment_shader_invocations); ImGui::Text(buf);
+            sprintf(buf, "\ttessellation_control_shader_patches: %u", results.tessellation_control_shader_patches); ImGui::Text(buf);
+            sprintf(buf, "\ttessellation_evaluation_shader_invocations: %u", results.tessellation_evaluation_shader_invocations); ImGui::Text(buf);
+            sprintf(buf, "\tcompute_shader_invocations: %u", results.compute_shader_invocations); ImGui::Text(buf);
+            ImGui::Spacing();
+        }
+
+    }
+
+    if(ImGui::CollapsingHeader("GPU Timing")) {
+        for(const auto &[name, data] : renderer.get_gpu_timing()) {
+            const auto &[queries, time] = data;
+            sprintf(buf, "%s: %fms", name.c_str(), static_cast<f32>(time));
+            ImGui::Text(buf);
+        }
+    }
+
+    if(ImGui::CollapsingHeader("CPU Timing")) {
+        for(const auto &[name, time] : renderer.get_cpu_timing()) {
+            sprintf(buf, "%s: %fms", name.c_str(), static_cast<f32>(time * 1000.0));
+            ImGui::Text(buf);
+        }
+    }
 
     ImGui::End();
 }

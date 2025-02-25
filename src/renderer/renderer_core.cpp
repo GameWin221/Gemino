@@ -185,7 +185,9 @@ void Renderer::init_frames() {
     m_frames.resize(FRAMES_IN_FLIGHT);
 
     for(u32 i{}; i < static_cast<u32>(m_frames.size()); ++i) {
-        m_frames[i] = Frame{
+        auto &frame = m_frames[i];
+
+        frame = Frame{
             .command_list = m_api.m_command_manager->create_command_list(QueueFamily::Graphics),
             .present_semaphore = m_api.m_command_manager->create_semaphore(),
             .render_semaphore = m_api.m_command_manager->create_semaphore(),
@@ -197,7 +199,42 @@ void Renderer::init_frames() {
             })
         };
 
-        m_frames[i].upload_ptr = m_api.m_resource_manager->map_buffer(m_frames[i].upload_buffer);
+        frame.upload_ptr = m_api.m_resource_manager->map_buffer(frame.upload_buffer);
+
+        const std::vector<std::string> timestamp_query_names{
+            "Buffers Copy",
+            "Total GPU Time",
+            "Draw Call Generation",
+            "Geometry",
+            "Debug View",
+            "Offscreen To Swapchain",
+            "UI"
+        };
+        const std::vector<std::string> pipeline_statistics_query_names{
+            "Geometry"
+        };
+
+        for (const auto &name : timestamp_query_names) {
+            frame.gpu_timing[name] = std::make_pair(std::make_pair(
+                m_api.m_command_manager->create_query(QueryType::Timestamp),
+                m_api.m_command_manager->create_query(QueryType::Timestamp)
+            ), 0.0);
+        }
+        for (const auto &name : pipeline_statistics_query_names) {
+            frame.gpu_pipeline_statistics[name] = std::make_pair(m_api.m_command_manager->create_query(QueryType::PipelineStatistics), QueryPipelineStatisticsResults{});
+        }
+
+        std::vector<Handle<Query>> queries_to_be_reset{};
+        for(auto &[name, data] : frame.gpu_timing) {
+            auto &[queries, time] = data;
+            queries_to_be_reset.push_back(queries.first);
+            queries_to_be_reset.push_back(queries.second);
+        }
+        for(auto &[name, data] : frame.gpu_pipeline_statistics) {
+            auto &[query, time] = data;
+            queries_to_be_reset.push_back(query);
+        }
+        m_api.reset_queries_immediate(queries_to_be_reset);
     }
 }
 void Renderer::init_defaults() {
@@ -223,6 +260,9 @@ void Renderer::init_defaults() {
         .linear_filter = false
     });
     m_default_material = create_material(MaterialCreateInfo {});
+
+    auto props = m_api.m_instance->get_physical_device_properties_vk_1_0();
+    m_default_timestamp_period = props.limits.timestampPeriod;
 }
 
 void Renderer::resize_passes(const Window &window) {
@@ -270,7 +310,21 @@ void Renderer::destroy_passes() {
     m_offscreen_to_swapchain_pass.destroy(m_api);
 }
 void Renderer::destroy_frames() {
-    for(const auto& frame : m_frames) {
+    for(auto& frame : m_frames) {
+        for(const auto &[name, data] : frame.gpu_timing) {
+            const auto &[queries, time] = data;
+            m_api.m_command_manager->destroy_query(queries.first);
+            m_api.m_command_manager->destroy_query(queries.second);
+        }
+
+        for(const auto &[name, queries] : frame.gpu_pipeline_statistics) {
+            m_api.m_command_manager->destroy_query(queries.first);
+        }
+
+        frame.cpu_timing.clear();
+        frame.gpu_timing.clear();
+        frame.gpu_pipeline_statistics.clear();
+
         m_api.m_command_manager->destroy_command_list(frame.command_list);
         m_api.m_command_manager->destroy_semaphore(frame.present_semaphore);
         m_api.m_command_manager->destroy_semaphore(frame.render_semaphore);

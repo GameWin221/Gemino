@@ -91,6 +91,7 @@ public:
     Handle<Material> create_material(const MaterialCreateInfo &create_info);
     void destroy_material(Handle<Material> material_handle);
 
+
     UIPassDrawFn m_ui_pass_draw_fn{};
 
     void set_config_global_lod_bias(f32 value);
@@ -128,13 +129,17 @@ public:
     Handle<Texture> get_default_white_srgb_texture() const { return m_default_white_srgb_texture; }
     Handle<Texture> get_default_grey_unorm_texture() const { return m_default_grey_unorm_texture; }
 
+    const auto &get_cpu_timing() { return m_frames[m_frame_in_flight_index].cpu_timing; }
+    const auto &get_gpu_timing() { return m_frames[m_frame_in_flight_index].gpu_timing; }
+    const auto &get_gpu_statistics() { return m_frames[m_frame_in_flight_index].gpu_pipeline_statistics; }
+
     const u32 FRAMES_IN_FLIGHT = 2U;
 
     const VkDeviceSize MAX_SCENE_TEXTURES = 2048ull; // (device memory)
     const VkDeviceSize MAX_SCENE_MATERIALS = 65535ull; // (device memory)
     const VkDeviceSize MAX_SCENE_VERTICES = (64ull * 1024ull * 1024ull) / sizeof(Vertex); // (device memory)
     const VkDeviceSize MAX_SCENE_INDICES = (256ull * 1024ull * 1024ull) / sizeof(u32); // (device memory)
-    const VkDeviceSize MAX_SCENE_MESHES = 2048ull; // (device memory)
+    const VkDeviceSize MAX_SCENE_MESHES = 2048ull * 8ull; // (device memory)
     const VkDeviceSize MAX_SCENE_MESH_INSTANCES = MAX_SCENE_MESHES * 2ull; // (device memory)
     const VkDeviceSize MAX_SCENE_MESH_INSTANCE_MATERIALS = MAX_SCENE_MESH_INSTANCES * 4u; // (device memory)
     const VkDeviceSize MAX_SCENE_PRIMITIVES = MAX_SCENE_MESHES * 4ull; // (device memory)
@@ -187,6 +192,10 @@ private:
         T* access_upload(usize offset) {
             return reinterpret_cast<T*>(reinterpret_cast<usize>(upload_ptr) + offset);
         }
+
+        std::unordered_map<std::string, double> cpu_timing{};
+        std::unordered_map<std::string, std::pair<std::pair<Handle<Query>, Handle<Query>>, double>> gpu_timing{};
+        std::unordered_map<std::string, std::pair<Handle<Query>, QueryPipelineStatisticsResults>> gpu_pipeline_statistics{};
     };
 
     bool m_reload_pipelines_queued{};
@@ -219,6 +228,8 @@ private:
     u32 m_frame_in_flight_index{};
     u32 m_swapchain_target_index{};
     u32 m_frames_since_init{};
+
+    f32 m_default_timestamp_period{};
 
     Handle<Image> m_offscreen_image{};
     Handle<Sampler> m_offscreen_sampler{};

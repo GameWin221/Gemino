@@ -109,6 +109,13 @@ public:
     void submit_commands_once(Handle<CommandList> handle) const;
     void record_and_submit_once(std::function<void(Handle<CommandList>)> &&lambda) const;
 
+    void begin_query(Handle<CommandList> command_list, Handle<Query> query_handle);
+    void end_query(Handle<CommandList> command_list, Handle<Query> query_handle);
+    void reset_queries_immediate(const std::vector<Handle<Query>> &query_handles);
+    void reset_queries_cmd(Handle<CommandList> command_list, const std::vector<Handle<Query>> &query_handles);
+    void write_timestamp(Handle<CommandList> command_list, Handle<Query> query_handle, VkPipelineStageFlagBits pipeline_stage = VK_PIPELINE_STAGE_ALL_COMMANDS_BIT);
+    void read_queries(const std::vector<Handle<Query>> &query_handles, std::unordered_map<Handle<Query>, u64> *scalar_results, std::unordered_map<Handle<Query>, QueryPipelineStatisticsResults> *statistics_results, bool wait_for_results = false);
+
     void image_barrier(Handle<CommandList> command_list, VkPipelineStageFlags src_stage, VkPipelineStageFlags dst_stage, const std::vector<ImageBarrier> &barriers) const;
     void buffer_barrier(Handle<CommandList> command_list, VkPipelineStageFlags src_stage, VkPipelineStageFlags dst_stage, const std::vector<BufferBarrier> &barriers) const;
 

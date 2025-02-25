@@ -46,7 +46,7 @@ void main() {
     Mesh mesh = meshes[mesh_instance.mesh];
     float effective_radius = mesh.radius * transform.max_scale;
 
-    vec3 v_world_space = rotate_vq(positions[gl_VertexIndex] * effective_radius + mesh.center_offset, transform.rotation) + transform.position;
+    vec3 v_world_space = rotate_vq(positions[gl_VertexIndex] * effective_radius + mesh.center_offset * transform.scale, transform.rotation) + transform.position;
 
     gl_Position = camera.view_proj * vec4(v_world_space, 1.0);
 }
