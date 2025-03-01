@@ -233,8 +233,7 @@ void Renderer::render_world(World &world, Handle<Camera> camera) {
     u32 scene_objects_count = static_cast<u32>(world.get_objects().size());
 
     m_api.write_timestamp(frame.command_list, frame.gpu_timing.at("Draw Call Generation").first.first);
-    if (m_frames_since_init == 0) {
-        m_draw_call_gen_pass.process(
+    m_draw_call_gen_pass.process(
         m_api,
         frame.command_list,
         m_scene_draw_buffer,
@@ -244,7 +243,6 @@ void Renderer::render_world(World &world, Handle<Camera> camera) {
         m_config_global_cull_dist_multiplier,
         m_config_lod_sphere_visible_angle
     );
-    }
 
     m_api.write_timestamp(frame.command_list, frame.gpu_timing.at("Draw Call Generation").first.second);
 

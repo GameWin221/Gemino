@@ -25,7 +25,7 @@ int main(){
 
     InputManager input(window);
 
-    Renderer renderer(window, VSyncMode::Enabled);
+    Renderer renderer(window, VSyncMode::Disabled);
 
     Editor::attach(renderer);
 
@@ -49,9 +49,9 @@ int main(){
     monkey_scene.rotation = glm::angleAxis(glm::radians(-45.0f), glm::vec3(0.0f, 1.0f, 0.0f)) * glm::angleAxis(glm::radians(-35.0f), glm::vec3(1.0f, 0.0f, 0.0f));
     auto monkey_handle = world.instantiate_scene_object(monkey_scene, 0);
 
-    for (u32 y{}; y < 80u; ++y) {
-        for (u32 x{}; x < 80u; ++x) {
-            for (u32 z{}; z < 80u; ++z) {
+    for (u32 y{}; y < 40u; ++y) {
+        for (u32 x{}; x < 40u; ++x) {
+            for (u32 z{}; z < 40u; ++z) {
                 monkey_scene.position = glm::vec3(x * 2u, y * 2u, z * 2u);
                 auto monkey_handle = world.instantiate_scene_object(monkey_scene, 0u);
             }
