@@ -215,10 +215,13 @@ void Renderer::init_frames() {
         };
 
         for (const auto &name : timestamp_query_names) {
-            frame.gpu_timing[name] = std::make_pair(std::make_pair(
-                m_api.m_command_manager->create_query(QueryType::Timestamp),
-                m_api.m_command_manager->create_query(QueryType::Timestamp)
-            ), 0.0);
+            frame.gpu_timing[name] = std::make_pair(
+                std::make_pair(
+                    m_api.m_command_manager->create_query(QueryType::Timestamp),
+                    m_api.m_command_manager->create_query(QueryType::Timestamp)
+                ),
+                std::make_pair(0.0, 0.0)
+            );
         }
         for (const auto &name : pipeline_statistics_query_names) {
             frame.gpu_pipeline_statistics[name] = std::make_pair(m_api.m_command_manager->create_query(QueryType::PipelineStatistics), QueryPipelineStatisticsResults{});

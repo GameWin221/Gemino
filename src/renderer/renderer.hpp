@@ -193,9 +193,10 @@ private:
             return reinterpret_cast<T*>(reinterpret_cast<usize>(upload_ptr) + offset);
         }
 
-        std::unordered_map<std::string, double> cpu_timing{};
-        std::unordered_map<std::string, std::pair<std::pair<Handle<Query>, Handle<Query>>, double>> gpu_timing{};
+        std::unordered_map<std::string, f64> cpu_timing{};
+        std::unordered_map<std::string, std::pair<std::pair<Handle<Query>, Handle<Query>>, std::pair<f64, f64>>> gpu_timing{};
         std::unordered_map<std::string, std::pair<Handle<Query>, QueryPipelineStatisticsResults>> gpu_pipeline_statistics{};
+
     };
 
     bool m_reload_pipelines_queued{};

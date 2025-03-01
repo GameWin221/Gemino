@@ -1,6 +1,9 @@
 #include "editor.hpp"
 
-#include "imgui.h"
+#include <algorithm>
+#include <imgui.h>
+#include <implot.h>
+#include <ImGuiProfilerRenderer.h>
 
 static bool g_is_attached = false;
 static bool g_gpu_memory_usage_window_open = true;
@@ -153,11 +156,65 @@ void Editor::draw_frametime_window(Renderer &renderer) {
     }
 
     if(ImGui::CollapsingHeader("GPU Timing")) {
+        static bool pause_gpu_profiler{};
+        static u32 gpu_profile_frame_count = 100u;
+        static ImGuiUtils::ProfilerGraph gpu_profiler_graph(gpu_profile_frame_count);
+        gpu_profiler_graph.frameWidth = 4;
+        gpu_profiler_graph.frameSpacing = 1;
+
+        static constexpr std::array TASK_COLORS {
+            legit::Colors::turqoise, legit::Colors::greenSea, legit::Colors::emerald, legit::Colors::nephritis,
+            legit::Colors::peterRiver, legit::Colors::belizeHole, legit::Colors::amethyst, legit::Colors::wisteria,
+            legit::Colors::sunFlower, legit::Colors::orange, legit::Colors::carrot, legit::Colors::pumpkin,
+            legit::Colors::alizarin, legit::Colors::pomegranate, legit::Colors::clouds, legit::Colors::silver,
+            legit::Colors::imguiText,
+        };
+
+        std::vector<legit::ProfilerTask> tasks{};
+
+        f64 full_frame_start = renderer.get_gpu_timing().at("Total GPU Time").second.first;
+        f64 full_frame_end = renderer.get_gpu_timing().at("Total GPU Time").second.second;
+        f64 full_frame = full_frame_end - full_frame_start;
+
+        sprintf(buf, "%s: %fms", "Total GPU Time", static_cast<f32>(full_frame)); ImGui::Text(buf);
+
+        u32 color_id{};
         for(const auto &[name, data] : renderer.get_gpu_timing()) {
-            const auto &[queries, time] = data;
-            sprintf(buf, "%s: %fms", name.c_str(), static_cast<f32>(time));
-            ImGui::Text(buf);
+            const auto &[queries, time_pair] = data;
+
+            if(name != "Total GPU Time") {
+                tasks.push_back(legit::ProfilerTask{
+                    .startTime = time_pair.first - full_frame_start,
+                    .endTime = time_pair.second - full_frame_start,
+                    .name = name,
+                    .color = TASK_COLORS[(color_id++ * 3) % TASK_COLORS.size()],
+                });
+            }
         }
+
+        static f32 avg_full_frame = full_frame;
+
+        if(!pause_gpu_profiler) {
+            std::sort(tasks.begin(), tasks.end(), [](const legit::ProfilerTask &a, const legit::ProfilerTask &b) {
+                return a.startTime < b.startTime;
+            });
+
+            avg_full_frame = (avg_full_frame * 20.0f + full_frame) / 21.0f;
+            gpu_profiler_graph.maxFrameTime = avg_full_frame * 1.1f;
+            gpu_profiler_graph.LoadFrameData(tasks.data(), static_cast<u32>(tasks.size()));
+        }
+        gpu_profiler_graph.RenderTimings(
+        std::clamp(
+                static_cast<i32>(ImGui::GetWindowSize().x - 300),
+                50,
+                (gpu_profiler_graph.frameWidth + gpu_profiler_graph.frameSpacing) * static_cast<i32>(gpu_profile_frame_count)
+            ),
+            300,
+            400,
+            0
+        );
+
+        ImGui::Checkbox("Pause", &pause_gpu_profiler);
     }
 
     if(ImGui::CollapsingHeader("CPU Timing")) {

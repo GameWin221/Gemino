@@ -47,6 +47,7 @@ Handle<Camera> World::create_camera(const CameraCreateInfo& create_info) {
     camera.view = calculate_view_matrix(camera);
     camera.proj = calculate_proj_matrix(camera);
     camera.view_proj = camera.proj * camera.view;
+    update_frustum(camera);
 
     return m_cameras.alloc(camera);
 }

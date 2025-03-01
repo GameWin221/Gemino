@@ -30,6 +30,7 @@ add_subdirectory(external/tinygltf)
 add_subdirectory(external/glfw)
 add_subdirectory(external/glm)
 add_subdirectory(external/imgui)
+add_subdirectory(external/implot)
 add_subdirectory(external/meshoptimizer)
 add_subdirectory(external/VulkanMemoryAllocator)
 
@@ -40,13 +41,13 @@ file(GLOB_RECURSE SRC_FILES CONFIGURE_DEPENDS
 )
 
 add_executable(${PROJECT_NAME} ${SRC_FILES})
-target_include_directories(${PROJECT_NAME} PRIVATE ${CMAKE_CURRENT_LIST_DIR}/src ${CMAKE_CURRENT_LIST_DIR}/external/stb)
-target_link_libraries(${PROJECT_NAME} PRIVATE glfw Vulkan::Vulkan glm::glm VulkanMemoryAllocator tinygltf ImGui meshoptimizer)
+target_include_directories(${PROJECT_NAME} PRIVATE ${CMAKE_CURRENT_LIST_DIR}/src ${CMAKE_CURRENT_LIST_DIR}/external/stb ${CMAKE_CURRENT_LIST_DIR}/external/LegitProfiler)
+target_link_libraries(${PROJECT_NAME} PRIVATE glfw Vulkan::Vulkan glm::glm VulkanMemoryAllocator tinygltf ImGui ImPlot meshoptimizer)
 
 if(NOT MSVC)
     target_link_options(${PROJECT_NAME} PRIVATE -static)
 else()
-
+    target_compile_definitions(${PROJECT_NAME} PRIVATE "_CRT_SECURE_NO_WARNINGS")
 endif()
 
 set(GLSL_FILES_DIR "${CMAKE_CURRENT_LIST_DIR}/src/renderer/shaders")

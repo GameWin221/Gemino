@@ -1,5 +1,6 @@
 #include "ui_pass.hpp"
 
+#include <implot.h>
 #include <imgui.h>
 #include <imgui_impl_glfw.h>
 #include <imgui_impl_vulkan.h>
@@ -7,7 +8,8 @@
 void UIPass::init(const RenderAPI &api, const Window &window) {
     IMGUI_CHECKVERSION();
     ImGui::CreateContext();
-    ImGuiIO& io = ImGui::GetIO(); (void)io;
+    ImPlot::CreateContext();
+    ImGuiIO& io = ImGui::GetIO();
     io.ConfigFlags |= ImGuiConfigFlags_NavEnableKeyboard;
     io.ConfigFlags |= ImGuiConfigFlags_NavEnableGamepad;
     io.ConfigFlags |= ImGuiConfigFlags_IsSRGB;
@@ -112,6 +114,7 @@ void UIPass::destroy(const RenderAPI &api) {
     vkDestroyRenderPass(api.m_instance->get_device(), m_render_pass, nullptr);
 
     ImGui_ImplGlfw_Shutdown();
+    ImPlot::DestroyContext();
     ImGui::DestroyContext();
 }
 

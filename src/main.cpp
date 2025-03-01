@@ -25,7 +25,7 @@ int main(){
 
     InputManager input(window);
 
-    Renderer renderer(window, VSyncMode::Disabled);
+    Renderer renderer(window, VSyncMode::Enabled);
 
     Editor::attach(renderer);
 
@@ -49,11 +49,11 @@ int main(){
     monkey_scene.rotation = glm::angleAxis(glm::radians(-45.0f), glm::vec3(0.0f, 1.0f, 0.0f)) * glm::angleAxis(glm::radians(-35.0f), glm::vec3(1.0f, 0.0f, 0.0f));
     auto monkey_handle = world.instantiate_scene_object(monkey_scene, 0);
 
-    for (u32 y{}; y < 40u; ++y) {
-        for (u32 x{}; x < 40u; ++x) {
-            for (u32 z{}; z < 40u; ++z) {
-                //monkey_scene.position = glm::vec3(x * 2u, y * 2u, z * 2u);
-                //auto monkey_handle = world.instantiate_scene_object(monkey_scene, 0u);
+    for (u32 y{}; y < 80u; ++y) {
+        for (u32 x{}; x < 80u; ++x) {
+            for (u32 z{}; z < 80u; ++z) {
+                monkey_scene.position = glm::vec3(x * 2u, y * 2u, z * 2u);
+                auto monkey_handle = world.instantiate_scene_object(monkey_scene, 0u);
             }
         }
     }
@@ -63,8 +63,8 @@ int main(){
     auto main_camera = world.create_camera(CameraCreateInfo{
         .viewport_size = glm::vec2(window.get_size()),
         .position = glm::vec3(-9.98111f, 1.07925f, 2.21961f),
-        .pitch = -5.7f,
-        .yaw = -17.6f,
+        .pitch = 30.7f,
+        .yaw = 30.6f,
         .fov = 60.0f,
         .near_plane = 0.01f,
         .far_plane = 2000.0f
@@ -140,6 +140,8 @@ int main(){
             } else if(input.get_key(Key::B, InputState::Pressed)) {
                 renderer.set_config_enable_debug_shape_view(!renderer.get_config_enable_debug_shape_view());
                 DEBUG_LOG("debug_shape_view " << (renderer.get_config_enable_debug_shape_view() ? "enabled" : "disabled"))
+            } else if(input.get_key(Key::Q, InputState::Pressed)) {
+                renderer.reload_pipelines();
             }
 
             if(input.get_key(Key::G, InputState::Pressed)) {
