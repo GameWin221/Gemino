@@ -1,11 +1,12 @@
 #ifndef GEMINO_RENDERER_HPP
 #define GEMINO_RENDERER_HPP
 
-#include <render_api/render_api.hpp>
+#include <RHI/render_api.hpp>
 #include <world/world.hpp>
 #include <window/window.hpp>
 #include <common/utils.hpp>
 #include <renderer/gpu_types.inl>
+#include <renderer/renderer_shared_objects.hpp>
 
 #include "passes/draw_call_gen_pass.hpp"
 #include "passes/geometry_pass.hpp"
@@ -65,12 +66,32 @@ struct MeshInstanceCreateInfo {
     f32 cull_dist_multiplier = 1.0f;
 };
 
+struct RegisteredPassRef {
+    bool enabled{};
+    bool query_statistics{};
+    u32 order{};
+    BasePass *pass_ptr{};
+};
+struct RegisteredPass {
+    bool enabled = true;
+    bool query_statistics = false;
+    u32 order{};
+    Unique<BasePass> pass_ptr{};
+
+    RegisteredPassRef as_ref() const {
+        return RegisteredPassRef {
+            .enabled = enabled,
+            .query_statistics = query_statistics,
+            .order = order,
+            .pass_ptr = pass_ptr.get()
+        };
+    }
+};
+
 class Renderer {
 public:
     Renderer(Window &window, VSyncMode v_sync);
     ~Renderer();
-
-    u32 get_frames_since_init() const { return m_frames_since_init; }
 
     void resize(Window &window);
     void render(Window &window, World &world, Handle<Camera> camera);
@@ -79,41 +100,27 @@ public:
     SceneCreateInfo load_gltf_scene(const SceneLoadInfo &load_info);
 
     Handle<Mesh> create_mesh(const MeshCreateInfo &create_info);
-    void destroy_mesh(Handle<Mesh> mesh_handle);
+    void destroy(Handle<Mesh> mesh_handle);
 
     Handle<MeshInstance> create_mesh_instance(const MeshInstanceCreateInfo &create_info);
-    void destroy_mesh_instance(Handle<MeshInstance> mesh_instance_handle);
+    void destroy(Handle<MeshInstance> mesh_instance_handle);
 
     Handle<Texture> load_u8_texture(const TextureLoadInfo &load_info);
     Handle<Texture> create_u8_texture(const TextureCreateInfo &create_info);
-    void destroy_texture(Handle<Texture> texture_handle);
+    void destroy(Handle<Texture> texture_handle);
 
     Handle<Material> create_material(const MaterialCreateInfo &create_info);
-    void destroy_material(Handle<Material> material_handle);
-
-
-    UIPassDrawFn m_ui_pass_draw_fn{};
+    void destroy(Handle<Material> material_handle);
 
     void set_config_global_lod_bias(f32 value);
-    f32 get_config_global_lod_bias() const { return m_config_global_lod_bias; }
-
     void set_config_global_cull_dist_multiplier(f32 value);
-    f32 get_config_global_culldist_multiplier() const { return m_config_global_cull_dist_multiplier; }
-
     void set_config_enable_dynamic_lod(bool enable);
-    bool get_config_enable_dynamic_lod() const { return m_config_enable_dynamic_lod; }
-
     void set_config_enable_frustum_cull(bool enable);
-    bool get_config_enable_frustum_cull() const { return m_config_enable_frustum_cull; }
-
     void set_config_enable_debug_shape_view(bool enable);
-    bool get_config_enable_debug_shape_view() const { return m_config_enable_debug_shape_view; }
-
     void set_config_debug_shape_opacity(f32 value);
-    f32 get_config_debug_shape_opacity() const { return m_config_debug_shape_opacity; }
-
     void set_config_lod_sphere_visible_angle(f32 value);
-    f32 get_config_lod_sphere_visible_angle() const { return m_config_lod_sphere_visible_angle; }
+
+    void set_ui_draw_callback(UIPassDrawFn draw_callback);
 
     const HandleAllocator<Mesh> &get_mesh_allocator() const { return m_mesh_allocator; }
     const HandleAllocator<MeshInstance> &get_mesh_instance_allocator() const { return m_mesh_instance_allocator; }
@@ -125,9 +132,7 @@ public:
     const RangeAllocator<Vertex, RangeAllocatorType::External> &get_vertex_allocator() const { return m_vertex_allocator; }
     const RangeAllocator<u32, RangeAllocatorType::External> &get_index_allocator() const { return m_index_allocator; }
 
-    Handle<Material> get_default_material() const { return m_default_material; }
-    Handle<Texture> get_default_white_srgb_texture() const { return m_default_white_srgb_texture; }
-    Handle<Texture> get_default_grey_unorm_texture() const { return m_default_grey_unorm_texture; }
+    [[nodiscard]] const RendererSharedObjects &get_shared_objects() const { return m_shared; }
 
     const auto &get_cpu_timing() { return m_frames[m_frame_in_flight_index].cpu_timing; }
     const auto &get_gpu_timing() { return m_frames[m_frame_in_flight_index].gpu_timing; }
@@ -170,6 +175,8 @@ private:
     void destroy_screen_images();
     void destroy_scene_buffers();
 
+    std::unordered_map<std::string, RegisteredPass> m_registered_passes{};
+
     RenderAPI m_api;
     UIPass m_ui_pass{};
     OffscreenToSwapchainPass m_offscreen_to_swapchain_pass{};
@@ -190,6 +197,10 @@ private:
 
         template<typename T>
         T* access_upload(usize offset) {
+#if DEBUG_MODE
+            DEBUG_ASSERT((reinterpret_cast<usize>(upload_ptr) + offset) % alignof(T) == 0);
+#endif
+
             return reinterpret_cast<T*>(reinterpret_cast<usize>(upload_ptr) + offset);
         }
 
@@ -198,6 +209,9 @@ private:
         std::unordered_map<std::string, std::pair<Handle<Query>, QueryPipelineStatisticsResults>> gpu_pipeline_statistics{};
 
     };
+
+    u32 m_frame_in_flight_index{};
+    f32 m_default_timestamp_period{};
 
     bool m_reload_pipelines_queued{};
 
@@ -213,46 +227,7 @@ private:
     RangeAllocator<Vertex, RangeAllocatorType::External> m_vertex_allocator{};
     RangeAllocator<u32, RangeAllocatorType::External> m_index_allocator{};
 
-    // Config start
-    float m_config_global_lod_bias{};
-    float m_config_global_cull_dist_multiplier = 1.0f;
-    bool m_config_enable_dynamic_lod = true;
-    bool m_config_enable_frustum_cull = true;
-    bool m_config_enable_debug_shape_view = false;
-    f32 m_config_debug_shape_opacity = 0.3f;
-    f32 m_config_lod_sphere_visible_angle = 0.01f;
-
-    u32 m_config_texture_anisotropy = 8U;
-    float m_config_texture_mip_bias = 0.0f;
-    // Config end
-
-    u32 m_frame_in_flight_index{};
-    u32 m_swapchain_target_index{};
-    u32 m_frames_since_init{};
-
-    f32 m_default_timestamp_period{};
-
-    Handle<Image> m_offscreen_image{};
-    Handle<Sampler> m_offscreen_sampler{};
-    Handle<Image> m_depth_image{};
-
-    Handle<Material> m_default_material{};
-    Handle<Texture> m_default_white_srgb_texture{};
-    Handle<Texture> m_default_grey_unorm_texture{};
-
-    Handle<Descriptor> m_scene_texture_descriptor{};
-    Handle<Buffer> m_scene_vertex_buffer{};
-    Handle<Buffer> m_scene_index_buffer{};
-    Handle<Buffer> m_scene_primitive_buffer{};
-    Handle<Buffer> m_scene_mesh_buffer{};
-    Handle<Buffer> m_scene_mesh_instance_buffer{};
-    Handle<Buffer> m_scene_mesh_instance_materials_buffer{};
-    Handle<Buffer> m_scene_object_buffer{};
-    Handle<Buffer> m_scene_global_transform_buffer{};
-    Handle<Buffer> m_scene_material_buffer{};
-    Handle<Buffer> m_scene_camera_buffer{};
-    Handle<Buffer> m_scene_draw_buffer{};
-    Handle<Buffer> m_scene_draw_count_buffer{};
+    RendererSharedObjects m_shared{};
 };
 
 #endif

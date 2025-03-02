@@ -1,27 +1,15 @@
 #ifndef DEBUG_PASS_HPP
 #define DEBUG_PASS_HPP
 
-#include <render_api/render_api.hpp>
-#include <render_api/managers/pipeline_manager.hpp>
+#include <renderer/base_pass.hpp>
 
-class DebugPass {
+class DebugPass : public BasePass {
 public:
-    void init(
-        const RenderAPI &api,
-        Handle<Buffer> scene_draw_buffer,
-        Handle<Buffer> scene_object_buffer,
-        Handle<Buffer> scene_global_transform_buffer,
-        Handle<Buffer> scene_mesh_buffer,
-        Handle<Buffer> scene_mesh_instance_buffer,
-        Handle<Buffer> scene_camera_buffer,
-        Handle<Buffer> scene_draw_count_buffer,
-        Handle<Image> offscreen_image,
-        Handle<Image> depth_image
-    );
-    void destroy(const RenderAPI &api);
-    void resize(const RenderAPI &api, Handle<Image> offscreen_image, Handle<Image> depth_image);
+    void init(const RenderAPI &api, const RendererSharedObjects &shared, const Window &window) override;
+    void resize(const RenderAPI &api, const RendererSharedObjects &shared, const Window &window) override;
+    void destroy(const RenderAPI &api) override;
+    void process(Handle<CommandList> cmd, const RenderAPI &api, const RendererSharedObjects &shared, const World &world) override;
 
-    void process(const RenderAPI &api, Handle<CommandList> cmd, f32 debug_shape_opacity);
 private:
     Handle<Descriptor> m_graphics_descriptor{};
     Handle<GraphicsPipeline> m_graphics_pipeline{};

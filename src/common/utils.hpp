@@ -26,6 +26,7 @@ namespace Utils {
     constexpr usize align(usize alignment, usize size) {
         return ((size - 1) / alignment + 1) * alignment;
     }
+
     constexpr usize div_ceil(usize a, usize b) {
         return (a - 1) / b + 1;
     }

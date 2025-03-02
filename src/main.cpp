@@ -132,14 +132,14 @@ int main(){
             }
 
             if(input.get_key(Key::R, InputState::Pressed)) {
-                renderer.set_config_enable_dynamic_lod(!renderer.get_config_enable_dynamic_lod());
-                DEBUG_LOG("dynamic_lod " << (renderer.get_config_enable_dynamic_lod() ? "enabled" : "disabled"))
+                renderer.set_config_enable_dynamic_lod(!renderer.get_shared_objects().config_enable_dynamic_lod);
+                DEBUG_LOG("dynamic_lod " << (renderer.get_shared_objects().config_enable_dynamic_lod ? "enabled" : "disabled"))
             } else if(input.get_key(Key::T, InputState::Pressed)) {
-                renderer.set_config_enable_frustum_cull(!renderer.get_config_enable_frustum_cull());
-                DEBUG_LOG("frustum_cull " << (renderer.get_config_enable_frustum_cull() ? "enabled" : "disabled"))
+                renderer.set_config_enable_frustum_cull(!renderer.get_shared_objects().config_enable_frustum_cull);
+                DEBUG_LOG("frustum_cull " << (renderer.get_shared_objects().config_enable_frustum_cull ? "enabled" : "disabled"))
             } else if(input.get_key(Key::B, InputState::Pressed)) {
-                renderer.set_config_enable_debug_shape_view(!renderer.get_config_enable_debug_shape_view());
-                DEBUG_LOG("debug_shape_view " << (renderer.get_config_enable_debug_shape_view() ? "enabled" : "disabled"))
+                renderer.set_config_enable_debug_shape_view(!renderer.get_shared_objects().config_enable_debug_shape_view);
+                DEBUG_LOG("debug_shape_view " << (renderer.get_shared_objects().config_enable_debug_shape_view ? "enabled" : "disabled"))
             } else if(input.get_key(Key::Q, InputState::Pressed)) {
                 renderer.reload_pipelines();
             }
@@ -173,7 +173,7 @@ int main(){
         dt = DEBUG_TIME_DIFF(last_frame, now);
         _DEBUG_TIMESTAMP_NAME(last_frame) = _DEBUG_TIMESTAMP_NAME(now);
 
-        if(renderer.get_frames_since_init() % 512u == 0u) {
+        if(renderer.get_shared_objects().frames_since_init % 512u == 0u) {
             DEBUG_LOG(1.0 / dt << "fps")
         }
 

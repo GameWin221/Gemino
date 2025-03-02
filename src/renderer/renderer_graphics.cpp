@@ -1,9 +1,11 @@
+#include <algorithm>
+
 #include "renderer.hpp"
 
 void Renderer::resize(Window &window) {
     m_api.wait_for_device_idle();
 
-    m_frames_since_init = 0;
+    m_shared.frames_since_init = 0;
 
     for(const auto& frame : m_frames) {
         m_api.reset_commands(frame.command_list);
@@ -83,7 +85,7 @@ void Renderer::begin_recording_frame() {
         results = pipeline_statistics_results.at(query);
     }
 
-    VkResult result = m_api.get_next_swapchain_index(frame.present_semaphore, &m_swapchain_target_index);
+    VkResult result = m_api.get_next_swapchain_index(frame.present_semaphore, &m_shared.swapchain_target_index);
     if(result == VK_ERROR_OUT_OF_DATE_KHR) {
         DEBUG_ERROR("VK_ERROR_OUT_OF_DATE_KHR") // This message shouldn't be ever visible because a resize always occurs before rendering
     } else if (result != VK_SUCCESS && result != VK_SUBOPTIMAL_KHR) {
@@ -114,7 +116,7 @@ void Renderer::update_world(World &world, Handle<Camera> camera) {
     global_transforms_copy_regions.reserve(world.get_changed_object_handles().size());
     //camera_copy_regions.reserve(world.get_changed_camera_handles().size());
 
-    usize upload_buffer_size = m_api.m_resource_manager->get_buffer_data(frame.upload_buffer).size;
+    usize upload_buffer_size = m_api.rm->get_data(frame.upload_buffer).size;
 
     usize upload_offset{};
     // Make sure that camera is always uploaded, no matter what
@@ -173,7 +175,7 @@ void Renderer::update_world(World &world, Handle<Camera> camera) {
         handles_to_clear.push_back(handle);
     }
 
-    m_api.m_resource_manager->flush_mapped_buffer(frame.upload_buffer, upload_offset);
+    m_api.rm->flush_mapped_buffer(frame.upload_buffer, upload_offset);
 
     world._clear_updates(handles_to_clear);
 
@@ -182,39 +184,39 @@ void Renderer::update_world(World &world, Handle<Camera> camera) {
     // Ensure that other m_frames don't use these global buffers
     m_api.buffer_barrier(frame.command_list, VK_PIPELINE_STAGE_VERTEX_SHADER_BIT | VK_PIPELINE_STAGE_FRAGMENT_SHADER_BIT, VK_PIPELINE_STAGE_TRANSFER_BIT, {
         BufferBarrier{
-            .buffer_handle = m_scene_object_buffer,
+            .buffer_handle = m_shared.scene_object_buffer,
             .src_access_mask = VK_ACCESS_SHADER_READ_BIT,
             .dst_access_mask = VK_ACCESS_TRANSFER_WRITE_BIT
         },
         BufferBarrier{
-            .buffer_handle = m_scene_global_transform_buffer,
+            .buffer_handle = m_shared.scene_global_transform_buffer,
             .src_access_mask = VK_ACCESS_SHADER_READ_BIT,
             .dst_access_mask = VK_ACCESS_TRANSFER_WRITE_BIT
         },
         BufferBarrier{
-            .buffer_handle = m_scene_camera_buffer,
+            .buffer_handle = m_shared.scene_camera_buffer,
             .src_access_mask = VK_ACCESS_UNIFORM_READ_BIT,
             .dst_access_mask = VK_ACCESS_TRANSFER_WRITE_BIT
         },
     });
 
-    m_api.copy_buffer_to_buffer(frame.command_list, frame.upload_buffer, m_scene_object_buffer, object_copy_regions);
-    m_api.copy_buffer_to_buffer(frame.command_list, frame.upload_buffer, m_scene_global_transform_buffer, global_transforms_copy_regions);
-    m_api.copy_buffer_to_buffer(frame.command_list, frame.upload_buffer, m_scene_camera_buffer, camera_copy_regions);
+    m_api.copy_buffer_to_buffer(frame.command_list, frame.upload_buffer, m_shared.scene_object_buffer, object_copy_regions);
+    m_api.copy_buffer_to_buffer(frame.command_list, frame.upload_buffer, m_shared.scene_global_transform_buffer, global_transforms_copy_regions);
+    m_api.copy_buffer_to_buffer(frame.command_list, frame.upload_buffer, m_shared.scene_camera_buffer, camera_copy_regions);
 
     m_api.buffer_barrier(frame.command_list, VK_PIPELINE_STAGE_TRANSFER_BIT, VK_PIPELINE_STAGE_COMPUTE_SHADER_BIT | VK_PIPELINE_STAGE_VERTEX_SHADER_BIT | VK_PIPELINE_STAGE_FRAGMENT_SHADER_BIT, {
         BufferBarrier{
-            .buffer_handle = m_scene_object_buffer,
+            .buffer_handle = m_shared.scene_object_buffer,
             .src_access_mask = VK_ACCESS_TRANSFER_WRITE_BIT,
             .dst_access_mask = VK_ACCESS_SHADER_READ_BIT
         },
         BufferBarrier{
-            .buffer_handle = m_scene_global_transform_buffer,
+            .buffer_handle = m_shared.scene_global_transform_buffer,
             .src_access_mask = VK_ACCESS_TRANSFER_WRITE_BIT,
             .dst_access_mask = VK_ACCESS_SHADER_READ_BIT
         },
         BufferBarrier{
-            .buffer_handle = m_scene_camera_buffer,
+            .buffer_handle = m_shared.scene_camera_buffer,
             .src_access_mask = VK_ACCESS_TRANSFER_WRITE_BIT,
             .dst_access_mask = VK_ACCESS_UNIFORM_READ_BIT
         },
@@ -230,63 +232,39 @@ void Renderer::render_world(World &world, Handle<Camera> camera) {
 
     Frame &frame = m_frames[m_frame_in_flight_index];
 
-    u32 scene_objects_count = static_cast<u32>(world.get_objects().size());
+    m_registered_passes["Debug Pass"].enabled = m_shared.config_enable_debug_shape_view;
 
-    m_api.write_timestamp(frame.command_list, frame.gpu_timing.at("Draw Call Generation").first.first);
-    m_draw_call_gen_pass.process(
-        m_api,
-        frame.command_list,
-        m_scene_draw_buffer,
-        m_scene_draw_count_buffer,
-        scene_objects_count,
-        m_config_global_lod_bias,
-        m_config_global_cull_dist_multiplier,
-        m_config_lod_sphere_visible_angle
-    );
-
-    m_api.write_timestamp(frame.command_list, frame.gpu_timing.at("Draw Call Generation").first.second);
-
-    m_api.write_timestamp(frame.command_list, frame.gpu_timing.at("Geometry").first.first);
-    m_api.begin_query(frame.command_list, frame.gpu_pipeline_statistics.at("Geometry").first);
-    m_geometry_pass.process(
-        m_api,
-        frame.command_list,
-        m_offscreen_image,
-        m_scene_texture_descriptor,
-        m_scene_index_buffer,
-        m_scene_draw_buffer,
-        m_scene_draw_count_buffer,
-        static_cast<u32>(MAX_SCENE_DRAWS),
-        sizeof(DrawCommand)
-    );
-    m_api.end_query(frame.command_list, frame.gpu_pipeline_statistics.at("Geometry").first);
-    m_api.write_timestamp(frame.command_list, frame.gpu_timing.at("Geometry").first.second);
-
-    m_api.write_timestamp(frame.command_list, frame.gpu_timing.at("Debug View").first.first);
-    if (m_config_enable_debug_shape_view) {
-        m_debug_pass.process(m_api, frame.command_list, m_config_debug_shape_opacity);
+    std::vector<std::pair<std::string, RegisteredPassRef>> passes_sorted{};
+    for(const auto &[name, registered_pass] : m_registered_passes) {
+        passes_sorted.emplace_back(name, registered_pass.as_ref());
     }
-    m_api.write_timestamp(frame.command_list, frame.gpu_timing.at("Debug View").first.second);
+    std::sort(passes_sorted.begin(), passes_sorted.end(), [](const auto &left, const auto &right) {
+        const auto &[l_name, l_registered_pass] = left;
+        const auto &[r_name, r_registered_pass] = right;
+        return l_registered_pass.order < r_registered_pass.order;
+    });
 
-    m_api.write_timestamp(frame.command_list, frame.gpu_timing.at("Offscreen To Swapchain").first.first);
-    m_offscreen_to_swapchain_pass.process(
-        m_api,
-        frame.command_list,
-        m_offscreen_image,
-        m_swapchain_target_index
-    );
-    m_api.write_timestamp(frame.command_list, frame.gpu_timing.at("Offscreen To Swapchain").first.second);
+    for(const auto &[name, registered_pass] : passes_sorted) {
+        m_api.write_timestamp(frame.command_list, frame.gpu_timing.at(name).first.first);
 
-    m_api.write_timestamp(frame.command_list, frame.gpu_timing.at("UI").first.first);
-    m_ui_pass.process(
-        m_api,
-        frame.command_list,
-        m_ui_pass_draw_fn,
-        m_swapchain_target_index,
-        *this,
-        world
-    );
-    m_api.write_timestamp(frame.command_list, frame.gpu_timing.at("UI").first.second);
+        if(registered_pass.query_statistics) {
+            if(!frame.gpu_pipeline_statistics.contains(name)) {
+                DEBUG_PANIC("Failed to begin query \"" << name << "\"! You cannot enable \"query_statistics\" of a registered pass at runtime.")
+            }
+
+            m_api.begin_query(frame.command_list, frame.gpu_pipeline_statistics.at(name).first);
+        }
+
+        if (registered_pass.enabled) {
+            registered_pass.pass_ptr->process(frame.command_list, m_api, m_shared, world);
+        }
+
+        if(registered_pass.query_statistics) {
+            m_api.end_query(frame.command_list, frame.gpu_pipeline_statistics.at(name).first);
+        }
+
+        m_api.write_timestamp(frame.command_list, frame.gpu_timing.at(name).first.second);
+    }
 
     DEBUG_TIMESTAMP(stop);
     frame.cpu_timing[__FUNCTION__] = DEBUG_TIME_DIFF(start, stop);
@@ -308,13 +286,13 @@ void Renderer::end_recording_frame() {
     m_api.end_recording_commands(frame.command_list);
     m_api.submit_commands(frame.command_list, submit);
 
-    VkResult result = m_api.present_swapchain(frame.render_semaphore, m_swapchain_target_index);
+    VkResult result = m_api.present_swapchain(frame.render_semaphore, m_shared.swapchain_target_index);
     if (result != VK_SUCCESS) {
         DEBUG_PANIC("Failed to present swap chain image! result=" << result)
     }
 
     m_frame_in_flight_index = (m_frame_in_flight_index + 1) % static_cast<u32>(m_frames.size());
-    m_frames_since_init += 1;
+    m_shared.frames_since_init += 1;
 
     DEBUG_TIMESTAMP(stop);
     frame.cpu_timing[__FUNCTION__] = DEBUG_TIME_DIFF(start, stop);

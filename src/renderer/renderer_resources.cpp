@@ -204,7 +204,7 @@ SceneCreateInfo Renderer::load_gltf_scene(const SceneLoadInfo &load_info) {
         }
     }
 
-    scene.materials.resize(model.materials.size(), m_default_material);
+    scene.materials.resize(model.materials.size(), m_shared.default_material);
     if (load_info.import_materials) {
         for (u32 material_id{}; material_id < static_cast<u32>(model.materials.size()); ++material_id) {
             const auto &material = model.materials[material_id];
@@ -343,7 +343,7 @@ SceneCreateInfo Renderer::load_gltf_scene(const SceneLoadInfo &load_info) {
             if (primitive.material >= 0) {
                 primitives_default_materials[primitive_id] = scene.materials[primitive.material];
             } else {
-                primitives_default_materials[primitive_id] = m_default_material;
+                primitives_default_materials[primitive_id] = m_shared.default_material;
             }
 
             mesh_create_info.primitives.push_back(PrimitiveCreateInfo{
@@ -441,13 +441,13 @@ Handle<Mesh> Renderer::create_mesh(const MeshCreateInfo &create_info) {
         meshopt_optimizeVertexFetch(vertices.data(), indices.data(), remapped_indices_count, vertices.data(), remapped_vertices_count, sizeof(Vertex));
 
         // simplified index buffers are always smaller or equal to the original size
-        Handle<Buffer> staging = m_api.m_resource_manager->create_buffer(BufferCreateInfo {
+        Handle<Buffer> staging = m_api.rm->create_buffer(BufferCreateInfo {
             .size = std::max({remapped_vertices_count * sizeof(Vertex), remapped_indices_count * sizeof(u32), sizeof(Primitive)}),
             .buffer_usage_flags = VK_BUFFER_USAGE_TRANSFER_SRC_BIT,
             .memory_usage_flags = VMA_MEMORY_USAGE_CPU_TO_GPU
         });
 
-        void *mapped_staging = m_api.m_resource_manager->map_buffer(staging);
+        void *mapped_staging = m_api.rm->map_buffer(staging);
 
         // Vertices
         {
@@ -455,7 +455,7 @@ Handle<Mesh> Renderer::create_mesh(const MeshCreateInfo &create_info) {
             primitive_data.vertex_start = static_cast<i32>(vertex_range.start);
             primitive_data.vertex_count = vertex_range.count;
 
-            m_api.m_resource_manager->memcpy_to_buffer(mapped_staging, vertices.data(), sizeof(Vertex) * static_cast<usize>(vertex_range.count));
+            m_api.rm->memcpy_to_buffer(mapped_staging, vertices.data(), sizeof(Vertex) * static_cast<usize>(vertex_range.count));
 
             VkBufferCopy vertex_buffer_copy{
                 .dstOffset = vertex_range.start * sizeof(Vertex),
@@ -463,7 +463,7 @@ Handle<Mesh> Renderer::create_mesh(const MeshCreateInfo &create_info) {
             };
 
             m_api.record_and_submit_once([this, staging, &vertex_buffer_copy](Handle<CommandList> cmd) {
-                m_api.copy_buffer_to_buffer(cmd, staging, m_scene_vertex_buffer, { vertex_buffer_copy });
+                m_api.copy_buffer_to_buffer(cmd, staging, m_shared.scene_vertex_buffer, { vertex_buffer_copy });
             });
         }
 
@@ -475,7 +475,7 @@ Handle<Mesh> Renderer::create_mesh(const MeshCreateInfo &create_info) {
                 .index_count = index_range.count,
             };
 
-            m_api.m_resource_manager->memcpy_to_buffer(mapped_staging, indices.data(), sizeof(u32) * static_cast<usize>(index_range.count));
+            m_api.rm->memcpy_to_buffer(mapped_staging, indices.data(), sizeof(u32) * static_cast<usize>(index_range.count));
 
             VkBufferCopy index_buffer_copy{
                 .dstOffset = index_range.start * sizeof(u32),
@@ -483,7 +483,7 @@ Handle<Mesh> Renderer::create_mesh(const MeshCreateInfo &create_info) {
             };
 
             m_api.record_and_submit_once([this, staging, &index_buffer_copy](Handle<CommandList> cmd) {
-                m_api.copy_buffer_to_buffer(cmd, staging, m_scene_index_buffer, { index_buffer_copy });
+                m_api.copy_buffer_to_buffer(cmd, staging, m_shared.scene_index_buffer, { index_buffer_copy });
             });
         }
 
@@ -525,7 +525,7 @@ Handle<Mesh> Renderer::create_mesh(const MeshCreateInfo &create_info) {
                 .index_count = index_range.count,
             };
 
-            m_api.m_resource_manager->memcpy_to_buffer(mapped_staging, indices.data(), sizeof(u32) * static_cast<usize>(index_range.count));
+            m_api.rm->memcpy_to_buffer(mapped_staging, indices.data(), sizeof(u32) * static_cast<usize>(index_range.count));
 
             VkBufferCopy index_buffer_copy{
                 .dstOffset = index_range.start * sizeof(u32),
@@ -533,7 +533,7 @@ Handle<Mesh> Renderer::create_mesh(const MeshCreateInfo &create_info) {
             };
 
             m_api.record_and_submit_once([this, staging, &index_buffer_copy](Handle<CommandList> cmd) {
-                m_api.copy_buffer_to_buffer(cmd, staging, m_scene_index_buffer, { index_buffer_copy });
+                m_api.copy_buffer_to_buffer(cmd, staging, m_shared.scene_index_buffer, { index_buffer_copy });
             });
 
             last_indices_count = simplified_indices_count;
@@ -541,7 +541,7 @@ Handle<Mesh> Renderer::create_mesh(const MeshCreateInfo &create_info) {
 
         m_primitive_allocator.get_element_mutable(primitive_range.start + primitive_id) = primitive_data;
 
-        m_api.m_resource_manager->memcpy_to_buffer(mapped_staging, &primitive_data, sizeof(primitive_data));
+        m_api.rm->memcpy_to_buffer(mapped_staging, &primitive_data, sizeof(primitive_data));
 
         VkBufferCopy primitive_copy_region{
             .dstOffset = (primitive_range.start + primitive_id) * sizeof(Primitive),
@@ -549,11 +549,11 @@ Handle<Mesh> Renderer::create_mesh(const MeshCreateInfo &create_info) {
         };
 
         m_api.record_and_submit_once([this, staging, &primitive_copy_region](Handle<CommandList> cmd) {
-            m_api.copy_buffer_to_buffer(cmd, staging, m_scene_primitive_buffer, { primitive_copy_region });
+            m_api.copy_buffer_to_buffer(cmd, staging, m_shared.scene_primitive_buffer, { primitive_copy_region });
         });
 
-        m_api.m_resource_manager->unmap_buffer(staging);
-        m_api.m_resource_manager->destroy_buffer(staging);
+        m_api.rm->unmap_buffer(staging);
+        m_api.rm->destroy(staging);
 
         glm::vec3 center_offset = calculate_center_offset(vertices.data(), static_cast<u32>(vertices.size()));
         f32 radius = calculate_radius(vertices.data(), static_cast<u32>(vertices.size()), center_offset);
@@ -596,13 +596,13 @@ Handle<Mesh> Renderer::create_mesh(const MeshCreateInfo &create_info) {
 
     Handle<Mesh> mesh_handle = m_mesh_allocator.alloc(mesh);
 
-    Handle<Buffer> staging = m_api.m_resource_manager->create_buffer(BufferCreateInfo{
+    Handle<Buffer> staging = m_api.rm->create_buffer(BufferCreateInfo{
         .size = sizeof(Mesh),
         .buffer_usage_flags = VK_BUFFER_USAGE_TRANSFER_SRC_BIT,
         .memory_usage_flags = VMA_MEMORY_USAGE_CPU_TO_GPU
     });
 
-    m_api.m_resource_manager->memcpy_to_buffer_once(staging, &mesh, sizeof(mesh));
+    m_api.rm->memcpy_to_buffer_once(staging, &mesh, sizeof(mesh));
 
     VkBufferCopy mesh_buffer_copy {
         .dstOffset = mesh_handle.as_u32() * sizeof(Mesh),
@@ -610,14 +610,14 @@ Handle<Mesh> Renderer::create_mesh(const MeshCreateInfo &create_info) {
     };
 
     m_api.record_and_submit_once([this, staging, &mesh_buffer_copy](Handle<CommandList> cmd) {
-       m_api.copy_buffer_to_buffer(cmd, staging, m_scene_mesh_buffer, { mesh_buffer_copy });
+       m_api.copy_buffer_to_buffer(cmd, staging, m_shared.scene_mesh_buffer, { mesh_buffer_copy });
     });
 
-    m_api.m_resource_manager->destroy_buffer(staging);
+    m_api.rm->destroy(staging);
 
     return mesh_handle;
 }
-void Renderer::destroy_mesh(Handle<Mesh> mesh_handle) {
+void Renderer::destroy(Handle<Mesh> mesh_handle) {
     if(!m_mesh_allocator.is_handle_valid(mesh_handle)) {
         DEBUG_PANIC("Cannot delete mesh - Mesh with a handle id: = " << mesh_handle << ", does not exist!")
     }
@@ -659,7 +659,7 @@ Handle<MeshInstance> Renderer::create_mesh_instance(const MeshInstanceCreateInfo
         .cull_dist_multiplier = create_info.cull_dist_multiplier
     };
     
-    Handle<Buffer> staging = m_api.m_resource_manager->create_buffer(BufferCreateInfo{
+    Handle<Buffer> staging = m_api.rm->create_buffer(BufferCreateInfo{
         .size = material_range.count * sizeof(Handle<Material>) + sizeof(MeshInstance),
         .buffer_usage_flags = VK_BUFFER_USAGE_TRANSFER_SRC_BIT,
         .memory_usage_flags = VMA_MEMORY_USAGE_CPU_TO_GPU
@@ -667,10 +667,10 @@ Handle<MeshInstance> Renderer::create_mesh_instance(const MeshInstanceCreateInfo
 
     Handle<MeshInstance> instance_handle = m_mesh_instance_allocator.alloc(instance);
 
-    void *mapped_staging = m_api.m_resource_manager->map_buffer(staging);
+    void *mapped_staging = m_api.rm->map_buffer(staging);
 
     usize dst_offset{};
-    m_api.m_resource_manager->memcpy_to_buffer(mapped_staging, create_info.materials.data(), material_range.count * sizeof(Handle<Material>), dst_offset);
+    m_api.rm->memcpy_to_buffer(mapped_staging, create_info.materials.data(), material_range.count * sizeof(Handle<Material>), dst_offset);
     VkBufferCopy material_copy {
         .srcOffset = dst_offset,
         .dstOffset = material_range.start * sizeof(Handle<Material>),
@@ -679,7 +679,7 @@ Handle<MeshInstance> Renderer::create_mesh_instance(const MeshInstanceCreateInfo
 
     dst_offset += material_range.count * sizeof(Handle<Material>);
 
-    m_api.m_resource_manager->memcpy_to_buffer(mapped_staging, &instance, sizeof(MeshInstance), dst_offset);
+    m_api.rm->memcpy_to_buffer(mapped_staging, &instance, sizeof(MeshInstance), dst_offset);
     VkBufferCopy mesh_instance_copy {
         .srcOffset = dst_offset,
         .dstOffset = instance_handle.as_u32() * sizeof(MeshInstance),
@@ -688,18 +688,18 @@ Handle<MeshInstance> Renderer::create_mesh_instance(const MeshInstanceCreateInfo
 
     dst_offset += sizeof(MeshInstance);
 
-    m_api.m_resource_manager->unmap_buffer(staging);
+    m_api.rm->unmap_buffer(staging);
 
     m_api.record_and_submit_once([this, staging, &material_copy, &mesh_instance_copy](Handle<CommandList> cmd) {
-       m_api.copy_buffer_to_buffer(cmd, staging, m_scene_mesh_instance_materials_buffer, { material_copy });
-       m_api.copy_buffer_to_buffer(cmd, staging, m_scene_mesh_instance_buffer, { mesh_instance_copy });
+       m_api.copy_buffer_to_buffer(cmd, staging, m_shared.scene_mesh_instance_materials_buffer, { material_copy });
+       m_api.copy_buffer_to_buffer(cmd, staging, m_shared.scene_mesh_instance_buffer, { mesh_instance_copy });
     });
 
-    m_api.m_resource_manager->destroy_buffer(staging);
+    m_api.rm->destroy(staging);
 
     return instance_handle;
 }
-void Renderer::destroy_mesh_instance(Handle<MeshInstance> mesh_instance_handle) {
+void Renderer::destroy(Handle<MeshInstance> mesh_instance_handle) {
     if(!m_mesh_instance_allocator.is_handle_valid(mesh_instance_handle)) {
         DEBUG_PANIC("Cannot delete mesh instance - Mesh instance with a handle id: " << mesh_instance_handle << ", does not exist!")
     }
@@ -765,7 +765,7 @@ Handle<Texture> Renderer::create_u8_texture(const TextureCreateInfo &create_info
         DEBUG_PANIC("create_u8_texture failed! | create_info.bytes_per_pixel must be between 1 and 4, bytes_per_pixel=" << create_info.bytes_per_pixel)
     }
 
-    DEBUG_ASSERT(m_config_texture_anisotropy <= 16U)
+    DEBUG_ASSERT(m_shared.config_texture_anisotropy <= 16U)
 
     Texture texture{
         .width = static_cast<u16>(create_info.width),
@@ -776,7 +776,7 @@ Handle<Texture> Renderer::create_u8_texture(const TextureCreateInfo &create_info
         .use_linear_filter = static_cast<u16>(create_info.linear_filter)
     };
 
-    texture.image = m_api.m_resource_manager->create_image(ImageCreateInfo{
+    texture.image = m_api.rm->create_image(ImageCreateInfo{
         .format = format,
         .extent {
             .width = texture.width,
@@ -787,22 +787,22 @@ Handle<Texture> Renderer::create_u8_texture(const TextureCreateInfo &create_info
         .mip_level_count = texture.mip_level_count
     });
 
-    texture.sampler = m_api.m_resource_manager->create_sampler(SamplerCreateInfo{
+    texture.sampler = m_api.rm->create_sampler(SamplerCreateInfo{
         .filter = create_info.linear_filter ? VK_FILTER_LINEAR : VK_FILTER_NEAREST,
         .mipmap_mode = create_info.linear_filter ? VK_SAMPLER_MIPMAP_MODE_LINEAR : VK_SAMPLER_MIPMAP_MODE_NEAREST,
 
         .max_mipmap = static_cast<f32>(texture.mip_level_count),
-        .mipmap_bias = m_config_texture_mip_bias,
-        .anisotropy = static_cast<f32>(m_config_texture_anisotropy)
+        .mipmap_bias = m_shared.config_texture_mip_bias,
+        .anisotropy = static_cast<f32>(m_shared.config_texture_anisotropy)
     });
 
-    Handle<Buffer> staging_buffer = m_api.m_resource_manager->create_buffer(BufferCreateInfo{
+    Handle<Buffer> staging_buffer = m_api.rm->create_buffer(BufferCreateInfo{
         .size = create_info.width * create_info.height * create_info.bytes_per_pixel,
         .buffer_usage_flags = VK_BUFFER_USAGE_TRANSFER_SRC_BIT,
         .memory_usage_flags = VMA_MEMORY_USAGE_CPU_TO_GPU
     });
 
-    m_api.m_resource_manager->memcpy_to_buffer_once(staging_buffer, create_info.pixel_data, create_info.width * create_info.height * create_info.bytes_per_pixel);
+    m_api.rm->memcpy_to_buffer_once(staging_buffer, create_info.pixel_data, create_info.width * create_info.height * create_info.bytes_per_pixel);
     m_api.record_and_submit_once([this, &create_info, &texture, staging_buffer](Handle<CommandList> cmd) {
         m_api.image_barrier(cmd, VK_PIPELINE_STAGE_TOP_OF_PIPE_BIT, VK_PIPELINE_STAGE_TRANSFER_BIT, {ImageBarrier{
             .image_handle = texture.image,
@@ -829,11 +829,11 @@ Handle<Texture> Renderer::create_u8_texture(const TextureCreateInfo &create_info
             }});
         }
     });
-    m_api.m_resource_manager->destroy_buffer(staging_buffer);
+    m_api.rm->destroy(staging_buffer);
 
     auto handle = m_texture_allocator.alloc(texture);
 
-    m_api.m_resource_manager->update_descriptor(m_scene_texture_descriptor, DescriptorUpdateInfo{
+    m_api.rm->update_descriptor(m_shared.scene_texture_descriptor, DescriptorUpdateInfo{
         .bindings{
             DescriptorBindingUpdateInfo{
                 .binding_index = 0U,
@@ -848,39 +848,39 @@ Handle<Texture> Renderer::create_u8_texture(const TextureCreateInfo &create_info
 
     return handle;
 }
-void Renderer::destroy_texture(Handle<Texture> texture_handle) {
+void Renderer::destroy(Handle<Texture> texture_handle) {
     if(!m_texture_allocator.is_handle_valid(texture_handle)) {
         DEBUG_PANIC("Cannot delete texture - Texture with a handle id: " << texture_handle << ", does not exist!")
     }
 
     const Texture &texture = m_texture_allocator.get_element(texture_handle);
-    m_api.m_resource_manager->destroy_image(texture.image);
-    m_api.m_resource_manager->destroy_sampler(texture.sampler);
+    m_api.rm->destroy(texture.image);
+    m_api.rm->destroy(texture.sampler);
 
     m_texture_allocator.free(texture_handle);
 }
 
 Handle<Material> Renderer::create_material(const MaterialCreateInfo &create_info) {
     Material material{
-        .albedo_texture = (create_info.albedo_texture == INVALID_HANDLE) ? m_default_white_srgb_texture : create_info.albedo_texture,
-        .roughness_texture = (create_info.roughness_texture == INVALID_HANDLE) ? m_default_grey_unorm_texture : create_info.roughness_texture,
-        .metalness_texture = (create_info.metalness_texture == INVALID_HANDLE) ? m_default_grey_unorm_texture : create_info.metalness_texture,
-        .normal_texture = (create_info.normal_texture == INVALID_HANDLE) ? m_default_grey_unorm_texture : create_info.normal_texture,
+        .albedo_texture = (create_info.albedo_texture == INVALID_HANDLE) ? m_shared.default_white_srgb_texture : create_info.albedo_texture,
+        .roughness_texture = (create_info.roughness_texture == INVALID_HANDLE) ? m_shared.default_grey_unorm_texture : create_info.roughness_texture,
+        .metalness_texture = (create_info.metalness_texture == INVALID_HANDLE) ? m_shared.default_grey_unorm_texture : create_info.metalness_texture,
+        .normal_texture = (create_info.normal_texture == INVALID_HANDLE) ? m_shared.default_grey_unorm_texture : create_info.normal_texture,
         .color = create_info.color
     };
 
-    Handle<Buffer> staging_buffer = m_api.m_resource_manager->create_buffer(BufferCreateInfo{
+    Handle<Buffer> staging_buffer = m_api.rm->create_buffer(BufferCreateInfo{
         .size = sizeof(Material),
         .buffer_usage_flags = VK_BUFFER_USAGE_TRANSFER_SRC_BIT,
         .memory_usage_flags = VMA_MEMORY_USAGE_CPU_TO_GPU
     });
 
-    m_api.m_resource_manager->memcpy_to_buffer_once(staging_buffer, &material, sizeof(Material));
+    m_api.rm->memcpy_to_buffer_once(staging_buffer, &material, sizeof(Material));
 
     auto handle = m_material_allocator.alloc(material);
 
     m_api.record_and_submit_once([this, handle, staging_buffer](Handle<CommandList> cmd){
-        m_api.copy_buffer_to_buffer(cmd, staging_buffer, m_scene_material_buffer, {
+        m_api.copy_buffer_to_buffer(cmd, staging_buffer, m_shared.scene_material_buffer, {
             VkBufferCopy {
                 .dstOffset = handle.as_u32() * sizeof(Material),
                 .size = sizeof(Material),
@@ -888,11 +888,11 @@ Handle<Material> Renderer::create_material(const MaterialCreateInfo &create_info
         });
     });
 
-    m_api.m_resource_manager->destroy_buffer(staging_buffer);
+    m_api.rm->destroy(staging_buffer);
 
     return handle;
 }
-void Renderer::destroy_material(Handle<Material> material_handle) {
+void Renderer::destroy(Handle<Material> material_handle) {
     if(!m_material_allocator.is_handle_valid(material_handle)) {
         DEBUG_PANIC("Cannot delete material - Material with a handle id: " << material_handle << ", does not exist!")
     }

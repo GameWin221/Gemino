@@ -1,21 +1,18 @@
 #ifndef UI_PASS_HPP
 #define UI_PASS_HPP
 
-#include <window/window.hpp>
-#include <render_api/render_api.hpp>
+#include <renderer/base_pass.hpp>
 
 class Renderer;
 class World;
 
-typedef void (*UIPassDrawFn)(Renderer &renderer, World &world);
-
-class UIPass {
+class UIPass : public BasePass {
 public:
-    void init(const RenderAPI &api, const Window &window);
-    void destroy(const RenderAPI &api);
-    void resize(const RenderAPI &api, const Window &window);
+    void init(const RenderAPI &api, const RendererSharedObjects &shared, const Window &window) override;
+    void resize(const RenderAPI &api, const RendererSharedObjects &shared, const Window &window) override;
+    void destroy(const RenderAPI &api) override;
+    void process(Handle<CommandList> cmd, const RenderAPI &api, const RendererSharedObjects &shared, const World &world) override;
 
-    void process(const RenderAPI &api, Handle<CommandList> command_list, UIPassDrawFn draw_fn, u32 swapchain_target_index, Renderer &renderer, World &world);
 private:
 
     VkExtent2D m_extent{};

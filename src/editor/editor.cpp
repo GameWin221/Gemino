@@ -8,6 +8,7 @@
 static bool g_is_attached = false;
 static bool g_gpu_memory_usage_window_open = true;
 static bool g_frametime_window_open = true;
+static Renderer *g_renderer_ptr = nullptr;
 
 struct GPUMemoryElement {
     std::string format{};
@@ -16,24 +17,28 @@ struct GPUMemoryElement {
 };
 
 void Editor::attach(Renderer &renderer) {
-    renderer.m_ui_pass_draw_fn = Editor::draw;
+    g_renderer_ptr = &renderer;
+    renderer.set_ui_draw_callback(Editor::draw);
     g_is_attached = true;
 }
 void Editor::detach(Renderer &renderer) {
-    renderer.m_ui_pass_draw_fn = nullptr;
     g_is_attached = false;
+    renderer.set_ui_draw_callback(nullptr);
+    g_renderer_ptr = nullptr;
 }
 
 bool Editor::is_attached() {
     return g_is_attached;
 }
 
-void Editor::draw(Renderer &renderer, World &world) {
+void Editor::draw(World &world) {
+    DEBUG_ASSERT(g_renderer_ptr != nullptr)
+
     if (g_gpu_memory_usage_window_open) {
-        draw_gpu_memory_usage_window(renderer, world);
+        draw_gpu_memory_usage_window(*g_renderer_ptr, world);
     }
     if (g_frametime_window_open) {
-        draw_frametime_window(renderer);
+        draw_frametime_window(*g_renderer_ptr);
     }
 }
 

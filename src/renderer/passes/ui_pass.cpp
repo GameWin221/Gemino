@@ -5,7 +5,7 @@
 #include <imgui_impl_glfw.h>
 #include <imgui_impl_vulkan.h>
 
-void UIPass::init(const RenderAPI &api, const Window &window) {
+void UIPass::init(const RenderAPI &api, const RendererSharedObjects &shared, const Window &window) {
     IMGUI_CHECKVERSION();
     ImGui::CreateContext();
     ImPlot::CreateContext();
@@ -19,7 +19,7 @@ void UIPass::init(const RenderAPI &api, const Window &window) {
 
     ImGui_ImplGlfw_InitForVulkan(reinterpret_cast<GLFWwindow *>(window.get_native_handle()), true);
 
-    VkFormat swapchain_format = api.m_swapchain->get_format();
+    VkFormat swapchain_format = api.swapchain->get_format();
     m_extent = VkExtent2D{ window.get_size().x, window.get_size().y };
 
     VkAttachmentDescription attachment_description {
@@ -63,11 +63,11 @@ void UIPass::init(const RenderAPI &api, const Window &window) {
         .pDependencies = &subpass_dependency,
     };
 
-    DEBUG_ASSERT(vkCreateRenderPass(api.m_instance->get_device(), &render_pass_create_info, nullptr, &m_render_pass) == VK_SUCCESS);
+    DEBUG_ASSERT(vkCreateRenderPass(api.instance->get_device(), &render_pass_create_info, nullptr, &m_render_pass) == VK_SUCCESS);
 
     m_framebuffers.resize(api.get_swapchain_image_count());
     for(u32 i{}; i < api.get_swapchain_image_count(); ++i) {
-        const Image &image_data = api.m_resource_manager->get_image_data(api.get_swapchain_image_handle(i));
+        const Image &image_data = api.rm->get_data(api.get_swapchain_image_handle(i));
 
         VkFramebufferCreateInfo framebuffer_create_info {
             .sType = VK_STRUCTURE_TYPE_FRAMEBUFFER_CREATE_INFO,
@@ -79,16 +79,16 @@ void UIPass::init(const RenderAPI &api, const Window &window) {
             .layers = 1u
         };
 
-        DEBUG_ASSERT(vkCreateFramebuffer(api.m_instance->get_device(), &framebuffer_create_info, nullptr, &m_framebuffers[i]) == VK_SUCCESS);
+        DEBUG_ASSERT(vkCreateFramebuffer(api.instance->get_device(), &framebuffer_create_info, nullptr, &m_framebuffers[i]) == VK_SUCCESS);
     }
 
     ImGui_ImplVulkan_InitInfo init_info{
-        .Instance = api.m_instance->get_instance(),
-        .PhysicalDevice = api.m_instance->get_physical_device(),
-        .Device = api.m_instance->get_device(),
-        .QueueFamily = api.m_instance->get_queue_family_indices().graphics.value(),
-        .Queue = api.m_instance->get_graphics_queue(),
-        .DescriptorPool = api.m_resource_manager->get_descriptor_pool(),
+        .Instance = api.instance->get_instance(),
+        .PhysicalDevice = api.instance->get_physical_device(),
+        .Device = api.instance->get_device(),
+        .QueueFamily = api.instance->get_queue_family_indices().graphics.value(),
+        .Queue = api.instance->get_graphics_queue(),
+        .DescriptorPool = api.rm->get_descriptor_pool(),
         .RenderPass = m_render_pass,
         .MinImageCount = api.get_swapchain_image_count(),
         .ImageCount = api.get_swapchain_image_count(),
@@ -103,32 +103,17 @@ void UIPass::init(const RenderAPI &api, const Window &window) {
     ImGui_ImplVulkan_Init(&init_info);
     ImGui_ImplVulkan_CreateFontsTexture();
 }
-void UIPass::destroy(const RenderAPI &api) {
-    ImGui_ImplVulkan_Shutdown();
-
-    for(const auto &framebuffer : m_framebuffers) {
-        vkDestroyFramebuffer(api.m_instance->get_device(), framebuffer, nullptr);
-    }
-    m_framebuffers.clear();
-
-    vkDestroyRenderPass(api.m_instance->get_device(), m_render_pass, nullptr);
-
-    ImGui_ImplGlfw_Shutdown();
-    ImPlot::DestroyContext();
-    ImGui::DestroyContext();
-}
-
-void UIPass::resize(const RenderAPI &api, const Window &window) {
+void UIPass::resize(const RenderAPI &api, const RendererSharedObjects &shared, const Window &window) {
     m_extent = VkExtent2D{ window.get_size().x, window.get_size().y };
 
     for(const auto &framebuffer : m_framebuffers) {
-        vkDestroyFramebuffer(api.m_instance->get_device(), framebuffer, nullptr);
+        vkDestroyFramebuffer(api.instance->get_device(), framebuffer, nullptr);
     }
     m_framebuffers.clear();
 
     m_framebuffers.resize(api.get_swapchain_image_count());
     for(u32 i{}; i < api.get_swapchain_image_count(); ++i) {
-        const Image &image_data = api.m_resource_manager->get_image_data(api.get_swapchain_image_handle(i));
+        const Image &image_data = api.rm->get_data(api.get_swapchain_image_handle(i));
 
         VkFramebufferCreateInfo framebuffer_create_info {
             .sType = VK_STRUCTURE_TYPE_FRAMEBUFFER_CREATE_INFO,
@@ -140,23 +125,37 @@ void UIPass::resize(const RenderAPI &api, const Window &window) {
             .layers = 1u
         };
 
-        DEBUG_ASSERT(vkCreateFramebuffer(api.m_instance->get_device(), &framebuffer_create_info, nullptr, &m_framebuffers[i]) == VK_SUCCESS);
+        DEBUG_ASSERT(vkCreateFramebuffer(api.instance->get_device(), &framebuffer_create_info, nullptr, &m_framebuffers[i]) == VK_SUCCESS);
     }
 }
+void UIPass::destroy(const RenderAPI &api) {
+    ImGui_ImplVulkan_Shutdown();
 
-void UIPass::process(const RenderAPI &api, Handle<CommandList> command_list, UIPassDrawFn draw_fn, u32 swapchain_target_index, Renderer &renderer, World &world) {
-    if(draw_fn == nullptr) {
+    for(const auto &framebuffer : m_framebuffers) {
+        vkDestroyFramebuffer(api.instance->get_device(), framebuffer, nullptr);
+    }
+    m_framebuffers.clear();
+
+    vkDestroyRenderPass(api.instance->get_device(), m_render_pass, nullptr);
+
+    ImGui_ImplGlfw_Shutdown();
+    ImPlot::DestroyContext();
+    ImGui::DestroyContext();
+}
+
+void UIPass::process(Handle<CommandList> cmd, const RenderAPI &api, const RendererSharedObjects &shared, const World &world) {
+    if(shared.ui_pass_draw_fn == nullptr) {
         return;
     }
 
-    const CommandList &cmd_raw = api.m_command_manager->get_command_list_data(command_list);
+    const CommandList &cmd_raw = api.rm->get_data(cmd);
 
     ImGui_ImplVulkan_NewFrame();
     ImGui_ImplGlfw_NewFrame();
     ImGui::NewFrame();
 
-    // Draw Commands
-    draw_fn(renderer, world);
+    // Draw Commands (This is so bad)
+    shared.ui_pass_draw_fn(*const_cast<World*>(&world));
 
     ImGui::EndFrame();
     ImGui::Render();
@@ -164,7 +163,7 @@ void UIPass::process(const RenderAPI &api, Handle<CommandList> command_list, UIP
     VkRenderPassBeginInfo render_pass_begin_info{
         .sType = VK_STRUCTURE_TYPE_RENDER_PASS_BEGIN_INFO,
         .renderPass = m_render_pass,
-        .framebuffer = m_framebuffers[swapchain_target_index],
+        .framebuffer = m_framebuffers[shared.swapchain_target_index],
         .renderArea {
             .extent = m_extent
         }

@@ -3,11 +3,9 @@
 
 #include <window/window.hpp>
 
-#include <render_api/managers/resource_manager.hpp>
-#include <render_api/managers/pipeline_manager.hpp>
-#include <render_api/managers/command_manager.hpp>
-#include <render_api/instance.hpp>
-#include <render_api/swapchain.hpp>
+#include <RHI/resource_manager.hpp>
+#include <RHI/instance.hpp>
+#include <RHI/swapchain.hpp>
 
 union ClearColor {
     f32 rgba_f32[4];
@@ -82,12 +80,9 @@ public:
     RenderAPI(const Window &window, const SwapchainConfig &config);
 
     /// Managers
-    Unique<Instance> m_instance;
-    Unique<Swapchain> m_swapchain;
-
-    Unique<ResourceManager> m_resource_manager;
-    Unique<PipelineManager> m_pipeline_manager;
-    Unique<CommandManager> m_command_manager;
+    Unique<Instance> instance;
+    Unique<Swapchain> swapchain;
+    Unique<ResourceManager> rm;
 
     /// Rendering functions
     Handle<Image> get_swapchain_image_handle(u32 image_index) const;
@@ -134,11 +129,11 @@ public:
     void dispatch_compute_pipeline(Handle<CommandList> command_list, u32 x_groups = 1u, u32 y_groups = 1u, u32 z_groups = 1u) const;
     void dispatch_indirect_compute_pipeline(Handle<CommandList> command_list, Handle<Buffer> buffer, VkDeviceSize offset = 0) const;
 
-    void push_graphics_constants(Handle<CommandList> command_list, Handle<GraphicsPipeline> pipeline, const void *data, u8 size_override = 0U, u8 offset_override = 0U) const;
-    void push_compute_constants(Handle<CommandList> command_list, Handle<ComputePipeline> pipeline, const void *data, u8 size_override = 0U, u8 offset_override = 0U) const;
+    void push_constants(Handle<CommandList> command_list, Handle<GraphicsPipeline> pipeline, const void *data, u8 size_override = 0U, u8 offset_override = 0U) const;
+    void push_constants(Handle<CommandList> command_list, Handle<ComputePipeline> pipeline, const void *data, u8 size_override = 0U, u8 offset_override = 0U) const;
 
-    void bind_graphics_descriptor(Handle<CommandList> command_list, Handle<GraphicsPipeline> pipeline, Handle<Descriptor> descriptor, u32 dst_index) const;
-    void bind_compute_descriptor(Handle<CommandList> command_list, Handle<ComputePipeline> pipeline, Handle<Descriptor> descriptor, u32 dst_index) const;
+    void bind_descriptor(Handle<CommandList> command_list, Handle<GraphicsPipeline> pipeline, Handle<Descriptor> descriptor, u32 dst_index) const;
+    void bind_descriptor(Handle<CommandList> command_list, Handle<ComputePipeline> pipeline, Handle<Descriptor> descriptor, u32 dst_index) const;
 
     void bind_vertex_buffer(Handle<CommandList> command_list, Handle<Buffer> buffer, u32 index = 0U, VkDeviceSize offset = 0) const;
     void bind_index_buffer(Handle<CommandList> command_list, Handle<Buffer> buffer, VkDeviceSize offset = 0) const;
