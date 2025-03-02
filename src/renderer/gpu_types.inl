@@ -15,6 +15,9 @@ struct alignas(16) Camera {
     alignas(16) glm::mat4 view = glm::mat4(1.0f);
     alignas(16) glm::mat4 proj = glm::mat4(1.0f);
     alignas(16) glm::mat4 view_proj = glm::mat4(1.0f);
+    alignas(16) glm::mat4 inv_view_proj = glm::mat4(1.0f);
+    alignas(16) glm::mat4 inv_view = glm::mat4(1.0f);
+    alignas(16) glm::mat4 inv_proj = glm::mat4(1.0f);
 
     alignas(16) glm::vec3 position{};
     alignas(4) float fov{}; // euler angles
@@ -139,6 +142,9 @@ struct Camera {
     mat4 view;
     mat4 proj;
     mat4 view_proj;
+    mat4 inv_view_proj;
+    mat4 inv_view;
+    mat4 inv_proj;
 
     vec3 position;
     float fov; // euler angles

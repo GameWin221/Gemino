@@ -76,9 +76,15 @@ void GeometryPass::init(const RenderAPI &api, const RendererSharedObjects &share
         //.push_constants_size = sizeof(PushConstants),
         .descriptors { m_descriptor, shared.scene_texture_descriptor },
 
-        .color_target {
-            .format = api.rm->get_data(shared.offscreen_image).format,
-            .layout = VK_IMAGE_LAYOUT_COLOR_ATTACHMENT_OPTIMAL
+        .color_targets {
+            RenderTargetCommonInfo {
+                .format = api.rm->get_data(shared.albedo_image).format,
+                .layout = VK_IMAGE_LAYOUT_COLOR_ATTACHMENT_OPTIMAL,
+            },
+            RenderTargetCommonInfo {
+                .format = api.rm->get_data(shared.normal_image).format,
+                .layout = VK_IMAGE_LAYOUT_COLOR_ATTACHMENT_OPTIMAL
+            }
         },
         .depth_target {
             .format = api.rm->get_data(shared.depth_image).format,
@@ -92,16 +98,34 @@ void GeometryPass::init(const RenderAPI &api, const RendererSharedObjects &share
     });
 
     m_render_target = api.rm->create_render_target(m_pipeline, RenderTargetCreateInfo{
-        .color_target_handle = shared.offscreen_image,
-        .depth_target_handle = shared.depth_image
+        .color_attachments = {
+            RenderTargetAttachmentCreateInfo {
+                .target_handle = shared.albedo_image,
+            },
+            RenderTargetAttachmentCreateInfo {
+                .target_handle = shared.normal_image,
+            }
+        },
+        .depth_attachment = {
+            .target_handle = shared.depth_image
+        }
     });
 }
 void GeometryPass::resize(const RenderAPI &api, const RendererSharedObjects &shared, const Window &window) {
     api.rm->destroy(m_render_target);
 
     m_render_target = api.rm->create_render_target(m_pipeline, RenderTargetCreateInfo{
-        .color_target_handle = shared.offscreen_image,
-        .depth_target_handle = shared.depth_image
+        .color_attachments = {
+            RenderTargetAttachmentCreateInfo {
+                .target_handle = shared.albedo_image,
+            },
+            RenderTargetAttachmentCreateInfo {
+                .target_handle = shared.normal_image,
+            }
+        },
+        .depth_attachment = {
+            .target_handle = shared.depth_image
+        }
     });
 }
 void GeometryPass::destroy(const RenderAPI &api) {
@@ -113,16 +137,29 @@ void GeometryPass::destroy(const RenderAPI &api) {
 void GeometryPass::process(Handle<CommandList> cmd, const RenderAPI &api, const RendererSharedObjects &shared, const World &world) {
     api.image_barrier(cmd, VK_PIPELINE_STAGE_FRAGMENT_SHADER_BIT, VK_PIPELINE_STAGE_COLOR_ATTACHMENT_OUTPUT_BIT, {
         ImageBarrier{
-            .image_handle = shared.offscreen_image,
+            .image_handle = shared.albedo_image,
             .src_access_mask = VK_ACCESS_SHADER_READ_BIT,
-            .dst_access_mask = VK_ACCESS_COLOR_ATTACHMENT_READ_BIT,
+            .dst_access_mask = VK_ACCESS_COLOR_ATTACHMENT_WRITE_BIT,
+            .old_layout = VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL,
+            .new_layout = VK_IMAGE_LAYOUT_COLOR_ATTACHMENT_OPTIMAL
+        },
+        ImageBarrier{
+            .image_handle = shared.normal_image,
+            .src_access_mask = VK_ACCESS_SHADER_READ_BIT,
+            .dst_access_mask = VK_ACCESS_COLOR_ATTACHMENT_WRITE_BIT,
             .old_layout = VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL,
             .new_layout = VK_IMAGE_LAYOUT_COLOR_ATTACHMENT_OPTIMAL
         }
     });
 
-    api.begin_graphics_pipeline(cmd, m_pipeline, m_render_target, RenderTargetClear{
-        .color = {0.0f, 0.0f, 0.0f, 0.0f},
+    api.begin_graphics_pipeline(cmd, m_pipeline, m_render_target, {
+        RenderTargetClear{
+            .color = {0.0f, 0.0f, 0.0f, 0.0f},
+        },
+        RenderTargetClear{
+            .color = {0.0f, 0.0f, 0.0f, 0.0f},
+        }
+    }, RenderTargetClear{
         .depth = 0.0f
     });
 

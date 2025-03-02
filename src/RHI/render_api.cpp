@@ -735,20 +735,25 @@ void RenderAPI::fill_buffer(Handle<CommandList> command_list, Handle<Buffer> han
     vkCmdFillBuffer(rm->get_data(command_list).command_buffer, rm->get_data(handle).buffer, offset, size, data);
 }
 
-void RenderAPI::begin_graphics_pipeline(Handle<CommandList> command_list, Handle<GraphicsPipeline> pipeline, Handle<RenderTarget> render_target, const RenderTargetClear &clear) const {
+void RenderAPI::begin_graphics_pipeline(Handle<CommandList> command_list, Handle<GraphicsPipeline> pipeline, Handle<RenderTarget> render_target, const std::vector<RenderTargetClear> &color_clears, const RenderTargetClear &depth_clear) const {
     const GraphicsPipeline &pipe = rm->get_data(pipeline);
     const RenderTarget &rt = rm->get_data(render_target);
     const CommandList &cmd = rm->get_data(command_list);
 
-    VkClearValue clear_values[2]{};
-
-    u32 clears_color_target = static_cast<u32>(pipe.create_info.color_target.format != VK_FORMAT_UNDEFINED && pipe.create_info.color_target.load_op == VK_ATTACHMENT_LOAD_OP_CLEAR);
+    u32 color_targets_count = static_cast<u32>(pipe.create_info.color_targets.size());
     u32 clears_depth_target = static_cast<u32>(pipe.create_info.depth_target.format != VK_FORMAT_UNDEFINED && pipe.create_info.depth_target.load_op == VK_ATTACHMENT_LOAD_OP_CLEAR);
-    if(clears_color_target) {
-        clear_values[0].color = std::bit_cast<VkClearColorValue>(clear.color);
+
+    DEBUG_ASSERT(color_clears.size() == color_targets_count)
+
+    std::vector<VkClearValue> clear_values(color_targets_count + clears_depth_target);
+    for(u32 i{}; i < color_targets_count; ++i) {
+        if(pipe.create_info.color_targets[i].format != VK_FORMAT_UNDEFINED && pipe.create_info.color_targets[i].load_op == VK_ATTACHMENT_LOAD_OP_CLEAR) {
+            clear_values[i].color = std::bit_cast<VkClearColorValue>(color_clears[i].color);
+            clear_values[i].depthStencil = { 0.0f, 0 };
+        }
     }
     if(clears_depth_target) {
-        clear_values[clears_color_target].depthStencil = { clear.depth, 0U};
+        clear_values[color_targets_count].depthStencil = { depth_clear.depth, 0U};
     }
 
     VkRenderPassBeginInfo info{
@@ -758,8 +763,8 @@ void RenderAPI::begin_graphics_pipeline(Handle<CommandList> command_list, Handle
         .renderArea {
             .extent = rt.extent,
         },
-        .clearValueCount = clears_color_target + clears_depth_target,
-        .pClearValues = clear_values,
+        .clearValueCount = color_targets_count + clears_depth_target,
+        .pClearValues = clear_values.data(),
     };
 
     VkViewport viewport{
@@ -911,35 +916,51 @@ void RenderAPI::bind_index_buffer(Handle<CommandList> command_list, Handle<Buffe
     vkCmdBindIndexBuffer(rm->get_data(command_list).command_buffer, rm->get_data(buffer).buffer, offset, VK_INDEX_TYPE_UINT32);
 }
 
-void RenderAPI::clear_color_attachment(Handle<CommandList> command_list, Handle<GraphicsPipeline> pipeline, Handle<RenderTarget> rt, const RenderTargetClear &clear) const {
+void RenderAPI::clear_color_attachments(Handle<CommandList> command_list, Handle<GraphicsPipeline> pipeline, Handle<RenderTarget> rt, const std::vector<RenderTargetClear> &clear_colors) const {
     const GraphicsPipeline &pipe = rm->get_data(pipeline);
     const RenderTarget &render_target = rm->get_data(rt);
 
-    if(pipe.create_info.color_target.format == VK_FORMAT_UNDEFINED) {
-        DEBUG_PANIC("Cannot clear color attachment when specified pipeline doesn't use a color attachment! pipeline = " << pipeline)
+    u32 attachment_count = static_cast<u32>(pipe.create_info.color_targets.size());
+    DEBUG_ASSERT(attachment_count == clear_colors.size())
+
+    VkExtent3D extent{};
+
+    std::vector<VkClearAttachment> attachments(attachment_count);
+    for(u32 i{}; i < attachment_count; ++i) {
+        if(pipe.create_info.color_targets[i].format == VK_FORMAT_UNDEFINED) {
+            DEBUG_PANIC("Cannot clear color attachment when specified pipeline doesn't use a color attachment! pipeline = " << pipeline)
+        }
+
+        if(render_target.color_handles[i] == INVALID_HANDLE) {
+            DEBUG_PANIC("Cannot clear color attachment when specified render target doesn't use a color attachment! pipeline = " << pipeline)
+        }
+
+        const Image &image = rm->get_data(render_target.color_handles[i]);
+
+        VkClearAttachment attachment{
+            .aspectMask = VK_IMAGE_ASPECT_COLOR_BIT,
+            .colorAttachment = i
+        };
+
+        if(extent.width != 0) {
+            if (extent.width != image.extent.width || extent.height != image.extent.height) {
+                DEBUG_PANIC("Cannot clear color attachment because not all attachments have the same size! pipeline = " << pipeline)
+            }
+        }
+
+        extent = image.extent;
+
+        attachment.clearValue.color = std::bit_cast<VkClearColorValue>(clear_colors[i].color);
     }
-
-    if(render_target.color_handle == INVALID_HANDLE) {
-        DEBUG_PANIC("Cannot clear color attachment when specified render target doesn't use a color attachment! pipeline = " << pipeline)
-    }
-
-    const Image &image = rm->get_data(render_target.color_handle);
-
-    VkClearAttachment attachment{
-        .aspectMask = VK_IMAGE_ASPECT_COLOR_BIT,
-        .colorAttachment = 0U
-    };
-
-    attachment.clearValue.color = std::bit_cast<VkClearColorValue>(clear.color);
 
     VkClearRect rect{
         .rect {
-            .extent = VkExtent2D { image.extent.width, image.extent.height }
+            .extent = VkExtent2D { extent.width, extent.height }
         },
         .layerCount = 1U
     };
 
-    vkCmdClearAttachments(rm->get_data(command_list).command_buffer, 1U, &attachment, 1U, &rect);
+    vkCmdClearAttachments(rm->get_data(command_list).command_buffer, attachment_count, attachments.data(), 1U, &rect);
 }
 void RenderAPI::clear_depth_attachment(Handle<CommandList> command_list, Handle<GraphicsPipeline> pipeline, Handle<RenderTarget> rt, const RenderTargetClear &clear) const {
     const GraphicsPipeline &pipe = rm->get_data(pipeline);
@@ -954,12 +975,10 @@ void RenderAPI::clear_depth_attachment(Handle<CommandList> command_list, Handle<
     }
 
     const Image &image = rm->get_data(render_target.depth_handle);
-
-    u32 uses_color_target = static_cast<u32>(pipe.create_info.color_target.format != VK_FORMAT_UNDEFINED);
-
+    
     VkClearAttachment attachment{
         .aspectMask = VK_IMAGE_ASPECT_DEPTH_BIT,
-        .colorAttachment = uses_color_target
+        .colorAttachment = static_cast<u32>(pipe.create_info.color_targets.size())
     };
 
     attachment.clearValue.depthStencil = { clear.depth, 0U};

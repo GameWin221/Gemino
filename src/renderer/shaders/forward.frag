@@ -12,6 +12,7 @@ layout(location = 3) in flat uint f_object_id;
 layout(location = 4) in flat uint f_primitive_id;
 
 layout(location = 0) out vec4 out_color;
+layout(location = 01) out vec4 out_normal;
 
 layout (set = 1, binding = 0) uniform sampler2D textures[];
 
@@ -45,7 +46,8 @@ void main() {
     ];
     vec3 albedo = texture(textures[material.albedo_texture], f_texcoord).rgb * material.color.rgb;
 
-    albedo *= max(dot(vec3(1.0), f_normal), 0.1);
+    //albedo *= max(dot(vec3(1.0), f_normal), 0.1);
 
     out_color = vec4(albedo, 1.0);
+    out_normal = vec4(f_normal, 1.0);
 }

@@ -444,60 +444,64 @@ Handle<GraphicsPipeline> ResourceManager::create_graphics_pipeline(const Graphic
         .create_info = info
     };
 
-    u32 uses_color_attachment = static_cast<u32>(info.color_target.format != VK_FORMAT_UNDEFINED);
+    u32 color_attachment_count = static_cast<u32>(info.color_targets.size());
+    u32 uses_color_attachment = static_cast<u32>(color_attachment_count > 0);
     u32 uses_depth_attachment = static_cast<u32>(info.depth_target.format != VK_FORMAT_UNDEFINED);
 
     DEBUG_ASSERT(uses_color_attachment + uses_depth_attachment > 0)
 
-    VkAttachmentDescription all_descriptions[2];
-    VkAttachmentReference color_reference, depth_reference;
+    std::vector<VkAttachmentDescription> all_descriptions(color_attachment_count + uses_depth_attachment);
+    std::vector<VkAttachmentReference> color_references(color_attachment_count);
+    VkAttachmentReference depth_reference;
 
     VkSubpassDescription subpass_description{
         .pipelineBindPoint = VK_PIPELINE_BIND_POINT_GRAPHICS,
     };
-
     VkSubpassDependency subpass_dependency{
         .srcSubpass = VK_SUBPASS_EXTERNAL,
         .dstSubpass = 0U,
     };
 
-    if (uses_color_attachment) {
-        color_reference = VkAttachmentReference{
-            .attachment = 0U,
-            .layout = VK_IMAGE_LAYOUT_COLOR_ATTACHMENT_OPTIMAL,
-        };
+    if(uses_color_attachment) {
+        for(u32 i{}; i < static_cast<u32>(info.color_targets.size()); ++i) {
+            color_references[i] = VkAttachmentReference{
+                .attachment = i,
+                .layout = VK_IMAGE_LAYOUT_COLOR_ATTACHMENT_OPTIMAL,
+            };
 
-        DEBUG_ASSERT(info.color_target.layout != VK_IMAGE_LAYOUT_UNDEFINED)
+            DEBUG_ASSERT(info.color_targets[i].layout != VK_IMAGE_LAYOUT_UNDEFINED)
 
-        all_descriptions[color_reference.attachment] = VkAttachmentDescription{
-            .format = info.color_target.format,
-            .samples = VK_SAMPLE_COUNT_1_BIT,
-            .loadOp = info.color_target.load_op,
-            .storeOp = info.color_target.store_op,
-            .stencilLoadOp = VK_ATTACHMENT_LOAD_OP_DONT_CARE,
-            .stencilStoreOp = VK_ATTACHMENT_STORE_OP_DONT_CARE,
-            .initialLayout = info.color_target.layout,
-            .finalLayout = info.color_target.layout,
-        };
+            all_descriptions[i] = VkAttachmentDescription{
+                .format = info.color_targets[i].format,
+                .samples = VK_SAMPLE_COUNT_1_BIT,
+                .loadOp = info.color_targets[i].load_op,
+                .storeOp = info.color_targets[i].store_op,
+                .stencilLoadOp = VK_ATTACHMENT_LOAD_OP_DONT_CARE,
+                .stencilStoreOp = VK_ATTACHMENT_STORE_OP_DONT_CARE,
+                .initialLayout = info.color_targets[i].layout,
+                .finalLayout = info.color_targets[i].layout,
+            };
 
-        subpass_description.colorAttachmentCount = 1U;
-        subpass_description.pColorAttachments = &color_reference;
+            if(info.color_targets[i].load_op == VK_ATTACHMENT_LOAD_OP_CLEAR) {
+                subpass_dependency.srcAccessMask |= VK_ACCESS_COLOR_ATTACHMENT_WRITE_BIT;
+            } else if(info.color_targets[i].load_op == VK_ATTACHMENT_LOAD_OP_LOAD) {
+                subpass_dependency.srcAccessMask |= VK_ACCESS_COLOR_ATTACHMENT_READ_BIT;
+            }
+
+            if(info.color_targets[i].store_op == VK_ATTACHMENT_STORE_OP_STORE) {
+                subpass_dependency.dstAccessMask |= VK_ACCESS_COLOR_ATTACHMENT_WRITE_BIT;
+            }
+        }
+
+        subpass_description.colorAttachmentCount = static_cast<u32>(color_references.size());
+        subpass_description.pColorAttachments = color_references.data();
 
         subpass_dependency.srcStageMask |= VK_PIPELINE_STAGE_COLOR_ATTACHMENT_OUTPUT_BIT;
         subpass_dependency.dstStageMask |= VK_PIPELINE_STAGE_COLOR_ATTACHMENT_OUTPUT_BIT;
-        if(info.color_target.load_op == VK_ATTACHMENT_LOAD_OP_CLEAR) {
-            subpass_dependency.srcAccessMask |= VK_ACCESS_COLOR_ATTACHMENT_WRITE_BIT;
-        } else if(info.color_target.load_op == VK_ATTACHMENT_LOAD_OP_LOAD) {
-            subpass_dependency.srcAccessMask |= VK_ACCESS_COLOR_ATTACHMENT_READ_BIT;
-        }
-
-        if(info.color_target.store_op == VK_ATTACHMENT_STORE_OP_STORE) {
-            subpass_dependency.dstAccessMask |= VK_ACCESS_COLOR_ATTACHMENT_WRITE_BIT;
-        }
     }
     if (uses_depth_attachment) {
         depth_reference = VkAttachmentReference{
-            .attachment = uses_color_attachment,
+            .attachment = color_attachment_count,
             .layout = VK_IMAGE_LAYOUT_DEPTH_STENCIL_ATTACHMENT_OPTIMAL,
         };
 
@@ -531,9 +535,9 @@ Handle<GraphicsPipeline> ResourceManager::create_graphics_pipeline(const Graphic
 
     VkRenderPassCreateInfo render_pass_create_info{
         .sType = VK_STRUCTURE_TYPE_RENDER_PASS_CREATE_INFO,
-        .attachmentCount = uses_color_attachment + uses_depth_attachment,
-        .pAttachments = all_descriptions,
-        .subpassCount = 1U,
+        .attachmentCount = color_attachment_count + uses_depth_attachment,
+        .pAttachments = all_descriptions.data(),
+        .subpassCount = 1u,
         .pSubpasses = &subpass_description,
         .dependencyCount = 1U,
         .pDependencies = &subpass_dependency,
@@ -590,23 +594,26 @@ Handle<GraphicsPipeline> ResourceManager::create_graphics_pipeline(const Graphic
         .sampleShadingEnable = VK_FALSE
     };
 
-    VkPipelineColorBlendAttachmentState color_blend_attachment{
-        .blendEnable = info.enable_blending,
-        .srcColorBlendFactor = VK_BLEND_FACTOR_SRC_ALPHA,
-        .dstColorBlendFactor = VK_BLEND_FACTOR_ONE_MINUS_SRC_ALPHA,
-        .colorBlendOp = VK_BLEND_OP_ADD,
-        .srcAlphaBlendFactor = VK_BLEND_FACTOR_ONE,
-        .dstAlphaBlendFactor = VK_BLEND_FACTOR_ZERO,
-        .alphaBlendOp = VK_BLEND_OP_ADD,
-        .colorWriteMask = VK_COLOR_COMPONENT_R_BIT | VK_COLOR_COMPONENT_G_BIT | VK_COLOR_COMPONENT_B_BIT | VK_COLOR_COMPONENT_A_BIT
-    };
+    std::vector<VkPipelineColorBlendAttachmentState> color_blend_attachments(info.color_targets.size());
+    for(u32 i{}; i < color_attachment_count; ++i) {
+        color_blend_attachments[i] = VkPipelineColorBlendAttachmentState{
+            .blendEnable = info.color_targets[i].enable_blending,
+            .srcColorBlendFactor = VK_BLEND_FACTOR_SRC_ALPHA,
+            .dstColorBlendFactor = VK_BLEND_FACTOR_ONE_MINUS_SRC_ALPHA,
+            .colorBlendOp = VK_BLEND_OP_ADD,
+            .srcAlphaBlendFactor = VK_BLEND_FACTOR_ONE,
+            .dstAlphaBlendFactor = VK_BLEND_FACTOR_ZERO,
+            .alphaBlendOp = VK_BLEND_OP_ADD,
+            .colorWriteMask = VK_COLOR_COMPONENT_R_BIT | VK_COLOR_COMPONENT_G_BIT | VK_COLOR_COMPONENT_B_BIT | VK_COLOR_COMPONENT_A_BIT
+        };
+    }
 
     VkPipelineColorBlendStateCreateInfo color_blending{
         .sType = VK_STRUCTURE_TYPE_PIPELINE_COLOR_BLEND_STATE_CREATE_INFO,
         .logicOpEnable = VK_FALSE,
         .logicOp = VK_LOGIC_OP_COPY,
-        .attachmentCount = 1U,
-        .pAttachments = &color_blend_attachment,
+        .attachmentCount = color_attachment_count,
+        .pAttachments = color_blend_attachments.data(),
         .blendConstants = {0.0f, 0.0f, 0.0f, 0.0f}
     };
 
@@ -825,79 +832,88 @@ Handle<ComputePipeline> ResourceManager::create_compute_pipeline(const ComputePi
     return m_compute_pipeline_allocator.alloc(pipeline);
 }
 Handle<RenderTarget> ResourceManager::create_render_target(Handle<GraphicsPipeline> src_pipeline, const RenderTargetCreateInfo &info) {
+    std::vector<Handle<Image>> color_handles{};
+    for(const auto &attachment : info.color_attachments) {
+        color_handles.push_back(attachment.target_handle);
+    }
+
     RenderTarget rt{
-        .color_handle = info.color_target_handle,
-        .depth_handle = info.depth_target_handle,
+        .color_views = std::vector<VkImageView>(info.color_attachments.size()),
+        .color_handles = color_handles,
+        .depth_handle = info.depth_attachment.target_handle,
     };
 
-    if(info.color_target_handle != INVALID_HANDLE) {
-        const auto &image = get_data(info.color_target_handle);
+    for(u32 i{}; i < static_cast<u32>(info.color_attachments.size()); ++i) {
+        const auto &image = get_data(info.color_attachments[i].target_handle);
 
         if(image.per_mip_views.empty()) {
-            rt.color_view = image.view;
+            rt.color_views[i] = image.view;
         } else {
-            if(info.color_target_mip > static_cast<u32>(image.per_mip_views.size())) {
-                DEBUG_PANIC("RenderTarget color target mip out of bounds! color_target_mip = " << info.color_target_mip)
+            if(info.color_attachments[i].target_mip > static_cast<u32>(image.per_mip_views.size())) {
+                DEBUG_PANIC("RenderTarget color target mip out of bounds! color_target_mip = " << info.color_attachments[i].target_mip)
             }
 
-            rt.color_view = image.per_mip_views.at(info.color_target_mip);
+            rt.color_views[i] = image.per_mip_views.at(info.color_attachments[i].target_mip);
         }
 
-        VkExtent3D image_extent = get_data(info.color_target_handle).extent;
+        VkExtent3D image_extent = get_data(info.color_attachments[i].target_handle).extent;
         rt.extent = VkExtent2D{
-            std::max(image_extent.width / (1U << info.color_target_mip), 1U),
-            std::max(image_extent.height / (1U << info.color_target_mip), 1U)
+            std::max(image_extent.width / (1U << info.color_attachments[i].target_mip), 1U),
+            std::max(image_extent.height / (1U << info.color_attachments[i].target_mip), 1U)
         };
     }
 
-    if(info.depth_target_handle != INVALID_HANDLE) {
-        const auto &image = get_data(info.depth_target_handle);
+    if(info.depth_attachment.target_handle != INVALID_HANDLE) {
+        const auto &image = get_data(info.depth_attachment.target_handle);
 
         if(image.per_mip_views.empty()) {
             rt.depth_view = image.view;
         } else {
-            if(info.depth_target_mip > static_cast<u32>(image.per_mip_views.size())) {
-                DEBUG_PANIC("RenderTarget depth target mip out of bounds! depth_target_mip = " << info.depth_target_mip)
+            if(info.depth_attachment.target_mip > static_cast<u32>(image.per_mip_views.size())) {
+                DEBUG_PANIC("RenderTarget depth target mip out of bounds! depth_target_mip = " << info.depth_attachment.target_mip)
             }
 
-            rt.depth_view = image.per_mip_views.at(info.depth_target_mip);
+            rt.depth_view = image.per_mip_views.at(info.depth_attachment.target_mip);
         }
 
-        VkExtent3D image_extent = get_data(info.depth_target_handle).extent;
-        if(info.color_target_handle != INVALID_HANDLE) {
+        VkExtent3D image_extent = get_data(info.depth_attachment.target_handle).extent;
+        if(info.depth_attachment.target_handle != INVALID_HANDLE) {
             if(rt.extent.width != image_extent.width || rt.extent.height != image_extent.height) {
                 DEBUG_PANIC("Failed to create a render target! - If both color and depth targets are used, their extents must be identical")
             }
         }
 
         rt.extent = VkExtent2D{
-            std::max(image_extent.width / (1U << info.depth_target_mip), 1U),
-            std::max(image_extent.height / (1U << info.depth_target_mip), 1U)
+            std::max(image_extent.width / (1U << info.depth_attachment.target_mip), 1U),
+            std::max(image_extent.height / (1U << info.depth_attachment.target_mip), 1U)
         };
     }
 
-    if(rt.color_view == nullptr && rt.depth_view == nullptr) {
+    if(rt.color_views.size() == 0 && rt.depth_view == nullptr) {
         DEBUG_PANIC("Failed to create a render target! - Both color and depth targets were not used")
     }
 
     const GraphicsPipeline &pipeline = m_graphics_pipeline_allocator.get_element(src_pipeline);
 
-    u32 uses_color_attachment = static_cast<u32>(rt.color_view != nullptr);
+    u32 color_views_count = static_cast<u32>(rt.color_views.size());
+    u32 uses_color_attachment = static_cast<u32>(rt.color_views.size() > 0);
     u32 uses_depth_attachment = static_cast<u32>(rt.depth_view != nullptr);
 
-    VkImageView image_views[2];
+    std::vector<VkImageView> image_views(color_views_count + uses_depth_attachment);
     if(uses_color_attachment) {
-        image_views[0] = rt.color_view;
+        for(u32 i{}; i < color_views_count; ++i) {
+            image_views[i] = rt.color_views[i];
+        }
     }
     if(uses_depth_attachment) {
-        image_views[uses_color_attachment] = rt.depth_view;
+        image_views[color_views_count] = rt.depth_view;
     }
 
     VkFramebufferCreateInfo framebuffer_create_info{
         .sType = VK_STRUCTURE_TYPE_FRAMEBUFFER_CREATE_INFO,
         .renderPass = pipeline.render_pass,
-        .attachmentCount = uses_color_attachment + uses_depth_attachment,
-        .pAttachments = image_views,
+        .attachmentCount = color_views_count + uses_depth_attachment,
+        .pAttachments = image_views.data(),
         .width = rt.extent.width,
         .height = rt.extent.height,
         .layers = 1U,
@@ -907,7 +923,6 @@ Handle<RenderTarget> ResourceManager::create_render_target(Handle<GraphicsPipeli
 
     return m_render_target_allocator.alloc(rt);
 }
-
 
 void *ResourceManager::map_buffer(Handle<Buffer> buffer_handle) {
 #if DEBUG_MODE // Remove hot-path checks in release mode

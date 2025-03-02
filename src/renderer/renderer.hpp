@@ -119,6 +119,11 @@ public:
     void set_config_enable_debug_shape_view(bool enable);
     void set_config_debug_shape_opacity(f32 value);
     void set_config_lod_sphere_visible_angle(f32 value);
+    void set_config_ssao_samples(u32 value);
+    void set_config_ssao_radius(f32 value);
+    void set_config_ssao_bias(f32 value);
+    void set_config_ssao_multiplier(f32 value);
+    void set_config_ssao_noise_scale_divider(i32 value);
 
     void set_ui_draw_callback(UIPassDrawFn draw_callback);
 

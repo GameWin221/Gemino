@@ -44,10 +44,8 @@ Handle<Camera> World::create_camera(const CameraCreateInfo& create_info) {
     };
 
     update_vectors(camera);
-    camera.view = calculate_view_matrix(camera);
-    camera.proj = calculate_proj_matrix(camera);
-    camera.view_proj = camera.proj * camera.view;
     update_frustum(camera);
+    update_matrices(camera);
 
     return m_cameras.alloc(camera);
 }
@@ -212,8 +210,7 @@ void World::set_camera_position(Handle<Camera> camera, glm::vec3 position) {
 
     update_vectors(target);
     update_frustum(target);
-    target.view = calculate_view_matrix(target);
-    target.view_proj = target.proj * target.view;
+    update_matrices(target);
 }
 void World::set_camera_rotation(Handle<Camera> camera, float pitch, float yaw) {
     Camera &target = m_cameras.get_element_mutable(camera);
@@ -225,8 +222,7 @@ void World::set_camera_rotation(Handle<Camera> camera, float pitch, float yaw) {
 
     update_vectors(target);
     update_frustum(target);
-    target.view = calculate_view_matrix(target);
-    target.view_proj = target.proj * target.view;
+    update_matrices(target);
 }
 void World::set_camera_fov(Handle<Camera> camera, float fov) {
     Camera &target = m_cameras.get_element_mutable(camera);
@@ -236,8 +232,7 @@ void World::set_camera_fov(Handle<Camera> camera, float fov) {
     target.fov = fov;
 
     update_frustum(target);
-    target.proj = calculate_proj_matrix(target);
-    target.view_proj = target.proj * target.view;
+    update_matrices(target);
 }
 void World::set_camera_viewport(Handle<Camera> camera, glm::vec2 viewport_size) {
     Camera &target = m_cameras.get_element_mutable(camera);
@@ -247,8 +242,7 @@ void World::set_camera_viewport(Handle<Camera> camera, glm::vec2 viewport_size) 
     target.viewport_size = viewport_size;
 
     update_frustum(target);
-    target.proj = calculate_proj_matrix(target);
-    target.view_proj = target.proj * target.view;
+    update_matrices(target);
 }
 
 glm::mat4 World::calculate_view_matrix(const Camera &camera) const {
@@ -292,6 +286,15 @@ void World::update_frustum(Camera &camera) {
     camera.left_plane = glm::normalize(glm::cross(far_plane - (camera.right * half_x), camera.up));
     camera.top_plane = glm::normalize(glm::cross(far_plane + (camera.up * half_y), camera.right));
     camera.bottom_plane = glm::normalize(glm::cross(camera.right, far_plane - (camera.up * half_y)));
+}
+
+void World::update_matrices(Camera &camera) {
+    camera.view = calculate_view_matrix(camera);
+    camera.proj = calculate_proj_matrix(camera);
+    camera.view_proj = camera.proj * camera.view;
+    camera.inv_view = glm::inverse(camera.view);
+    camera.inv_proj = glm::inverse(camera.proj);
+    camera.inv_view_proj = glm::inverse(camera.view_proj);
 }
 
 Transform World::calculate_child_transform(const Transform &local_transform, const Transform &parent_transform) {

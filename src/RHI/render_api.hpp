@@ -122,7 +122,7 @@ public:
 
     void fill_buffer(Handle<CommandList> command_list, Handle<Buffer> handle, u32 data, VkDeviceSize size, VkDeviceSize offset = 0) const;
 
-    void begin_graphics_pipeline(Handle<CommandList> command_list, Handle<GraphicsPipeline> pipeline, Handle<RenderTarget> render_target, const RenderTargetClear &clear) const;
+    void begin_graphics_pipeline(Handle<CommandList> command_list, Handle<GraphicsPipeline> pipeline, Handle<RenderTarget> render_target, const std::vector<RenderTargetClear> &color_clears, const RenderTargetClear &depth_clear) const;
     void end_graphics_pipeline(Handle<CommandList> command_list, Handle<GraphicsPipeline> pipeline) const;
 
     void begin_compute_pipeline(Handle<CommandList> command_list, Handle<ComputePipeline> pipeline) const;
@@ -138,7 +138,7 @@ public:
     void bind_vertex_buffer(Handle<CommandList> command_list, Handle<Buffer> buffer, u32 index = 0U, VkDeviceSize offset = 0) const;
     void bind_index_buffer(Handle<CommandList> command_list, Handle<Buffer> buffer, VkDeviceSize offset = 0) const;
 
-    void clear_color_attachment(Handle<CommandList> command_list, Handle<GraphicsPipeline> pipeline, Handle<RenderTarget> rt, const RenderTargetClear &clear) const;
+    void clear_color_attachments(Handle<CommandList> command_list, Handle<GraphicsPipeline> pipeline, Handle<RenderTarget> rt, const std::vector<RenderTargetClear> &clear_colors) const;
     void clear_depth_attachment(Handle<CommandList> command_list, Handle<GraphicsPipeline> pipeline, Handle<RenderTarget> rt, const RenderTargetClear &clear) const;
     void clear_color_image(Handle<CommandList> command_list, Handle<Image> target, VkImageLayout layout, const RenderTargetClear &clear) const;
     void clear_depth_image(Handle<CommandList> command_list, Handle<Image> target, VkImageLayout layout, const RenderTargetClear &clear) const;

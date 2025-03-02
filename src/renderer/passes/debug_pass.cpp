@@ -135,11 +135,14 @@ void DebugPass::init(const RenderAPI &api, const RendererSharedObjects &shared, 
 
         .descriptors { m_graphics_descriptor },
 
-        .color_target {
-            .format = api.rm->get_data(shared.offscreen_image).format,
-            .layout = VK_IMAGE_LAYOUT_COLOR_ATTACHMENT_OPTIMAL,
-            .load_op = VK_ATTACHMENT_LOAD_OP_LOAD,
-            .store_op = VK_ATTACHMENT_STORE_OP_STORE,
+        .color_targets {
+            RenderTargetCommonInfo {
+                .format = api.rm->get_data(shared.offscreen_image).format,
+                .layout = VK_IMAGE_LAYOUT_COLOR_ATTACHMENT_OPTIMAL,
+                .load_op = VK_ATTACHMENT_LOAD_OP_LOAD,
+                .store_op = VK_ATTACHMENT_STORE_OP_STORE,
+                .enable_blending = true
+            }
         },
         .depth_target = {
             .format = api.rm->get_data(shared.depth_image).format,
@@ -152,14 +155,18 @@ void DebugPass::init(const RenderAPI &api, const RendererSharedObjects &shared, 
         .enable_depth_write = false,
         .depth_compare_op = VK_COMPARE_OP_GREATER,
 
-
-        .enable_blending = true,
         .primitive_topology = VK_PRIMITIVE_TOPOLOGY_LINE_LIST,
    });
 
     m_render_target = api.rm->create_render_target(m_graphics_pipeline, RenderTargetCreateInfo{
-        .color_target_handle = shared.offscreen_image,
-        .depth_target_handle = shared.depth_image
+        .color_attachments = {
+            RenderTargetAttachmentCreateInfo{
+                .target_handle = shared.offscreen_image
+            }
+        },
+        .depth_attachment = {
+            shared.depth_image
+        }
     });
 
     m_sphere_indirect_draw_buffer = api.rm->create_buffer(BufferCreateInfo{
@@ -202,8 +209,14 @@ void DebugPass::resize(const RenderAPI &api, const RendererSharedObjects &shared
     api.rm->destroy(m_render_target);
 
     m_render_target = api.rm->create_render_target(m_graphics_pipeline, RenderTargetCreateInfo{
-        .color_target_handle = shared.offscreen_image,
-        .depth_target_handle = shared.depth_image
+        .color_attachments = {
+            RenderTargetAttachmentCreateInfo{
+                .target_handle = shared.offscreen_image
+            }
+        },
+        .depth_attachment = {
+            .target_handle = shared.depth_image
+        }
     });
 }
 void DebugPass::destroy(const RenderAPI &api) {
@@ -220,6 +233,16 @@ void DebugPass::destroy(const RenderAPI &api) {
 }
 
 void DebugPass::process(Handle<CommandList> cmd, const RenderAPI &api, const RendererSharedObjects &shared, const World &world) {
+    api.image_barrier(cmd, VK_PIPELINE_STAGE_COLOR_ATTACHMENT_OUTPUT_BIT, VK_PIPELINE_STAGE_COLOR_ATTACHMENT_OUTPUT_BIT, {
+        ImageBarrier {
+            .image_handle = shared.offscreen_image,
+            .src_access_mask = VK_ACCESS_COLOR_ATTACHMENT_WRITE_BIT,
+            .dst_access_mask = VK_ACCESS_COLOR_ATTACHMENT_WRITE_BIT,
+            .old_layout = VK_IMAGE_LAYOUT_COLOR_ATTACHMENT_OPTIMAL,
+            .new_layout = VK_IMAGE_LAYOUT_COLOR_ATTACHMENT_OPTIMAL,
+        }
+    });
+
     api.begin_compute_pipeline(cmd, m_compute_pipeline);
         api.bind_descriptor(cmd, m_compute_pipeline, m_compute_descriptor, 0u);
         api.dispatch_compute_pipeline(cmd);
@@ -228,7 +251,7 @@ void DebugPass::process(Handle<CommandList> cmd, const RenderAPI &api, const Ren
             BufferBarrier { m_sphere_indirect_draw_buffer, VK_ACCESS_SHADER_WRITE_BIT, VK_ACCESS_INDIRECT_COMMAND_READ_BIT }
         });
 
-    api.begin_graphics_pipeline(cmd, m_graphics_pipeline, m_render_target, RenderTargetClear{});
+    api.begin_graphics_pipeline(cmd, m_graphics_pipeline, m_render_target, {RenderTargetClear{}}, RenderTargetClear{});
         api.push_constants(cmd, m_graphics_pipeline, &shared.config_debug_shape_opacity);
         api.bind_descriptor(cmd, m_graphics_pipeline, m_graphics_descriptor, 0u);
         api.bind_index_buffer(cmd, m_sphere_mesh_index_buffer);

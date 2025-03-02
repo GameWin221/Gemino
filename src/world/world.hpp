@@ -101,6 +101,7 @@ private:
     glm::mat4 calculate_proj_matrix(const Camera &camera) const;
     void update_vectors(Camera &camera);
     void update_frustum(Camera &camera);
+    void update_matrices(Camera &camera);
 
     HandleAllocator<Transform> m_local_transforms{};
     HandleAllocator<Transform> m_global_transforms{};

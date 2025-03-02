@@ -25,22 +25,22 @@ int main(){
 
     InputManager input(window);
 
-    Renderer renderer(window, VSyncMode::Disabled);
+    Renderer renderer(window, VSyncMode::Enabled);
 
     Editor::attach(renderer);
 
     World world{};
-/*
+
     auto bistro_scene = renderer.load_gltf_scene(SceneLoadInfo {
         .path = BISTRO_PATH,
         .import_textures = false,
         .import_materials = true,
-        //.lod_bias_vert_threshold = 10000u,
-        //.lod_bias = 0.8f
+        .lod_bias_vert_threshold = 10000u,
+        .lod_bias = 0.8f
     });
 
     auto bistro_handle = world.instantiate_scene(bistro_scene);
-*/
+
     auto monkey_scene = renderer.load_gltf_scene(SceneLoadInfo {
         .path = "res/monkey.gltf"
     });
@@ -49,11 +49,11 @@ int main(){
     monkey_scene.rotation = glm::angleAxis(glm::radians(-45.0f), glm::vec3(0.0f, 1.0f, 0.0f)) * glm::angleAxis(glm::radians(-35.0f), glm::vec3(1.0f, 0.0f, 0.0f));
     auto monkey_handle = world.instantiate_scene_object(monkey_scene, 0);
 
-    for (u32 y{}; y < 40u; ++y) {
-        for (u32 x{}; x < 40u; ++x) {
-            for (u32 z{}; z < 40u; ++z) {
+    for (u32 y{}; y < 10u; ++y) {
+        for (u32 x{}; x < 10u; ++x) {
+            for (u32 z{}; z < 10u; ++z) {
                 monkey_scene.position = glm::vec3(x * 2u, y * 2u, z * 2u);
-                auto monkey_handle = world.instantiate_scene_object(monkey_scene, 0u);
+                //auto monkey_handle = world.instantiate_scene_object(monkey_scene, 0u);
             }
         }
     }

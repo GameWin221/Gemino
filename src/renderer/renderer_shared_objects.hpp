@@ -19,6 +19,12 @@ struct RendererSharedObjects {
     f32 config_debug_shape_opacity = 0.3f;
     f32 config_lod_sphere_visible_angle = 0.01f;
 
+    u32 config_ssao_samples = 32U;
+    f32 config_ssao_radius = 1.0f;
+    f32 config_ssao_bias = 0.025;
+    f32 config_ssao_multiplier = 1.0f;
+    f32 config_ssao_noise_scale_divider = 4.0f;
+
     u32 config_texture_anisotropy = 8U;
     float config_texture_mip_bias = 0.0f;
     // Config end
@@ -30,7 +36,12 @@ struct RendererSharedObjects {
 
     Handle<Image> offscreen_image{};
     Handle<Sampler> offscreen_sampler{};
+
+    Handle<Image> ssao_output_image{};
+
     Handle<Image> depth_image{};
+    Handle<Image> albedo_image{};
+    Handle<Image> normal_image{};
 
     Handle<Material> default_material{};
     Handle<Texture> default_white_srgb_texture{};

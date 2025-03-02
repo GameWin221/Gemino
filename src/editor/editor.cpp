@@ -7,6 +7,7 @@
 
 static bool g_is_attached = false;
 static bool g_gpu_memory_usage_window_open = true;
+static bool g_config_window_open = true;
 static bool g_frametime_window_open = true;
 static Renderer *g_renderer_ptr = nullptr;
 
@@ -39,6 +40,9 @@ void Editor::draw(World &world) {
     }
     if (g_frametime_window_open) {
         draw_frametime_window(*g_renderer_ptr);
+    }
+    if(g_config_window_open) {
+        draw_config_window(*g_renderer_ptr);
     }
 }
 
@@ -227,6 +231,40 @@ void Editor::draw_frametime_window(Renderer &renderer) {
             sprintf(buf, "%s: %fms", name.c_str(), static_cast<f32>(time * 1000.0));
             ImGui::Text(buf);
         }
+    }
+
+    ImGui::End();
+}
+
+void Editor::draw_config_window(Renderer &renderer) {
+    if(!ImGui::Begin("Config", &g_config_window_open)) {
+        ImGui::End();
+        return;
+    }
+
+    static char buf[128];
+
+    const auto &shared = renderer.get_shared_objects();
+    i32 ssao_samples = shared.config_ssao_samples;
+    f32 ssao_radius = shared.config_ssao_radius;
+    f32 ssao_bias = shared.config_ssao_bias;
+    f32 ssao_multiplier = shared.config_ssao_multiplier;
+    i32 ssao_noise_scale_divider = static_cast<i32>(shared.config_ssao_noise_scale_divider);
+
+    if(ImGui::SliderInt("SSAO Samples", &ssao_samples, 2, 64)) {
+        renderer.set_config_ssao_samples(ssao_samples);
+    }
+    if(ImGui::SliderFloat("SSAO Radius", &ssao_radius, 0.0f, 8.0f)) {
+        renderer.set_config_ssao_radius(ssao_radius);
+    }
+    if(ImGui::SliderFloat("SSAO Bias", &ssao_bias, 0.0f, 0.5f)) {
+        renderer.set_config_ssao_bias(ssao_bias);
+    }
+    if(ImGui::SliderFloat("SSAO Multiplier", &ssao_multiplier, 0.0f, 4.0f)) {
+        renderer.set_config_ssao_multiplier(ssao_multiplier);
+    }
+    if(ImGui::SliderInt("SSAO Noise Scale Divider", &ssao_noise_scale_divider, 1, 4)) {
+        renderer.set_config_ssao_noise_scale_divider(ssao_noise_scale_divider);
     }
 
     ImGui::End();

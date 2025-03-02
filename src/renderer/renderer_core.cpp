@@ -1,9 +1,11 @@
 #include "renderer.hpp"
+#include "passes/composite_pass.hpp"
+#include "passes/ssao_pass.hpp"
 
 Renderer::Renderer(Window &window, VSyncMode v_sync) : m_api(window, SwapchainConfig{
-    .v_sync = v_sync,
-    .usage = VK_IMAGE_USAGE_COLOR_ATTACHMENT_BIT
-}) {
+                                                                 .v_sync = v_sync,
+                                                                 .usage = VK_IMAGE_USAGE_COLOR_ATTACHMENT_BIT
+                                                             }) {
     init_scene_buffers();
     init_screen_images(window.get_size());
     init_descriptors();
@@ -94,7 +96,8 @@ void Renderer::init_screen_images(glm::uvec2 size) {
         .aspect_flags = VK_IMAGE_ASPECT_COLOR_BIT
     });
     m_shared.offscreen_sampler = m_api.rm->create_sampler(SamplerCreateInfo{
-        .filter = VK_FILTER_NEAREST
+        .filter = VK_FILTER_NEAREST,
+        .address_mode = VK_SAMPLER_ADDRESS_MODE_CLAMP_TO_EDGE
     });
 
     m_shared.depth_image = m_api.rm->create_image(ImageCreateInfo{
@@ -102,6 +105,24 @@ void Renderer::init_screen_images(glm::uvec2 size) {
         .extent = screen_size,
         .usage_flags = VK_IMAGE_USAGE_DEPTH_STENCIL_ATTACHMENT_BIT | VK_IMAGE_USAGE_SAMPLED_BIT,
         .aspect_flags = VK_IMAGE_ASPECT_DEPTH_BIT
+    });
+    m_shared.albedo_image = m_api.rm->create_image(ImageCreateInfo{
+        .format = VK_FORMAT_R8G8B8A8_SRGB,
+        .extent = screen_size,
+        .usage_flags = VK_IMAGE_USAGE_COLOR_ATTACHMENT_BIT | VK_IMAGE_USAGE_SAMPLED_BIT,
+        .aspect_flags = VK_IMAGE_ASPECT_COLOR_BIT
+    });
+    m_shared.normal_image = m_api.rm->create_image(ImageCreateInfo{
+        .format = VK_FORMAT_R32G32B32A32_SFLOAT,
+        .extent = screen_size,
+        .usage_flags = VK_IMAGE_USAGE_COLOR_ATTACHMENT_BIT | VK_IMAGE_USAGE_SAMPLED_BIT,
+        .aspect_flags = VK_IMAGE_ASPECT_COLOR_BIT
+    });
+    m_shared.ssao_output_image = m_api.rm->create_image(ImageCreateInfo{
+        .format = VK_FORMAT_R8_UNORM,
+        .extent = screen_size,
+        .usage_flags = VK_IMAGE_USAGE_COLOR_ATTACHMENT_BIT | VK_IMAGE_USAGE_SAMPLED_BIT,
+        .aspect_flags = VK_IMAGE_ASPECT_COLOR_BIT
     });
 
     std::vector<ImageBarrier> init_swapchain_barriers{};
@@ -120,11 +141,28 @@ void Renderer::init_screen_images(glm::uvec2 size) {
             .dst_access_mask = VK_ACCESS_DEPTH_STENCIL_ATTACHMENT_WRITE_BIT, // LoadOp = Clear
             .new_layout = VK_IMAGE_LAYOUT_DEPTH_STENCIL_ATTACHMENT_OPTIMAL
         }});
-        m_api.image_barrier(cmd, VK_PIPELINE_STAGE_TOP_OF_PIPE_BIT, VK_PIPELINE_STAGE_FRAGMENT_SHADER_BIT, { ImageBarrier{
-            .image_handle = m_shared.offscreen_image,
-            .dst_access_mask = VK_ACCESS_SHADER_READ_BIT,
-            .new_layout = VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL,
-        }});
+        m_api.image_barrier(cmd, VK_PIPELINE_STAGE_TOP_OF_PIPE_BIT, VK_PIPELINE_STAGE_FRAGMENT_SHADER_BIT, {
+            ImageBarrier{
+                .image_handle = m_shared.offscreen_image,
+                .dst_access_mask = VK_ACCESS_SHADER_READ_BIT,
+                .new_layout = VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL,
+            },
+            ImageBarrier{
+                .image_handle = m_shared.albedo_image,
+                .dst_access_mask = VK_ACCESS_SHADER_READ_BIT,
+                .new_layout = VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL,
+            },
+            ImageBarrier{
+                .image_handle = m_shared.normal_image,
+                .dst_access_mask = VK_ACCESS_SHADER_READ_BIT,
+                .new_layout = VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL,
+            },
+            ImageBarrier{
+                .image_handle = m_shared.ssao_output_image,
+                .dst_access_mask = VK_ACCESS_SHADER_READ_BIT,
+                .new_layout = VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL,
+            }
+        });
     });
 }
 void Renderer::init_descriptors() {
@@ -144,16 +182,24 @@ void Renderer::init_passes(const Window &window) {
         .order = 1u,
         .pass_ptr = MakeUnique<GeometryPass>()
     };
-    m_registered_passes["Debug Pass"] = RegisteredPass {
+    m_registered_passes["SSAO Pass"] = RegisteredPass {
         .order = 2u,
+        .pass_ptr = MakeUnique<SSAOPass>()
+    };
+    m_registered_passes["Composite Pass"] = RegisteredPass {
+        .order = 3u,
+        .pass_ptr = MakeUnique<CompositePass>()
+    };
+    m_registered_passes["Debug Pass"] = RegisteredPass {
+        .order = 4u,
         .pass_ptr = MakeUnique<DebugPass>()
     };
     m_registered_passes["Offscreen To Swapchain Pass"] = RegisteredPass {
-        .order = 3u,
+        .order = 5u,
         .pass_ptr = MakeUnique<OffscreenToSwapchainPass>()
     };
     m_registered_passes["UI Pass"] = RegisteredPass {
-        .order = 4u,
+        .order = 6u,
         .pass_ptr = MakeUnique<UIPass>()
     };
 
@@ -270,6 +316,8 @@ void Renderer::destroy_scene_buffers() {
     m_api.rm->destroy(m_shared.scene_index_buffer);
 }
 void Renderer::destroy_screen_images() {
+    m_api.rm->destroy(m_shared.albedo_image);
+    m_api.rm->destroy(m_shared.normal_image);
     m_api.rm->destroy(m_shared.offscreen_image);
     m_api.rm->destroy(m_shared.depth_image);
     m_api.rm->destroy(m_shared.offscreen_sampler);
@@ -341,6 +389,27 @@ void Renderer::set_config_debug_shape_opacity(f32 value) {
 
 void Renderer::set_config_lod_sphere_visible_angle(f32 value) {
     m_shared.config_lod_sphere_visible_angle = std::max(std::min(value, 179.99f), 0.0002f);
+}
+
+void Renderer::set_config_ssao_samples(u32 value) {
+    m_shared.config_ssao_samples = std::max(std::min(value, 64u), 1u);
+    reload_pipelines();
+}
+
+void Renderer::set_config_ssao_radius(f32 value) {
+    m_shared.config_ssao_radius = value;
+}
+
+void Renderer::set_config_ssao_bias(f32 value) {
+    m_shared.config_ssao_bias = value;
+}
+
+void Renderer::set_config_ssao_multiplier(f32 value) {
+    m_shared.config_ssao_multiplier = value;
+}
+
+void Renderer::set_config_ssao_noise_scale_divider(i32 value) {
+    m_shared.config_ssao_noise_scale_divider = value;
 }
 
 void Renderer::set_ui_draw_callback(UIPassDrawFn draw_callback) {

@@ -104,21 +104,22 @@ struct Descriptor {
     DescriptorCreateInfo create_info{};
 };
 
+struct RenderTargetAttachmentCreateInfo {
+    Handle<Image> target_handle = INVALID_HANDLE;
+    u32 target_mip = 0U;
+};
 struct RenderTargetCreateInfo {
-    Handle<Image> color_target_handle = INVALID_HANDLE;
-    u32 color_target_mip = 0U;
-
-    Handle<Image> depth_target_handle = INVALID_HANDLE;
-    u32 depth_target_mip = 0U;
+    std::vector<RenderTargetAttachmentCreateInfo> color_attachments{};
+    RenderTargetAttachmentCreateInfo depth_attachment{};
 };
 struct RenderTarget {
     VkFramebuffer framebuffer{};
     VkExtent2D extent{};
 
-    VkImageView color_view{};
+    std::vector<VkImageView> color_views{};
     VkImageView depth_view{};
 
-    Handle<Image> color_handle = INVALID_HANDLE;
+    std::vector<Handle<Image>> color_handles{};
     Handle<Image> depth_handle = INVALID_HANDLE;
 };
 struct RenderTargetCommonInfo {
@@ -127,6 +128,8 @@ struct RenderTargetCommonInfo {
 
     VkAttachmentLoadOp load_op = VK_ATTACHMENT_LOAD_OP_CLEAR;
     VkAttachmentStoreOp store_op = VK_ATTACHMENT_STORE_OP_STORE;
+
+    bool enable_blending = false;
 };
 
 struct GraphicsPipelineCreateInfo {
@@ -140,14 +143,13 @@ struct GraphicsPipelineCreateInfo {
 
     std::vector<Handle<Descriptor>> descriptors{};
 
-    RenderTargetCommonInfo color_target{};
+    std::vector<RenderTargetCommonInfo> color_targets{};
     RenderTargetCommonInfo depth_target{};
 
     bool enable_depth_test = false;
     bool enable_depth_write = false;
     VkCompareOp depth_compare_op = VK_COMPARE_OP_LESS;
 
-    bool enable_blending = false;
     VkPrimitiveTopology primitive_topology = VK_PRIMITIVE_TOPOLOGY_TRIANGLE_LIST;
     VkPolygonMode polygon_mode = VK_POLYGON_MODE_FILL;
     VkCullModeFlags cull_mode = VK_CULL_MODE_BACK_BIT;

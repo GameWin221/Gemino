@@ -22,9 +22,11 @@ void OffscreenToSwapchainPass::init(const RenderAPI &api, const RendererSharedOb
         .vertex_shader_path = "./shaders/fullscreen_tri.vert.spv",
         .fragment_shader_path = "./shaders/fullscreen_tri.frag.spv",
         .descriptors = { m_descriptor } ,
-        .color_target {
-            .format = api.swapchain->get_format(),
-            .layout = VK_IMAGE_LAYOUT_PRESENT_SRC_KHR,
+        .color_targets {
+            RenderTargetCommonInfo{
+                .format = api.swapchain->get_format(),
+                .layout = VK_IMAGE_LAYOUT_PRESENT_SRC_KHR,
+            }
         },
         .cull_mode = VK_CULL_MODE_NONE,
     });
@@ -32,7 +34,11 @@ void OffscreenToSwapchainPass::init(const RenderAPI &api, const RendererSharedOb
     m_render_targets.resize(api.get_swapchain_image_count());
     for(u32 i{}; i < api.get_swapchain_image_count(); ++i){
         m_render_targets[i] = api.rm->create_render_target(m_pipeline, RenderTargetCreateInfo{
-            .color_target_handle = api.get_swapchain_image_handle(i)
+            .color_attachments = {
+                RenderTargetAttachmentCreateInfo{
+                    .target_handle = api.get_swapchain_image_handle(i)
+                }
+            }
         });
     }
 }
@@ -56,7 +62,11 @@ void OffscreenToSwapchainPass::resize(const RenderAPI &api, const RendererShared
     m_render_targets.resize(api.get_swapchain_image_count());
     for(u32 i{}; i < api.get_swapchain_image_count(); ++i){
         m_render_targets[i] = api.rm->create_render_target(m_pipeline, RenderTargetCreateInfo{
-            .color_target_handle = api.get_swapchain_image_handle(i)
+            .color_attachments = {
+                RenderTargetAttachmentCreateInfo{
+                    .target_handle = api.get_swapchain_image_handle(i)
+                }
+            }
         });
     }
 }
@@ -70,7 +80,6 @@ void OffscreenToSwapchainPass::destroy(const RenderAPI &api) {
     api.rm->destroy(m_descriptor);
 }
 
-
 void OffscreenToSwapchainPass::process(Handle<CommandList> cmd, const RenderAPI &api, const RendererSharedObjects &shared, const World &world) {
     api.image_barrier(cmd, VK_PIPELINE_STAGE_COLOR_ATTACHMENT_OUTPUT_BIT, VK_PIPELINE_STAGE_FRAGMENT_SHADER_BIT, { ImageBarrier{
         .image_handle = shared.offscreen_image,
@@ -80,7 +89,7 @@ void OffscreenToSwapchainPass::process(Handle<CommandList> cmd, const RenderAPI 
         .new_layout = VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL
     }});
 
-    api.begin_graphics_pipeline(cmd, m_pipeline, m_render_targets[shared.swapchain_target_index], RenderTargetClear{});
+    api.begin_graphics_pipeline(cmd, m_pipeline, m_render_targets[shared.swapchain_target_index], {RenderTargetClear{}}, RenderTargetClear{});
     api.bind_descriptor(cmd, m_pipeline, m_descriptor, 0U);
     api.draw_count(cmd, 3U),
     api.end_graphics_pipeline(cmd, m_pipeline);
