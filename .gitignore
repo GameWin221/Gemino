@@ -7,6 +7,3 @@ cmake-build*
 build
 
 res/Sponza
-
-res/shared/shaders/*.spv
-res/shared/shaders/**/*.spv

@@ -132,6 +132,7 @@ public:
 
     void begin_compute_pipeline(Handle<CommandList> command_list, Handle<ComputePipeline> pipeline) const;
     void dispatch_compute_pipeline(Handle<CommandList> command_list, u32 x_groups = 1u, u32 y_groups = 1u, u32 z_groups = 1u) const;
+    void dispatch_indirect_compute_pipeline(Handle<CommandList> command_list, Handle<Buffer> buffer, VkDeviceSize offset = 0) const;
 
     void push_graphics_constants(Handle<CommandList> command_list, Handle<GraphicsPipeline> pipeline, const void *data, u8 size_override = 0U, u8 offset_override = 0U) const;
     void push_compute_constants(Handle<CommandList> command_list, Handle<ComputePipeline> pipeline, const void *data, u8 size_override = 0U, u8 offset_override = 0U) const;

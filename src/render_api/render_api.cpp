@@ -884,6 +884,14 @@ void RenderAPI::dispatch_compute_pipeline(Handle<CommandList> command_list, u32 
     vkCmdDispatch(m_command_manager->get_command_list_data(command_list).command_buffer, x_groups, y_groups, z_groups);
 }
 
+void RenderAPI::dispatch_indirect_compute_pipeline(Handle<CommandList> command_list, Handle<Buffer> buffer, VkDeviceSize offset) const {
+    vkCmdDispatchIndirect(
+        m_command_manager->get_command_list_data(command_list).command_buffer,
+        m_resource_manager->get_buffer_data(buffer).buffer,
+        offset
+    );
+}
+
 void RenderAPI::bind_graphics_descriptor(Handle<CommandList> command_list, Handle<GraphicsPipeline> pipeline, Handle<Descriptor> descriptor, u32 dst_index) const {
     const GraphicsPipeline &pipe = m_pipeline_manager->get_graphics_pipeline_data(pipeline);
     const Descriptor& desc = m_resource_manager->get_descriptor_data(descriptor);
