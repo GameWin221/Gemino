@@ -120,7 +120,7 @@ void Renderer::init_screen_images(glm::uvec2 size) {
     });
     m_shared.ssao_output_image = m_api.rm->create_image(ImageCreateInfo{
         .format = VK_FORMAT_R8_UNORM,
-        .extent = screen_size,
+        .extent = VkExtent3D {screen_size.width / m_shared.config_ssao_resolution_div, screen_size.height / m_shared.config_ssao_resolution_div },
         .usage_flags = VK_IMAGE_USAGE_COLOR_ATTACHMENT_BIT | VK_IMAGE_USAGE_SAMPLED_BIT,
         .aspect_flags = VK_IMAGE_ASPECT_COLOR_BIT
     });
@@ -414,6 +414,11 @@ void Renderer::set_config_ssao_noise_scale_divider(i32 value) {
 
 void Renderer::set_config_ssao_blur_radius(f32 value) {
     m_shared.config_ssao_blur_radius = value;
+}
+
+void Renderer::set_config_ssao_resolution_div(u32 value) {
+    m_shared.config_ssao_resolution_div = value;
+    enqueue_resize();
 }
 
 void Renderer::set_ui_draw_callback(UIPassDrawFn draw_callback) {

@@ -96,6 +96,7 @@ public:
     void resize(Window &window);
     void render(Window &window, World &world, Handle<Camera> camera);
     void reload_pipelines();
+    void enqueue_resize();
 
     SceneCreateInfo load_gltf_scene(const SceneLoadInfo &load_info);
 
@@ -125,6 +126,7 @@ public:
     void set_config_ssao_multiplier(f32 value);
     void set_config_ssao_noise_scale_divider(i32 value);
     void set_config_ssao_blur_radius(f32 value);
+    void set_config_ssao_resolution_div(u32 value);
 
     void set_ui_draw_callback(UIPassDrawFn draw_callback);
 
@@ -220,6 +222,7 @@ private:
     f32 m_default_timestamp_period{};
 
     bool m_reload_pipelines_queued{};
+    bool m_resize_queued{};
 
     std::vector<Frame> m_frames{};
 

@@ -34,7 +34,7 @@ int main(){
 
     auto bistro_scene = renderer.load_gltf_scene(SceneLoadInfo {
         .path = BISTRO_PATH,
-        .import_textures = true,
+        .import_textures = false,
         .import_materials = true,
         .lod_bias_vert_threshold = 10000u,
         .lod_bias = 0.8f

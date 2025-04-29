@@ -251,6 +251,7 @@ void Editor::draw_config_window(Renderer &renderer) {
     f32 ssao_multiplier = shared.config_ssao_multiplier;
     i32 ssao_noise_scale_divider = static_cast<i32>(shared.config_ssao_noise_scale_divider);
     f32 ssao_blur_radius = shared.config_ssao_blur_radius;
+    i32 ssao_res_div = shared.config_ssao_resolution_div;
 
     if(ImGui::SliderInt("SSAO Samples", &ssao_samples, 2, 64)) {
         renderer.set_config_ssao_samples(ssao_samples);
@@ -269,6 +270,9 @@ void Editor::draw_config_window(Renderer &renderer) {
     }
     if(ImGui::SliderFloat("SSAO Blur Radius", &ssao_blur_radius, 0.5f, 8.0f)) {
         renderer.set_config_ssao_blur_radius(ssao_blur_radius);
+    }
+    if(ImGui::SliderInt("SSAO Resolution Divider", &ssao_res_div, 1, 4)) {
+        renderer.set_config_ssao_resolution_div(ssao_res_div);
     }
 
     ImGui::End();

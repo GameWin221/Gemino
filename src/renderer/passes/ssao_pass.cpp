@@ -184,7 +184,7 @@ void SSAOPass::resize(const RenderAPI &api, const RendererSharedObjects &shared,
             DescriptorBindingUpdateInfo {
                 .binding_index = 0u,
                 .image_info {
-                    .image_handle = shared.depth_image,
+                    .image_handle = shared.ssao_output_image,
                     .image_sampler = shared.offscreen_sampler
                 }
             }

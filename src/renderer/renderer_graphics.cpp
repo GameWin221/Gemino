@@ -43,6 +43,22 @@ void Renderer::render(Window &window, World &world, Handle<Camera> camera) {
         return;
     }
 
+    if (m_resize_queued) {
+        DEBUG_LOG("Resizing...")
+
+        for (const auto &f : m_frames) {
+            m_api.wait_for_fence(f.fence);
+        }
+
+        m_api.wait_for_device_idle();
+
+        resize(window);
+
+        DEBUG_LOG("Resized!")
+        m_resize_queued = false;
+        return;
+    }
+
     begin_recording_frame();
     update_world(world, camera);
     render_world(world, camera);
@@ -50,6 +66,9 @@ void Renderer::render(Window &window, World &world, Handle<Camera> camera) {
 }
 void Renderer::reload_pipelines() {
     m_reload_pipelines_queued = true;
+}
+void Renderer::enqueue_resize() {
+    m_resize_queued = true;
 }
 
 void Renderer::begin_recording_frame() {
