@@ -149,15 +149,8 @@ Handle<Image> ResourceManager::create_image(const ImageCreateInfo &info) {
         .depth = std::max(1U, info.extent.depth)
     };
 
-    u32 dimension_count =
-        static_cast<u32>((info.extent.width > 0U)) +
-        static_cast<u32>((info.extent.height > 0U)) +
-        static_cast<u32>((info.extent.depth > 0U));
-
-    DEBUG_ASSERT(dimension_count > 0U)
-
     Image image{
-        .image_type = static_cast<VkImageType>(dimension_count - 1U),
+        .image_type = info.image_type,
         .format = info.format,
         .extent = image_extent,
         .usage_flags = info.usage_flags,
@@ -183,9 +176,9 @@ Handle<Image> ResourceManager::create_image(const ImageCreateInfo &info) {
         }
     } else {
         if (info.array_layer_count > 1U) {
-            image.view_type = static_cast<VkImageViewType>(dimension_count - 1U + 4U); // Array types values are always greater by 4 (except for VK_IMAGE_VIEW_TYPE_CUBE)
+            image.view_type = static_cast<VkImageViewType>(static_cast<u32>(info.image_type) + 4U); // Array types values are always greater by 4 (except for VK_IMAGE_VIEW_TYPE_CUBE)
         } else {
-            image.view_type = static_cast<VkImageViewType>(dimension_count - 1U);
+            image.view_type = static_cast<VkImageViewType>(static_cast<u32>(info.image_type) );
         }
     }
 

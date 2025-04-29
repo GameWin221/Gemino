@@ -10,6 +10,11 @@ struct SSAOPushConstant {
     f32 multiplier{};
     f32 noise_scale{};
 };
+struct SSAOBlurPushConstant {
+    i32 blur_dir{};
+    i32 screen_wh_combined{};
+    f32 blur_radius{};
+};
 
 class SSAOPass : public BasePass {
 public:
@@ -22,6 +27,11 @@ private:
     Handle<RenderTarget> m_render_target{};
     Handle<GraphicsPipeline> m_pipeline{};
     Handle<Descriptor> m_descriptor{};
+
+    Handle<Image> m_pingpong_image{};
+    Handle<GraphicsPipeline> m_blur_pipeline{};
+    Handle<RenderTarget> m_blur_rts[2]{};
+    Handle<Descriptor> m_blur_descriptors[2]{};
 };
 
 #endif

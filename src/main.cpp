@@ -23,6 +23,7 @@ int main(){
         .resizable = true
     });
 
+
     InputManager input(window);
 
     Renderer renderer(window, VSyncMode::Enabled);
@@ -33,12 +34,11 @@ int main(){
 
     auto bistro_scene = renderer.load_gltf_scene(SceneLoadInfo {
         .path = BISTRO_PATH,
-        .import_textures = false,
+        .import_textures = true,
         .import_materials = true,
         .lod_bias_vert_threshold = 10000u,
         .lod_bias = 0.8f
     });
-
     auto bistro_handle = world.instantiate_scene(bistro_scene);
 
     auto monkey_scene = renderer.load_gltf_scene(SceneLoadInfo {

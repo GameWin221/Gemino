@@ -96,7 +96,7 @@ void Renderer::init_screen_images(glm::uvec2 size) {
         .aspect_flags = VK_IMAGE_ASPECT_COLOR_BIT
     });
     m_shared.offscreen_sampler = m_api.rm->create_sampler(SamplerCreateInfo{
-        .filter = VK_FILTER_NEAREST,
+        .filter = VK_FILTER_LINEAR,
         .address_mode = VK_SAMPLER_ADDRESS_MODE_CLAMP_TO_EDGE
     });
 
@@ -410,6 +410,10 @@ void Renderer::set_config_ssao_multiplier(f32 value) {
 
 void Renderer::set_config_ssao_noise_scale_divider(i32 value) {
     m_shared.config_ssao_noise_scale_divider = value;
+}
+
+void Renderer::set_config_ssao_blur_radius(f32 value) {
+    m_shared.config_ssao_blur_radius = value;
 }
 
 void Renderer::set_ui_draw_callback(UIPassDrawFn draw_callback) {

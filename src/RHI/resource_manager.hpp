@@ -49,6 +49,7 @@ struct ImageCreateInfo {
     VkFormat format{};
     VkExtent3D extent{};
 
+    VkImageType image_type = VK_IMAGE_TYPE_2D;
     VkImageUsageFlags usage_flags{};
     VkImageAspectFlags aspect_flags{};
     VkImageCreateFlags create_flags{};

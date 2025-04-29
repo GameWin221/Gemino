@@ -124,6 +124,7 @@ public:
     void set_config_ssao_bias(f32 value);
     void set_config_ssao_multiplier(f32 value);
     void set_config_ssao_noise_scale_divider(i32 value);
+    void set_config_ssao_blur_radius(f32 value);
 
     void set_ui_draw_callback(UIPassDrawFn draw_callback);
 
