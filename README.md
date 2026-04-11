@@ -20,12 +20,18 @@ It's also my passion project for learning and experimenting with new graphics pr
 - Compatible with all Vulkan 1.2 devices
 - Simple parent<->children scene graph and scene management
 - GLTF Import
+- Bilateral SSAO
 
 # Build Instructions
 [See BUILD.md](BUILD.md)
 
 # Showcase
-Early tests of Two-Pass Occlusion Culling and LODs:
+
+### Bilateral SSAO tested on the Bistro scene 
+
+![SSAOWithTextures](/res/GeminoSSAODemo.png)
+
+### Early tests of Two-Pass Occlusion Culling and LODs
 
 Exactly 16'000'000 (400 x 100 x 400) monkeys and spheres.
 ![EarlyGPUOcclusionCullingTests](https://github.com/user-attachments/assets/ee851dfb-f828-41e5-a9b8-d6a64dc7fcc9)
