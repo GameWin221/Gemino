@@ -127,6 +127,8 @@ public:
     void set_config_ssao_noise_scale_divider(i32 value);
     void set_config_ssao_blur_radius(f32 value);
     void set_config_ssao_resolution_div(u32 value);
+    void set_config_ssao_use_bilateral(bool value);
+    void set_config_ssao_reconstruct_depth(bool value);
 
     void set_ui_draw_callback(UIPassDrawFn draw_callback);
 

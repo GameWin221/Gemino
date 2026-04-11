@@ -252,6 +252,8 @@ void Editor::draw_config_window(Renderer &renderer) {
     i32 ssao_noise_scale_divider = static_cast<i32>(shared.config_ssao_noise_scale_divider);
     f32 ssao_blur_radius = shared.config_ssao_blur_radius;
     i32 ssao_res_div = shared.config_ssao_resolution_div;
+    bool ssao_uses_bilateral = shared.config_ssao_use_bilateral;
+    bool ssao_reconstruct_depth = shared.config_ssao_reconstruct_depth;
 
     if(ImGui::SliderInt("SSAO Samples", &ssao_samples, 2, 64)) {
         renderer.set_config_ssao_samples(ssao_samples);
@@ -273,6 +275,12 @@ void Editor::draw_config_window(Renderer &renderer) {
     }
     if(ImGui::SliderInt("SSAO Resolution Divider", &ssao_res_div, 1, 4)) {
         renderer.set_config_ssao_resolution_div(ssao_res_div);
+    }
+    if(ImGui::Checkbox("SSAO Use Bilateral", &ssao_uses_bilateral)) {
+        renderer.set_config_ssao_use_bilateral(ssao_uses_bilateral);
+    }
+    if(ImGui::Checkbox("SSAO Reconstruct Depth", &ssao_reconstruct_depth)) {
+        renderer.set_config_ssao_reconstruct_depth(ssao_reconstruct_depth);
     }
 
     ImGui::End();

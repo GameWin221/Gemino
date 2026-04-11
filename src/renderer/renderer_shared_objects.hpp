@@ -26,6 +26,8 @@ struct RendererSharedObjects {
     f32 config_ssao_noise_scale_divider = 2.0f;
     f32 config_ssao_blur_radius = 1.5f;
     u32 config_ssao_resolution_div = 1u;
+    bool config_ssao_use_bilateral = true;
+    bool config_ssao_reconstruct_depth = false;
 
     u32 config_texture_anisotropy = 8U;
     float config_texture_mip_bias = 0.0f;

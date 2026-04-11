@@ -10,12 +10,16 @@ void SSAOPass::init(const RenderAPI &api, const RendererSharedObjects &shared, c
     });
     m_blur_descriptors[0] = api.rm->create_descriptor(DescriptorCreateInfo{
         .bindings {
-            DescriptorBindingCreateInfo{VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER}
+            DescriptorBindingCreateInfo{VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER},
+            DescriptorBindingCreateInfo{VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER},
+            DescriptorBindingCreateInfo{VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER},
         }
     });
     m_blur_descriptors[1] = api.rm->create_descriptor(DescriptorCreateInfo{
         .bindings {
-            DescriptorBindingCreateInfo{VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER}
+            DescriptorBindingCreateInfo{VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER},
+            DescriptorBindingCreateInfo{VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER},
+            DescriptorBindingCreateInfo{VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER},
         }
     });
 
@@ -68,6 +72,19 @@ void SSAOPass::init(const RenderAPI &api, const RendererSharedObjects &shared, c
                     .image_handle = shared.ssao_output_image,
                     .image_sampler = shared.offscreen_sampler
                 }
+            },
+            DescriptorBindingUpdateInfo {
+                .binding_index = 1u,
+                .image_info {
+                    .image_handle = shared.depth_image,
+                    .image_sampler = shared.offscreen_sampler
+                }
+            },
+            DescriptorBindingUpdateInfo {
+                .binding_index = 2u,
+                .buffer_info {
+                    .buffer_handle = shared.scene_camera_buffer
+                }
             }
         }
     });
@@ -79,6 +96,19 @@ void SSAOPass::init(const RenderAPI &api, const RendererSharedObjects &shared, c
                     .image_handle = m_pingpong_image,
                     .image_sampler = shared.offscreen_sampler
                 }
+            },
+            DescriptorBindingUpdateInfo {
+                .binding_index = 1u,
+                .image_info {
+                    .image_handle = shared.depth_image,
+                    .image_sampler = shared.offscreen_sampler
+                }
+            },
+            DescriptorBindingUpdateInfo {
+                .binding_index = 2u,
+                .buffer_info {
+                    .buffer_handle = shared.scene_camera_buffer
+                }
             }
         }
     });
@@ -86,7 +116,10 @@ void SSAOPass::init(const RenderAPI &api, const RendererSharedObjects &shared, c
     m_pipeline = api.rm->create_graphics_pipeline(GraphicsPipelineCreateInfo{
         .vertex_shader_path = "./shaders/fullscreen_tri.vert.spv",
         .fragment_shader_path = "./shaders/SSAO.frag.spv",
-        .fragment_constant_values { shared.config_ssao_samples },
+        .fragment_constant_values {
+            shared.config_ssao_samples,
+            static_cast<u32>(shared.config_ssao_reconstruct_depth)
+        },
         .push_constants_size = sizeof(SSAOPushConstant),
         .descriptors = { m_descriptor } ,
         .color_targets = {
@@ -100,7 +133,7 @@ void SSAOPass::init(const RenderAPI &api, const RendererSharedObjects &shared, c
 
     m_blur_pipeline = api.rm->create_graphics_pipeline(GraphicsPipelineCreateInfo{
         .vertex_shader_path = "./shaders/fullscreen_tri.vert.spv",
-        .fragment_shader_path = "./shaders/SSAO_blur.frag.spv",
+        .fragment_shader_path = shared.config_ssao_use_bilateral ? "./shaders/SSAO_bilateral.frag.spv" : "./shaders/SSAO_blur.frag.spv",
         //.fragment_constant_values { shared.config_ssao_samples },
         .push_constants_size = sizeof(SSAOBlurPushConstant),
         .descriptors = { m_blur_descriptors[0] } ,
@@ -187,6 +220,19 @@ void SSAOPass::resize(const RenderAPI &api, const RendererSharedObjects &shared,
                     .image_handle = shared.ssao_output_image,
                     .image_sampler = shared.offscreen_sampler
                 }
+            },
+            DescriptorBindingUpdateInfo {
+                .binding_index = 1u,
+                .image_info {
+                    .image_handle = shared.depth_image,
+                    .image_sampler = shared.offscreen_sampler
+                }
+            },
+            DescriptorBindingUpdateInfo {
+                .binding_index = 2u,
+                .buffer_info {
+                    .buffer_handle = shared.scene_camera_buffer
+                }
             }
         }
     });
@@ -197,6 +243,19 @@ void SSAOPass::resize(const RenderAPI &api, const RendererSharedObjects &shared,
                 .image_info {
                     .image_handle = m_pingpong_image,
                     .image_sampler = shared.offscreen_sampler
+                }
+            },
+            DescriptorBindingUpdateInfo {
+                .binding_index = 1u,
+                .image_info {
+                    .image_handle = shared.depth_image,
+                    .image_sampler = shared.offscreen_sampler
+                }
+            },
+            DescriptorBindingUpdateInfo {
+                .binding_index = 2u,
+                .buffer_info {
+                    .buffer_handle = shared.scene_camera_buffer
                 }
             }
         }
@@ -287,6 +346,97 @@ void SSAOPass::process(Handle<CommandList> cmd, const RenderAPI &api, const Rend
     api.draw_count(cmd, 3U),
     api.end_graphics_pipeline(cmd, m_pipeline);
 
+    if (true /*shared.config_ssao_use_blur*/) {
+            SSAOBlurPushConstant blur_pc {
+            .screen_wh_combined = static_cast<i32>(image_size.width | (image_size.height << 16)),
+            .blur_radius = shared.config_ssao_blur_radius
+        };
+
+        std::vector<VkPipelineStageFlags> pingpong_stages = { VK_PIPELINE_STAGE_COLOR_ATTACHMENT_OUTPUT_BIT, VK_PIPELINE_STAGE_FRAGMENT_SHADER_BIT };
+        std::vector<VkAccessFlags> pingpong_access_masks = { VK_ACCESS_COLOR_ATTACHMENT_WRITE_BIT, VK_ACCESS_SHADER_READ_BIT };
+        std::vector<VkImageLayout> pingpong_layouts = { VK_IMAGE_LAYOUT_COLOR_ATTACHMENT_OPTIMAL, VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL };
+        if (shared.config_ssao_use_bilateral) {
+            api.image_barrier(cmd, VK_PIPELINE_STAGE_COLOR_ATTACHMENT_OUTPUT_BIT, VK_PIPELINE_STAGE_TRANSFER_BIT, {
+                ImageBarrier{
+                    .image_handle = shared.ssao_output_image,
+                    .src_access_mask = VK_ACCESS_COLOR_ATTACHMENT_WRITE_BIT,
+                    .dst_access_mask = VK_ACCESS_TRANSFER_READ_BIT,
+                    .old_layout = VK_IMAGE_LAYOUT_COLOR_ATTACHMENT_OPTIMAL,
+                    .new_layout = VK_IMAGE_LAYOUT_TRANSFER_SRC_OPTIMAL
+                },
+            });
+            api.image_barrier(cmd, VK_PIPELINE_STAGE_FRAGMENT_SHADER_BIT, VK_PIPELINE_STAGE_TRANSFER_BIT, {
+                ImageBarrier{
+                    .image_handle = m_pingpong_image,
+                    .src_access_mask = VK_ACCESS_SHADER_READ_BIT,
+                    .dst_access_mask = VK_ACCESS_TRANSFER_WRITE_BIT,
+                    .old_layout = VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL,
+                    .new_layout = VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL
+                },
+            });
+            api.blit_image(cmd,
+                shared.ssao_output_image, VK_IMAGE_LAYOUT_TRANSFER_SRC_OPTIMAL,
+                m_pingpong_image, VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL,
+                VK_FILTER_NEAREST, {ImageBlit{}}
+            );
+            api.image_barrier(cmd, VK_PIPELINE_STAGE_TRANSFER_BIT, VK_PIPELINE_STAGE_COLOR_ATTACHMENT_OUTPUT_BIT, {
+                ImageBarrier{
+                    .image_handle = shared.ssao_output_image,
+                    .src_access_mask = VK_ACCESS_TRANSFER_READ_BIT,
+                    .dst_access_mask = VK_ACCESS_COLOR_ATTACHMENT_WRITE_BIT,
+                    .old_layout = VK_IMAGE_LAYOUT_TRANSFER_SRC_OPTIMAL,
+                    .new_layout = VK_IMAGE_LAYOUT_COLOR_ATTACHMENT_OPTIMAL
+                },
+            });
+            api.image_barrier(cmd, VK_PIPELINE_STAGE_TRANSFER_BIT, VK_PIPELINE_STAGE_FRAGMENT_SHADER_BIT, {
+                ImageBarrier{
+                    .image_handle = m_pingpong_image,
+                    .src_access_mask = VK_ACCESS_TRANSFER_WRITE_BIT,
+                    .dst_access_mask = VK_ACCESS_SHADER_READ_BIT,
+                    .old_layout = VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL,
+                    .new_layout = VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL
+                },
+            });
+
+            api.begin_graphics_pipeline(cmd, m_blur_pipeline, m_blur_rts[1], {RenderTargetClear{}}, RenderTargetClear{});
+            api.bind_descriptor(cmd, m_blur_pipeline, m_blur_descriptors[1], 0U);
+            api.push_constants(cmd, m_blur_pipeline, &blur_pc);
+            api.draw_count(cmd, 3U),
+            api.end_graphics_pipeline(cmd, m_blur_pipeline);
+        } else {
+            // 0 - horizontal, 1 - vertical
+            for (int dir = 0; dir <= 1; ++dir) {
+                api.image_barrier(cmd, pingpong_stages[dir], pingpong_stages[1 - dir], {
+                    ImageBarrier{
+                        .image_handle = shared.ssao_output_image,
+                        .src_access_mask = pingpong_access_masks[dir],
+                        .dst_access_mask = pingpong_access_masks[1 - dir],
+                        .old_layout = pingpong_layouts[dir],
+                        .new_layout = pingpong_layouts[1 - dir]
+                    },
+                });
+
+                blur_pc.blur_dir = dir;
+
+                api.begin_graphics_pipeline(cmd, m_blur_pipeline, m_blur_rts[dir], {RenderTargetClear{}}, RenderTargetClear{});
+                api.bind_descriptor(cmd, m_blur_pipeline, m_blur_descriptors[dir], 0U);
+                api.push_constants(cmd, m_blur_pipeline, &blur_pc);
+                api.draw_count(cmd, 3U),
+                api.end_graphics_pipeline(cmd, m_blur_pipeline);
+
+                api.image_barrier(cmd, pingpong_stages[dir], pingpong_stages[1 - dir], {
+                    ImageBarrier{
+                        .image_handle = m_pingpong_image,
+                        .src_access_mask = pingpong_access_masks[dir],
+                        .dst_access_mask = pingpong_access_masks[1 - dir],
+                        .old_layout = pingpong_layouts[dir],
+                        .new_layout = pingpong_layouts[1 - dir]
+                    },
+                });
+            }
+        }
+    }
+
     api.image_barrier(cmd, VK_PIPELINE_STAGE_FRAGMENT_SHADER_BIT, VK_PIPELINE_STAGE_EARLY_FRAGMENT_TESTS_BIT, {
         ImageBarrier{
             .image_handle = shared.depth_image,
@@ -296,44 +446,4 @@ void SSAOPass::process(Handle<CommandList> cmd, const RenderAPI &api, const Rend
             .new_layout = VK_IMAGE_LAYOUT_DEPTH_STENCIL_ATTACHMENT_OPTIMAL
         }
     });
-
-    SSAOBlurPushConstant blur_pc {
-        .screen_wh_combined = static_cast<i32>(image_size.width | (image_size.height << 16)),
-        .blur_radius = shared.config_ssao_blur_radius
-    };
-
-    std::vector<VkPipelineStageFlags> pingpong_stages = { VK_PIPELINE_STAGE_COLOR_ATTACHMENT_OUTPUT_BIT, VK_PIPELINE_STAGE_FRAGMENT_SHADER_BIT };
-    std::vector<VkAccessFlags> pingpong_access_masks = { VK_ACCESS_COLOR_ATTACHMENT_WRITE_BIT, VK_ACCESS_SHADER_READ_BIT };
-    std::vector<VkImageLayout> pingpong_layouts = { VK_IMAGE_LAYOUT_COLOR_ATTACHMENT_OPTIMAL, VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL };
-
-    // 0 - horizontal, 1 - vertical
-    for (int dir = 0; dir <= 1; ++dir) {
-        api.image_barrier(cmd, pingpong_stages[dir], pingpong_stages[1 - dir], {
-            ImageBarrier{
-                .image_handle = shared.ssao_output_image,
-                .src_access_mask = pingpong_access_masks[dir],
-                .dst_access_mask = pingpong_access_masks[1 - dir],
-                .old_layout = pingpong_layouts[dir],
-                .new_layout = pingpong_layouts[1 - dir]
-            },
-        });
-
-        blur_pc.blur_dir = dir;
-
-        api.begin_graphics_pipeline(cmd, m_blur_pipeline, m_blur_rts[dir], {RenderTargetClear{}}, RenderTargetClear{});
-        api.bind_descriptor(cmd, m_blur_pipeline, m_blur_descriptors[dir], 0U);
-        api.push_constants(cmd, m_blur_pipeline, &blur_pc);
-        api.draw_count(cmd, 3U),
-        api.end_graphics_pipeline(cmd, m_blur_pipeline);
-
-        api.image_barrier(cmd, pingpong_stages[dir], pingpong_stages[1 - dir], {
-            ImageBarrier{
-                .image_handle = m_pingpong_image,
-                .src_access_mask = pingpong_access_masks[dir],
-                .dst_access_mask = pingpong_access_masks[1 - dir],
-                .old_layout = pingpong_layouts[dir],
-                .new_layout = pingpong_layouts[1 - dir]
-            },
-        });
-    }
 }

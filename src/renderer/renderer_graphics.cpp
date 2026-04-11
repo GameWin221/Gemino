@@ -273,7 +273,6 @@ void Renderer::render_world(World &world, Handle<Camera> camera) {
 
             m_api.begin_query(frame.command_list, frame.gpu_pipeline_statistics.at(name).first);
         }
-
         if (registered_pass.enabled) {
             registered_pass.pass_ptr->process(frame.command_list, m_api, m_shared, world);
         }
